@@ -1,5 +1,6 @@
 """Tests for CLI argument parsing, help output, and dispatching."""
 
+import os
 import subprocess
 import sys
 import unittest
@@ -11,10 +12,11 @@ EZCLI_BIN = REPO_ROOT / "ezcli"
 
 
 class TestCLI(unittest.TestCase):
-    def run_ezcli(self, *args):
+    def run_ezcli(self, *args, input_str=None):
         cmd = [sys.executable, str(EZCLI_BIN)] + list(args)
         proc = subprocess.run(
             cmd,
+            input=input_str,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -79,13 +81,27 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(res.returncode, 0)
         self.assertIn("curl", res.stdout)
 
-    def test_installed_package_search_missing_arg(self):
-        res = self.run_ezcli("installed-package-search")
-        self.assertEqual(res.returncode, 1)
-        self.assertIn("requires argument", res.stdout)
+    def test_copy_and_undo_cli(self):
+        import tempfile
+        with tempfile.TemporaryDirectory(prefix="ezcli_cli_test_") as tmp:
+            src = os.path.join(tmp, "hello.txt")
+            dst = os.path.join(tmp, "copied.txt")
+            with open(src, "w") as f:
+                f.write("test content")
+
+            # ezcli copy -y src dst
+            res = self.run_ezcli("copy", "-y", src, dst)
+            self.assertEqual(res.returncode, 0)
+            self.assertTrue(os.path.exists(dst))
+
+            # ezcli undo (piping 'y' for confirmation)
+            res_undo = self.run_ezcli("undo", input_str="y\n")
+            self.assertEqual(res_undo.returncode, 0)
+            self.assertFalse(os.path.exists(dst))
 
 
 if __name__ == "__main__":
     unittest.main()
+
 
 

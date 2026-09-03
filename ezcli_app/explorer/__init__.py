@@ -1,0 +1,1 @@
+"""EasyCLI Explorer module."""

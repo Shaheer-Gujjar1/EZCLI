@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ezcli"
-version = "0.1.0"
+version = "0.2.0"
 description = "Terminal frontend wrapper for common Linux commands on Debian-based systems"
 readme = "README.md"
 authors = [{ name = "EasyCLI Contributors" }]
@@ -12,6 +12,7 @@ license = { text = "MIT" }
 requires-python = ">=3.8"
 dependencies = [
     "rich>=12.0.0",
+    "textual>=2.0.0",
 ]
 
 [project.scripts]

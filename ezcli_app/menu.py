@@ -63,6 +63,18 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
                 elif feature.subcommand == "installed-package-search" or feature.id == "installed_package_search":
                     term = args_values[0] if args_values else ""
                     renderer_fn(console, term)
+                elif feature.id == "choose_directory":
+                    from .explorer.explorer_app import run_choose_directory
+                    run_choose_directory("~")
+                elif feature.id == "copy":
+                    from .file_cli import run_cli_file_op
+                    run_cli_file_op("copy", [], console=console)
+                elif feature.id == "move":
+                    from .file_cli import run_cli_file_op
+                    run_cli_file_op("move", [], console=console)
+                elif feature.id == "undo":
+                    from .file_cli import run_cli_undo
+                    run_cli_undo(console=console)
                 else:
                     renderer_fn(console)
             except Exception as e:

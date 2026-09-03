@@ -9,10 +9,14 @@ if ! command -v python3 &>/dev/null; then
     sudo apt update && sudo apt install -y python3
 fi
 
-# Ensure python3-rich is installed (standard package on Debian/Ubuntu/Deepin)
+# Ensure python3-rich and python3-textual are installed
 python3 -c "import rich" 2>/dev/null || {
     echo "Installing python3-rich..."
     sudo apt update && sudo apt install -y python3-rich || pip3 install rich || pip install rich
+}
+python3 -c "import textual" 2>/dev/null || {
+    echo "Installing python3-textual..."
+    sudo apt install -y python3-textual 2>/dev/null || pip3 install textual 2>/dev/null || pip install textual 2>/dev/null || true
 }
 
 # Ensure emoji font is present

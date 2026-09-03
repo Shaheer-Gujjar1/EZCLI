@@ -137,8 +137,69 @@ ezcli help
 | 📄 | `ezcli logs [N]` | `journalctl -n N --no-pager` | Color-coded system logs by severity (errors red, warnings yellow, ok green). Defaults to 50 lines. |
 | 📋 | `ezcli installed-packages` | `apt list --installed`, `dpkg-query`, `flatpak list`, `snap list` | List all installed packages across system and desktop platforms (wraps `apt list --installed`). |
 | 🔎 | `ezcli installed-package-search <name>` | `apt list --installed \| grep -i <name>`, `dpkg-query` | Search installed packages and applications by name (wraps `apt list --installed \| grep -i <name>`). |
+| 📁 | `ezcli choose-directory [path]` | `explorer` | Graphical terminal file explorer with mouse navigation, file-type emojis, bookmarks, and subshell launcher. |
+| 📋 | `ezcli copy [src...] [dst]` | `cp -r` | Safe copy with interactive pickers, conflict policies (`ask`, `skip`, `overwrite`, `rename`), progress bars, and undo. |
+| 🚚 | `ezcli move [src...] [dst]` | `mv` | Safe move with integrity checksum verification for cross-filesystem moves and undo. |
+| ⏪ | `ezcli undo` | `undo` | Revert the most recent copy or move operation with safety checks (deletes only newly created files). |
 
 ---
+
+## 📁 Terminal File Explorer (`choose-directory`)
+
+EasyCLI includes a visual terminal file manager designed for beginners:
+```bash
+ezcli choose-directory
+```
+
+### Controls & Features
+- **Mouse Navigation**: Click any item to select/highlight; double-click a folder to enter.
+- **`[Enter]`**: Open/enter directory.
+- **`[Space]`**: Multi-select items.
+- **`[/]`**: Instant search-as-you-type filter.
+- **`[p]`**: Quick Places menu (`🏠 Home`, `📥 Downloads`, `📄 Documents`, `🖥️ Desktop`, `🕒 Recent`, `⭐ Bookmarks`).
+- **`[h]`**: Toggle hidden files (dotfiles).
+- **`[s]`**: Cycle sort order (`Name`, `Size`, `Date`).
+- **`[i]`**: Toggle item info sidebar (file size, permissions, owner, timestamps).
+- **`[b]`**: Bookmark the current directory.
+- **`[c]`**: Confirm chosen directory and open the Action Menu.
+- **`[q]`**: Quit explorer.
+
+### "Open Shell Here" & Parent Shells
+When you confirm a directory and choose **"Open shell here"**, EasyCLI spawns your default shell (`$SHELL`) directly in that directory. 
+> **Note**: In Linux, child processes cannot change the directory of their parent terminal shell. Running an embedded subshell allows you to work directly in the target directory. Type `exit` (or press `Ctrl+D`) at any time to return to your previous shell session.
+
+---
+
+## 📋 Safe Copy, Move & Undo Engine
+
+EasyCLI v0.2 provides safety-first file operations:
+
+### Interactive Picker Flow (No arguments)
+```bash
+ezcli copy
+ezcli move
+```
+1. Select source files/folders using `[Space]`, confirm with `[c]`.
+2. Browse to the destination directory and confirm with `[c]`.
+3. Review the preview card (items count, total size, collisions).
+4. Choose conflict policy if files exist (`ask`, `skip`, `overwrite`, `rename`).
+5. Confirm and watch the live progress bar.
+
+### Direct CLI Mode
+```bash
+ezcli copy file.txt /tmp/backup/
+ezcli move doc.pdf ~/Documents/
+ezcli copy -y image.png ~/Pictures/   # Skip confirmation
+```
+
+### Undoing Operations (`ezcli undo`)
+To safely revert the most recent copy or move:
+```bash
+ezcli undo
+```
+- **Moves**: Files are moved back to their original source paths.
+- **Copies**: Only files newly created at the destination are safely removed; pre-existing files are never touched.
+
 
 ## 🎨 Icon & Font Policy
 

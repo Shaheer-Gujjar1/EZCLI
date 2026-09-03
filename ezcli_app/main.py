@@ -148,6 +148,19 @@ def main() -> None:
         elif feature.id == "installed_package_search":
             term = " ".join(sub_args)
             renderers.render_installed_package_search(console, term)
+        elif feature.id == "choose_directory":
+            from .explorer.explorer_app import run_choose_directory
+            initial_dir = sub_args[0] if sub_args else "~"
+            run_choose_directory(initial_dir)
+        elif feature.id == "copy":
+            from .file_cli import run_cli_file_op
+            run_cli_file_op("copy", sub_args, console=console)
+        elif feature.id == "move":
+            from .file_cli import run_cli_file_op
+            run_cli_file_op("move", sub_args, console=console)
+        elif feature.id == "undo":
+            from .file_cli import run_cli_undo
+            run_cli_undo(console=console)
     except BrokenPipeError:
         try:
             import os

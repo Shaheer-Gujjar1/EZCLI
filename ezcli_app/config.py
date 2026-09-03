@@ -181,6 +181,67 @@ FEATURES: List[FeatureTemplate] = [
         ],
         renderer_name="render_installed_package_search",
     ),
+    FeatureTemplate(
+        id="choose_directory",
+        subcommand="choose-directory",
+        title="File Explorer",
+        icon="📁",
+        description="Modern visual terminal file explorer with mouse support and action menu",
+        wrapped_commands=["explorer"],
+        arguments=[
+            ArgumentDef(
+                name="path",
+                help="Starting directory to browse",
+                required=False,
+                default="~",
+            )
+        ],
+        renderer_name="run_choose_directory",
+    ),
+    FeatureTemplate(
+        id="copy",
+        subcommand="copy",
+        title="Safe Copy",
+        icon="📋",
+        description="Safe copy with interactive pickers, conflict policies, progress bars, and undo",
+        wrapped_commands=["cp -r"],
+        arguments=[
+            ArgumentDef(
+                name="args",
+                help="Optional [sources...] [destination]",
+                required=False,
+                default="",
+            )
+        ],
+        renderer_name="run_cli_copy",
+    ),
+    FeatureTemplate(
+        id="move",
+        subcommand="move",
+        title="Safe Move",
+        icon="🚚",
+        description="Safe move with checksum verification for cross-filesystem moves and undo",
+        wrapped_commands=["mv"],
+        arguments=[
+            ArgumentDef(
+                name="args",
+                help="Optional [sources...] [destination]",
+                required=False,
+                default="",
+            )
+        ],
+        renderer_name="run_cli_move",
+    ),
+    FeatureTemplate(
+        id="undo",
+        subcommand="undo",
+        title="Undo Operation",
+        icon="⏪",
+        description="Revert the most recent copy or move operation with safety checks",
+        wrapped_commands=["undo"],
+        arguments=[],
+        renderer_name="run_cli_undo",
+    ),
 ]
 
 # Lookup map by subcommand
