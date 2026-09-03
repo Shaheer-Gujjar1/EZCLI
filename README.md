@@ -1,30 +1,30 @@
-# EasyCLI (`ezcli`) v0.1
+# EasyCLI (`ezcli`) v0.2
 
-**EasyCLI** is a terminal-based frontend wrapper for common Linux commands built specifically for beginners on Debian-based systems. It wraps complex and verbose Linux commands into clean, color-coded, and intuitive terminal cards and tables.
+**EasyCLI** is a beginner-friendly terminal frontend wrapper for Linux commands built specifically for Debian-based systems. It simplifies complex and verbose Linux tasks into beautiful, color-coded terminal cards, interactive menus, a modern graphical file explorer, and safety-first file operations with undo.
 
 ---
 
 ## 🎯 Target Platforms
 
 EasyCLI is tailored for Debian-based distributions:
-- **Debian**
+- **Linux Mint**
 - **Ubuntu**
+- **Debian**
 - **Zorin OS**
 - **Deepin**
 - **UbuntuDDE**
-- Linux Mint, Pop!_OS, Elementary OS, and other Debian/Ubuntu derivatives.
+- Pop!_OS, Elementary OS, and other Debian/Ubuntu derivatives.
 
 Distributions are automatically detected via `/etc/os-release` and verified for standard Debian utilities (`apt`, `dpkg`, and `systemd`).
 
 ---
 
-## 🛡️ Strict v0.1 Read-Only Guarantee
+## 🛡️ Safety & Reliability Philosophy
 
-**v0.1 is 100% read-only:**
-- Never modifies system configuration, services, networks, users, or files.
-- Never requires root privileges or invokes `sudo`.
-- Never writes caches or creates temporary state files.
-- Command execution is strictly defensive: missing tools, empty outputs, or permission limits are handled gracefully with friendly explanations rather than tracebacks.
+- **System Inspection Commands:** 100% read-only. Never modifies services, network, packages, or files. Never requires root privileges or invokes `sudo`.
+- **File Operations (`copy`, `move`):** Always preview before write. Never silently overwrites existing files. Offers conflict policies (`ask`, `skip`, `overwrite`, `rename`). Cross-filesystem moves verify file sizes and SHA256 checksums before removing source items.
+- **Reversible Undo (`ezcli undo`):** Reverts the most recent copy or move. For copies, deletes only newly created destination files (pre-existing files are never touched).
+- **Graceful Fault Tolerance:** Missing tools, empty outputs, or permission limits are handled with friendly diagnostic panels rather than crashes or Python tracebacks.
 
 ---
 
@@ -138,9 +138,11 @@ ezcli help
 | 📋 | `ezcli installed-packages` | `apt list --installed`, `dpkg-query`, `flatpak list`, `snap list` | List all installed packages across system and desktop platforms (wraps `apt list --installed`). |
 | 🔎 | `ezcli installed-package-search <name>` | `apt list --installed \| grep -i <name>`, `dpkg-query` | Search installed packages and applications by name (wraps `apt list --installed \| grep -i <name>`). |
 | 📁 | `ezcli choose-directory [path]` | `explorer` | Graphical terminal file explorer with mouse navigation, file-type emojis, bookmarks, and subshell launcher. |
-| 📋 | `ezcli copy [src...] [dst]` | `cp -r` | Safe copy with interactive pickers, conflict policies (`ask`, `skip`, `overwrite`, `rename`), progress bars, and undo. |
-| 🚚 | `ezcli move [src...] [dst]` | `mv` | Safe move with integrity checksum verification for cross-filesystem moves and undo. |
-| ⏪ | `ezcli undo` | `undo` | Revert the most recent copy or move operation with safety checks (deletes only newly created files). |
+| 📋 | `ezcli copy` | `cp` | Choose file(s) or folder(s) to copy using the mini file explorer and stage to clipboard. |
+| 🚚 | `ezcli move` | `mv` | Choose file(s) or folder(s) to move using the mini file explorer and stage to clipboard. |
+| 📥 | `ezcli paste` | `paste` | Choose destination folder using the mini explorer, preview summary, confirm with y/n, and paste. |
+| ⏪ | `ezcli undo` | `undo` | Revert the most recent paste operation with preview and confirmation. |
+| ⏩ | `ezcli redo` | `redo` | Re-apply the most recently undone operation with preview and confirmation. |
 
 ---
 
@@ -168,37 +170,64 @@ ezcli choose-directory
 When you confirm a directory and choose **"Open shell here"**, EasyCLI spawns your default shell (`$SHELL`) directly in that directory. 
 > **Note**: In Linux, child processes cannot change the directory of their parent terminal shell. Running an embedded subshell allows you to work directly in the target directory. Type `exit` (or press `Ctrl+D`) at any time to return to your previous shell session.
 
+### Direct `cd` Shell Integration (`ezcd`)
+If you would like a command that directly `cd`s your current shell into the chosen directory without launching a subshell, add this 3-line function to your `~/.bashrc` (or `~/.zshrc`):
+```bash
+ezcd() {
+    local target
+    target=$(ezcli choose-directory -p "$@")
+    [ -d "$target" ] && cd "$target"
+}
+```
+Reload with `source ~/.bashrc`. Now running `ezcd` opens the visual file manager, and pressing `c` immediately changes your shell's working directory!
+
 ---
 
-## 📋 Safe Copy, Move & Undo Engine
+## 📋 Visual Copy, Move, Paste, Undo & Redo
 
-EasyCLI v0.2 provides safety-first file operations:
+EasyCLI v0.2 makes terminal file operations as simple as a graphical file manager:
 
-### Interactive Picker Flow (No arguments)
+### 1. Copy Files or Folders
 ```bash
 ezcli copy
+```
+- Launches the mini file explorer in multi-select mode.
+- Highlight items, press `[Space]` to select, then press `[c]` or `[Enter]` to confirm.
+- Selected items are staged onto your EasyCLI clipboard with a confirmation card.
+
+### 2. Move / Cut Files or Folders
+```bash
 ezcli move
 ```
-1. Select source files/folders using `[Space]`, confirm with `[c]`.
-2. Browse to the destination directory and confirm with `[c]`.
-3. Review the preview card (items count, total size, collisions).
-4. Choose conflict policy if files exist (`ask`, `skip`, `overwrite`, `rename`).
-5. Confirm and watch the live progress bar.
+- Launches the mini file explorer to select files/folders to move.
+- Selected items are staged for moving.
 
-### Direct CLI Mode
+### 3. Paste to Destination
 ```bash
-ezcli copy file.txt /tmp/backup/
-ezcli move doc.pdf ~/Documents/
-ezcli copy -y image.png ~/Pictures/   # Skip confirmation
+ezcli paste
 ```
+- Launches the mini explorer to choose your destination directory.
+- After selecting, displays a **Beautiful Summary Card** showing total items, combined size, destination, and any existing file conflicts.
+- Prompts for conflict policy if items exist (`ask`, `skip`, `overwrite`, `rename`).
+- Asks for `[y/N]` confirmation before touching any files.
+- Executes with a live per-file progress bar.
 
-### Undoing Operations (`ezcli undo`)
-To safely revert the most recent copy or move:
+### 4. Undo (`ezcli undo`)
+To safely revert your most recent paste operation:
 ```bash
 ezcli undo
 ```
+- Displays an undo preview card and asks for `[y/N]` confirmation.
 - **Moves**: Files are moved back to their original source paths.
-- **Copies**: Only files newly created at the destination are safely removed; pre-existing files are never touched.
+- **Copies**: Only files newly created at destination are removed; pre-existing files are never touched.
+
+### 5. Redo (`ezcli redo`)
+If you change your mind and want to re-apply an undone operation:
+```bash
+ezcli redo
+```
+- Displays a redo preview card and asks for `[y/N]` confirmation.
+- Re-applies the operation and updates the undo history.
 
 
 ## 🎨 Icon & Font Policy
@@ -216,29 +245,33 @@ EasyCLI is designed with a layered, decoupled architecture:
 ```
 EZCLI/
 ├── ezcli                  # Executable entrypoint script
-├── pyproject.toml         # Packaging configuration
+├── pyproject.toml         # Packaging configuration (v0.2.0)
+├── setup.py               # Setup script
+├── install.sh             # 1-step deployment script
 ├── README.md              # Documentation and guide
-├── tests/                 # Unit test suite
+├── tests/                 # Comprehensive unit test suite (35 tests)
 │   ├── test_distro.py     # Distro parser and derivative detection tests
-│   ├── test_collectors.py # Defensive data collection tests
-│   └── test_cli.py        # CLI dispatch and argument validation tests
+│   ├── test_collectors.py # System inspection and installed package tests
+│   ├── test_file_ops.py   # Copy, move, cross-filesystem, and conflict tests
+│   ├── test_undo.py       # Reversible undo engine verification
+│   └── test_cli.py        # CLI dispatch, flags, and end-to-end flow tests
 └── ezcli_app/
-    ├── __init__.py        # Package version
-    ├── config.py          # Declarative FeatureTemplate definitions
+    ├── __init__.py        # Package version (__version__ = "0.2.0")
+    ├── config.py          # Declarative FeatureTemplate definitions & aliases
     ├── distro.py          # /etc/os-release parsing and Debian validation
     ├── emoji.py           # Font capability and UTF-8 detection
-    ├── collectors.py      # Read-only defensive subprocess execution wrappers
+    ├── collectors.py      # Subprocess execution and multi-platform queries
     ├── renderers.py       # Rich visual layout and box-drawing renderers
-    ├── menu.py            # Interactive TUI menu and navigation
-    └── main.py            # Subcommand parser and dispatcher
+    ├── menu.py            # Interactive TUI menu and keyboard navigation
+    ├── main.py            # Subcommand parser and dispatcher
+    ├── file_engine.py     # Safe file operations, SHA256 checks, conflict policies
+    ├── file_cli.py        # Interactive copy, move, and undo CLI handlers
+    ├── undo.py            # Reversible undo history engine (~/.local/share/ezcli)
+    └── explorer/          # Textual TUI File Explorer
+        ├── file_icons.py  # Emoji mapping per file extension and MIME type
+        ├── places.py      # Bookmarks and standard quick places
+        └── explorer_app.py# Reusable file manager and directory picker
 ```
-
-### Adding New Features for v0.2
-To add a new subcommand:
-1. Define a `FeatureTemplate` in `ezcli_app/config.py`.
-2. Add a read-only collector in `ezcli_app/collectors.py`.
-3. Add a Rich renderer in `ezcli_app/renderers.py`.
-4. Register the renderer in `ezcli_app/main.py` and `ezcli_app/menu.py`.
 
 ---
 
@@ -249,4 +282,4 @@ To run the automated unit test suite:
 python3 -m unittest discover tests/
 ```
 
-All 22 unit tests validate distro detection, collector safety, command parsing, and CLI flags.
+All 35 unit tests validate distro detection, collector safety, file operations, conflict policies, cross-filesystem moves, undo engine, command parsing, and CLI flags.

@@ -83,6 +83,35 @@ class TestUndoEngine(unittest.TestCase):
         # Pre-existing file at destination must NOT be deleted
         self.assertTrue(os.path.exists(dst_pre))
 
+    def test_redo_move(self):
+        from ezcli_app.undo import execute_redo
+        # Move file
+        success, msg, executed = execute_file_operation("move", [self.file1], self.dst_dir)
+        self.assertTrue(success)
+        last_op = peek_last_operation()
+
+        # Undo
+        u_success, u_msg, reverted = execute_undo(last_op)
+        self.assertTrue(u_success)
+        self.assertTrue(os.path.exists(self.file1))
+
+        # Redo
+        r_success, r_msg, reapplied = execute_redo(last_op)
+        self.assertTrue(r_success)
+        self.assertFalse(os.path.exists(self.file1))
+        self.assertTrue(os.path.exists(os.path.join(self.dst_dir, "doc.txt")))
+
+    def test_clipboard_lifecycle(self):
+        from ezcli_app.undo import clear_clipboard, get_clipboard, set_clipboard
+        set_clipboard("copy", [self.file1])
+        clip = get_clipboard()
+        self.assertIsNotNone(clip)
+        self.assertEqual(clip["action"], "copy")
+        self.assertIn(self.file1, clip["items"])
+
+        clear_clipboard()
+        self.assertIsNone(get_clipboard())
+
 
 if __name__ == "__main__":
     unittest.main()

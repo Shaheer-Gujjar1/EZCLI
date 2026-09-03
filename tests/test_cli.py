@@ -81,23 +81,25 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(res.returncode, 0)
         self.assertIn("curl", res.stdout)
 
-    def test_copy_and_undo_cli(self):
-        import tempfile
-        with tempfile.TemporaryDirectory(prefix="ezcli_cli_test_") as tmp:
-            src = os.path.join(tmp, "hello.txt")
-            dst = os.path.join(tmp, "copied.txt")
-            with open(src, "w") as f:
-                f.write("test content")
+    def test_paste_empty_clipboard(self):
+        from ezcli_app.undo import clear_clipboard
+        clear_clipboard()
+        res = self.run_ezcli("paste")
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("clipboard is currently empty", res.stdout.lower())
 
-            # ezcli copy -y src dst
-            res = self.run_ezcli("copy", "-y", src, dst)
-            self.assertEqual(res.returncode, 0)
-            self.assertTrue(os.path.exists(dst))
+    def test_undo_and_redo_empty_states(self):
+        from ezcli_app.undo import save_redo_history, save_undo_history
+        save_undo_history([])
+        save_redo_history([])
 
-            # ezcli undo (piping 'y' for confirmation)
-            res_undo = self.run_ezcli("undo", input_str="y\n")
-            self.assertEqual(res_undo.returncode, 0)
-            self.assertFalse(os.path.exists(dst))
+        res_undo = self.run_ezcli("undo")
+        self.assertEqual(res_undo.returncode, 0)
+        self.assertIn("no recent", res_undo.stdout.lower())
+
+        res_redo = self.run_ezcli("redo")
+        self.assertEqual(res_redo.returncode, 0)
+        self.assertIn("no undone", res_redo.stdout.lower())
 
 
 if __name__ == "__main__":

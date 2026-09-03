@@ -1,4 +1,4 @@
-"""Interactive CLI handlers for copy, move, and undo operations in EasyCLI v0.2."""
+"""Interactive CLI handlers for copy, move, paste, undo, and redo in EasyCLI v0.2."""
 
 import os
 import sys
@@ -20,24 +20,34 @@ from rich.table import Table
 
 from .collectors import format_bytes
 from .explorer.explorer_app import (
-    run_choose_directory,
     run_destination_picker,
     run_source_picker,
 )
-from .file_engine import execute_file_operation, preview_file_operation
-from .undo import execute_undo, peek_last_operation, pop_last_operation
+from .explorer.file_icons import get_file_icon
+from .file_engine import execute_file_operation, preview_file_operation, scan_source_items
+from .undo import (
+    clear_clipboard,
+    execute_redo,
+    execute_undo,
+    get_clipboard,
+    peek_last_operation,
+    peek_redo_operation,
+    pop_last_operation,
+    pop_redo_operation,
+    push_redo_operation,
+    record_operation,
+    set_clipboard,
+)
 
 
 def prompt_conflict_resolution(console: Console, filename: str) -> str:
     """Prompt user how to handle an individual colliding file."""
-    console.print(f"\n[bold yellow]Conflict:[/bold yellow] File '[bold cyan]{filename}[/bold cyan]' already exists at destination.")
+    console.print(f"\n[bold yellow]⚠️ Conflict:[/bold yellow] Item '[bold cyan]{filename}[/bold cyan]' already exists at destination.")
     choice = Prompt.ask(
-        "Choose action",
+        "Choose resolution: [bold]o[/bold]verwrite, [bold]s[/bold]kip, [bold]r[/bold]ename, [bold]a[/bold]bort",
         choices=["o", "s", "r", "a"],
         default="o",
-        show_choices=False,
     )
-    # o=overwrite, s=skip, r=rename, a=abort
     mapping = {
         "o": "overwrite",
         "s": "skip",
@@ -47,48 +57,95 @@ def prompt_conflict_resolution(console: Console, filename: str) -> str:
     return mapping.get(choice.lower(), "skip")
 
 
-def run_cli_file_op(action: str, args: List[str], console: Optional[Console] = None) -> None:
-    """Run copy or move flow with picker or CLI arguments."""
+# ==============================================================================
+# Copy & Move Staging
+# ==============================================================================
+def run_cli_stage(action: str, console: Optional[Console] = None) -> None:
+    """Launch the mini explorer to choose files/folders to copy or move."""
+    console = console or Console()
+    icon = "📋" if action == "copy" else "🚚"
+    border_color = "cyan" if action == "copy" else "yellow"
+
+    # Launch mini explorer picker
+    selected_items = run_source_picker()
+    if not selected_items:
+        console.print("[dim]No items selected. Nothing added to clipboard.[/dim]")
+        return
+
+    # Stage to clipboard
+    set_clipboard(action, selected_items)
+
+    # Scan details for summary card
+    items, total_bytes, errors = scan_source_items(selected_items)
+
+    table = Table(box=None, show_header=False, padding=(0, 2))
+    table.add_column("Key", style="bold cyan", width=20)
+    table.add_column("Value", style="white")
+
+    action_label = f"{icon} COPY (Ready to Paste)" if action == "copy" else f"{icon} MOVE / CUT (Ready to Paste)"
+    table.add_row("Action", action_label)
+    table.add_row("Total Items Staged", str(len(items)))
+    table.add_row("Combined Size", format_bytes(total_bytes))
+
+    # Format item lines with file-type emojis
+    item_lines = []
+    for it in items[:6]:
+        item_icon = get_file_icon(it["name"], is_dir=it["is_dir"])
+        item_lines.append(f"  {item_icon} {it['name']} [dim]({it['size_str']})[/dim]")
+    if len(items) > 6:
+        item_lines.append(f"  [dim]... and {len(items) - 6} more item(s)[/dim]")
+
+    table.add_row("Staged Items", "\n".join(item_lines))
+
+    hint_box = (
+        f"\n[bold green]👉 Next Step:[/bold green]\n"
+        f"   Run [bold cyan]ezcli paste[/bold cyan] to choose your destination directory and paste!"
+    )
+
+    console.print(
+        Panel(
+            table,
+            title=f"{icon} [bold]EasyCLI Clipboard[/bold]",
+            subtitle=hint_box,
+            border_style=border_color,
+            box=box.ROUNDED,
+            padding=(1, 1),
+        )
+    )
+
+
+# ==============================================================================
+# Paste Flow
+# ==============================================================================
+def run_cli_paste(console: Optional[Console] = None) -> None:
+    """Launch destination explorer to choose destination and execute paste."""
     console = console or Console()
 
-    # Parse --yes / -y flag
-    auto_yes = False
-    clean_args: List[str] = []
-    for a in args:
-        if a in ("-y", "--yes"):
-            auto_yes = True
-        else:
-            clean_args.append(a)
-
-    sources: List[str] = []
-    destination: str = ""
-
-    # Flow A: No arguments -> Two-stage Picker Flow
-    if len(clean_args) < 2:
+    # Check clipboard
+    clip = get_clipboard()
+    if not clip or not clip.get("items"):
         console.print(
             Panel(
-                f"[bold cyan]Interactive {action.capitalize()} Picker[/bold cyan]\n"
-                f"1. Select files or folders using [bold yellow][Space][/bold yellow]\n"
-                f"2. Confirm with [bold yellow][c][/bold yellow] or [bold yellow][Enter][/bold yellow]\n"
-                f"3. Select destination directory in the second step",
+                "📋 [bold yellow]Your clipboard is currently empty![/bold yellow]\n\n"
+                "💡 [bold]How to use EasyCLI Copy & Paste:[/bold]\n"
+                "  1. Run [bold cyan]ezcli copy[/bold cyan] or [bold cyan]ezcli move[/bold cyan] to choose files/folders with the mini explorer.\n"
+                "  2. Run [bold cyan]ezcli paste[/bold cyan] to choose the destination folder!",
+                title="[bold yellow]Clipboard Empty[/bold yellow]",
+                border_style="yellow",
                 box=box.ROUNDED,
-                border_style="cyan",
             )
         )
-        sources = run_source_picker()
-        if not sources:
-            console.print("[yellow]No source items selected. Operation cancelled.[/yellow]")
-            return
+        return
 
-        destination = run_destination_picker()
-        if not destination:
-            console.print("[yellow]No destination directory selected. Operation cancelled.[/yellow]")
-            return
+    action = clip.get("action", "copy")
+    sources = clip.get("items", [])
+    icon = "📋" if action == "copy" else "🚚"
 
-    # Flow B: Arguments provided -> Direct CLI mode
-    else:
-        sources = clean_args[:-1]
-        destination = clean_args[-1]
+    # Launch mini explorer to choose destination directory
+    destination = run_destination_picker()
+    if not destination:
+        console.print("[dim]Paste cancelled. Staged items remain safely on your clipboard.[/dim]")
+        return
 
     # Generate Preview
     preview = preview_file_operation(action, sources, destination)
@@ -96,65 +153,64 @@ def run_cli_file_op(action: str, args: List[str], console: Optional[Console] = N
         for err in preview["errors"]:
             console.print(f"[bold red]Warning:[/bold red] {err}")
         if not preview["items"]:
-            console.print(f"[bold red]No valid items found to {action}. Aborted.[/bold red]")
+            console.print(f"[bold red]No valid items found to paste. Aborted.[/bold red]")
             return
 
-    # Display Preview Card
+    # Preview Summary Card
     table = Table(box=None, show_header=False, padding=(0, 2))
     table.add_column("Key", style="bold cyan", width=18)
     table.add_column("Value", style="white")
 
-    table.add_row("Operation", f"[bold green]{action.upper()}[/bold green]")
+    table.add_row("Operation", f"[bold green]{icon} {action.upper()}[/bold green]")
     table.add_row("Total Items", str(preview["count"]))
     table.add_row("Total Size", preview["total_size_str"])
-    table.add_row("Destination", f"[bold cyan]{preview['destination']}[/bold cyan]")
+    table.add_row("Destination", f"[bold cyan]📁 {preview['destination']}[/bold cyan]")
 
-    items_summary = ", ".join([item["name"] for item in preview["items"][:5]])
+    items_summary = []
+    for it in preview["items"][:5]:
+        it_icon = get_file_icon(it["name"], is_dir=it["is_dir"])
+        items_summary.append(f"{it_icon} {it['name']} ({it['size_str']})")
     if len(preview["items"]) > 5:
-        items_summary += f" ... (+{len(preview['items']) - 5} more)"
-    table.add_row("Selected Items", items_summary)
+        items_summary.append(f"... (+{len(preview['items']) - 5} more)")
+    table.add_row("Items to Paste", "\n".join(items_summary))
 
     collisions = preview.get("collisions", [])
     if collisions:
         table.add_row(
             "Collisions",
-            f"[bold yellow]{len(collisions)} file(s) already exist at destination![/bold yellow]",
+            f"[bold yellow]⚠️ {len(collisions)} item(s) already exist at destination![/bold yellow]",
         )
 
     panel = Panel(
         table,
-        title=f"📋 [bold]{action.capitalize()} Preview[/bold]",
-        border_style="cyan",
+        title=f"{icon} [bold]{action.capitalize()} Summary[/bold]",
+        border_style="cyan" if action == "copy" else "yellow",
         box=box.ROUNDED,
         padding=(1, 1),
     )
     console.print(panel)
 
-    # Conflict Policy
+    # Conflict Policy if collisions exist
     conflict_policy = "ask"
     if collisions:
-        if not auto_yes:
-            console.print("[yellow]Some items already exist at the destination.[/yellow]")
-            policy_choice = Prompt.ask(
-                "Select conflict policy: [bold]a[/bold]sk per file, [bold]s[/bold]kip, [bold]o[/bold]verwrite, [bold]r[/bold]ename",
-                choices=["a", "s", "o", "r"],
-                default="a",
-            ).lower()
-            conflict_policy = {
-                "a": "ask",
-                "s": "skip",
-                "o": "overwrite",
-                "r": "rename",
-            }.get(policy_choice, "ask")
-        else:
-            conflict_policy = "skip"
+        console.print("\n[yellow]Some items already exist at the destination directory.[/yellow]")
+        policy_choice = Prompt.ask(
+            "Select resolution policy: [bold]a[/bold]sk per item, [bold]s[/bold]kip, [bold]o[/bold]verwrite, [bold]r[/bold]ename",
+            choices=["a", "s", "o", "r"],
+            default="a",
+        ).lower()
+        conflict_policy = {
+            "a": "ask",
+            "s": "skip",
+            "o": "overwrite",
+            "r": "rename",
+        }.get(policy_choice, "ask")
 
-    # Confirmation
-    if not auto_yes:
-        confirmed = Confirm.ask(f"Proceed with {action}?", default=True)
-        if not confirmed:
-            console.print("[dim]Operation cancelled by user.[/dim]")
-            return
+    # Confirmation Prompt
+    confirmed = Confirm.ask(f"Proceed with {action}?", default=True)
+    if not confirmed:
+        console.print("[dim]Paste cancelled by user. Items remain safely on your clipboard.[/dim]")
+        return
 
     # Execute with Live Progress Bar
     total_items = preview["count"]
@@ -168,7 +224,7 @@ def run_cli_file_op(action: str, args: List[str], console: Optional[Console] = N
         TimeRemainingColumn(),
         console=console,
     ) as progress:
-        task_id = progress.add_task(f"[cyan]{action.capitalize()}ing items...[/cyan]", total=total_items)
+        task_id = progress.add_task(f"[cyan]Pasting items...[/cyan]", total=total_items)
 
         def on_progress(cur_idx, tot_items, name, cur_bytes, tot_bytes):
             progress.update(
@@ -187,12 +243,16 @@ def run_cli_file_op(action: str, args: List[str], console: Optional[Console] = N
         )
 
     if success:
+        # If move, clear clipboard so items aren't moved twice
+        if action == "move":
+            clear_clipboard()
+
         console.print(
             Panel(
                 f"[bold green]✔ {msg}[/bold green]\n\n"
-                f"[dim]💡 Operation logged to undo history. To revert, run:[/dim]\n"
-                f"   [bold cyan]ezcli undo[/bold cyan]",
-                title="[bold green]Success[/bold green]",
+                f"💡 [bold]Need to undo?[/bold]\n"
+                f"   Run [bold cyan]ezcli undo[/bold cyan] to safely revert this paste operation at any time.",
+                title="[bold green]🎉 Paste Complete[/bold green]",
                 border_style="green",
                 box=box.ROUNDED,
             )
@@ -201,37 +261,45 @@ def run_cli_file_op(action: str, args: List[str], console: Optional[Console] = N
         console.print(f"[bold red]Failed:[/bold red] {msg}")
 
 
+# ==============================================================================
+# Undo & Redo Handlers
+# ==============================================================================
 def run_cli_undo(console: Optional[Console] = None) -> None:
-    """Inspect and revert the most recent file operation."""
+    """Revert the most recent paste operation."""
     console = console or Console()
     last_op = peek_last_operation()
 
     if not last_op:
         console.print(
             Panel(
-                "[yellow]No recent copy or move operations found in the undo log.[/yellow]",
+                "ℹ️ [yellow]No recent paste operations found to undo.[/yellow]",
                 box=box.ROUNDED,
                 border_style="yellow",
-                title="Undo History",
+                title="[bold]Undo History[/bold]",
             )
         )
         return
 
-    # Show preview of operation to undo
     table = Table(box=None, show_header=False, padding=(0, 2))
-    table.add_column("Property", style="bold cyan", width=16)
+    table.add_column("Property", style="bold cyan", width=18)
     table.add_column("Value", style="white")
 
     action = last_op.get("action", "unknown").upper()
     timestamp = last_op.get("timestamp", "unknown")
     items = last_op.get("items", [])
 
-    table.add_row("Operation", f"[bold yellow]{action}[/bold yellow]")
+    table.add_row("Operation to Revert", f"[bold yellow]{action}[/bold yellow]")
     table.add_row("Timestamp", timestamp)
     table.add_row("Total Items", str(len(items)))
 
-    sample_items = [f"{os.path.basename(i.get('dst', ''))} (from {i.get('src', '')})" for i in items[:4]]
-    table.add_row("Revert Details", "\n".join(sample_items))
+    sample_items = []
+    for i in items[:4]:
+        name = os.path.basename(i.get("dst", ""))
+        sample_items.append(f"  • {name} [dim](from {i.get('src', '')})[/dim]")
+    if len(items) > 4:
+        sample_items.append(f"  [dim]... and {len(items) - 4} more[/dim]")
+
+    table.add_row("Revert Items", "\n".join(sample_items))
 
     panel = Panel(
         table,
@@ -247,13 +315,18 @@ def run_cli_undo(console: Optional[Console] = None) -> None:
         console.print("[dim]Undo cancelled.[/dim]")
         return
 
-    # Execute undo
     success, msg, reverted = execute_undo(last_op)
     if success:
+        # Move operation from undo stack to redo stack
         pop_last_operation()
+        push_redo_operation(last_op)
+
         console.print(
             Panel(
-                f"[bold green]✔ Undo Successful![/bold green]\n\n{msg}",
+                f"[bold green]✔ Undo Successful![/bold green]\n\n"
+                f"{msg}\n\n"
+                f"💡 [bold]Changed your mind?[/bold]\n"
+                f"   Run [bold cyan]ezcli redo[/bold cyan] to re-apply this operation.",
                 title="[bold green]Reverted[/bold green]",
                 border_style="green",
                 box=box.ROUNDED,
@@ -261,3 +334,75 @@ def run_cli_undo(console: Optional[Console] = None) -> None:
         )
     else:
         console.print(f"[bold red]Undo Error:[/bold red] {msg}")
+
+
+def run_cli_redo(console: Optional[Console] = None) -> None:
+    """Re-apply the most recently undone operation."""
+    console = console or Console()
+    redo_op = peek_redo_operation()
+
+    if not redo_op:
+        console.print(
+            Panel(
+                "ℹ️ [yellow]No undone operations found to redo.[/yellow]",
+                box=box.ROUNDED,
+                border_style="magenta",
+                title="[bold]Redo History[/bold]",
+            )
+        )
+        return
+
+    table = Table(box=None, show_header=False, padding=(0, 2))
+    table.add_column("Property", style="bold magenta", width=18)
+    table.add_column("Value", style="white")
+
+    action = redo_op.get("action", "unknown").upper()
+    timestamp = redo_op.get("timestamp", "unknown")
+    items = redo_op.get("items", [])
+
+    table.add_row("Operation to Re-apply", f"[bold magenta]{action}[/bold magenta]")
+    table.add_row("Original Timestamp", timestamp)
+    table.add_row("Total Items", str(len(items)))
+
+    sample_items = []
+    for i in items[:4]:
+        name = os.path.basename(i.get("src", ""))
+        sample_items.append(f"  • {name} ➔ [dim]{i.get('dst', '')}[/dim]")
+    if len(items) > 4:
+        sample_items.append(f"  [dim]... and {len(items) - 4} more[/dim]")
+
+    table.add_row("Re-apply Items", "\n".join(sample_items))
+
+    panel = Panel(
+        table,
+        title="⏩ [bold]Redo Operation Preview[/bold]",
+        border_style="magenta",
+        box=box.ROUNDED,
+        padding=(1, 1),
+    )
+    console.print(panel)
+
+    confirmed = Confirm.ask(f"Are you sure you want to re-apply this {action} operation?", default=True)
+    if not confirmed:
+        console.print("[dim]Redo cancelled.[/dim]")
+        return
+
+    success, msg, reapplied = execute_redo(redo_op)
+    if success:
+        # Move operation back from redo stack to undo stack
+        pop_redo_operation()
+        record_operation(redo_op["action"], redo_op["items"], redo_op.get("description", ""))
+
+        console.print(
+            Panel(
+                f"[bold green]✔ Redo Successful![/bold green]\n\n"
+                f"{msg}\n\n"
+                f"💡 [bold]Need to revert again?[/bold]\n"
+                f"   Run [bold cyan]ezcli undo[/bold cyan] to undo this operation.",
+                title="[bold green]Re-applied[/bold green]",
+                border_style="green",
+                box=box.ROUNDED,
+            )
+        )
+    else:
+        console.print(f"[bold red]Redo Error:[/bold red] {msg}")

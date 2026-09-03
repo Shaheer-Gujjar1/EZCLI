@@ -264,6 +264,7 @@ class ExplorerApp(App[Optional[Any]]):
 
     BINDINGS = [
         Binding("q", "quit_explorer", "Quit", show=True),
+        Binding("c", "choose_current", "Choose Folder [c]", show=True),
         Binding("enter", "confirm_open", "Open", show=True),
         Binding("space", "toggle_select", "Select", show=True),
         Binding("slash", "start_search", "Search", show=True),
@@ -621,43 +622,67 @@ class ExplorerApp(App[Optional[Any]]):
     # --------------------------------------------------------------------------
     # Confirming the Directory in choose_dir mode
     # --------------------------------------------------------------------------
+    def action_choose_current(self) -> None:
+        """Choose directory action when pressing 'c'."""
+        if self.mode == "choose_dir":
+            self.confirm_chosen_directory()
+        elif self.mode == "pick_dest":
+            self.exit(self.current_dir)
+        elif self.mode == "pick_source":
+            if not self.selected_paths:
+                table = self.query_one(DataTable)
+                if self.filtered_entries and table.cursor_row is not None:
+                    item = self.filtered_entries[table.cursor_row]
+                    if not item.get("is_parent"):
+                        self.selected_paths.add(item["path"])
+            self.exit(list(self.selected_paths))
+
     def confirm_chosen_directory(self) -> None:
         """Show action menu when directory is chosen."""
+        table = self.query_one(DataTable)
+        chosen_dir = self.current_dir
+        if self.filtered_entries and table.cursor_row is not None:
+            item = self.filtered_entries[table.cursor_row]
+            if item.get("is_dir") and not item.get("is_parent"):
+                chosen_dir = item["path"]
+
+        if getattr(self, "print_path_only", False):
+            self.exit({"action": "print_only", "dir": chosen_dir})
+            return
+
         def handle_action(action: str) -> None:
             if action == "shell":
-                self.exit({"action": "shell", "dir": self.current_dir})
+                self.exit({"action": "shell", "dir": chosen_dir})
             elif action == "copy_path":
-                self.exit({"action": "copy_path", "dir": self.current_dir})
+                self.exit({"action": "copy_path", "dir": chosen_dir})
             elif action == "info":
-                self.exit({"action": "info", "dir": self.current_dir})
+                self.exit({"action": "info", "dir": chosen_dir})
 
-        self.push_screen(ActionMenuModal(self.current_dir), handle_action)
+        self.push_screen(ActionMenuModal(chosen_dir), handle_action)
 
 
 # ==============================================================================
 # Helper Runners for CLI commands
 # ==============================================================================
-def run_choose_directory(initial_dir: str = "~") -> None:
+def run_choose_directory(initial_dir: str = "~", print_path_only: bool = False) -> None:
     """Launch the interactive directory explorer."""
     app = ExplorerApp(mode="choose_dir", initial_dir=initial_dir)
-    # Add a custom keybinding to choose the current directory
-    app.BINDINGS.append(Binding("c", "choose_current", "Choose Dir", show=True))
-
-    def action_choose_current(self: ExplorerApp) -> None:
-        self.confirm_chosen_directory()
-
-    setattr(ExplorerApp, "action_choose_current", action_choose_current)
-
+    app.print_path_only = print_path_only
     result = app.run()
 
     if isinstance(result, dict):
         act = result.get("action")
         target_dir = result.get("dir", os.getcwd())
 
+        if act == "print_only":
+            print(target_dir)
+            return
+
         if act == "shell":
             shell = os.environ.get("SHELL", "/bin/bash")
-            print(f"\n🚀 Spawning shell at: {target_dir}")
-            print("Type 'exit' or press Ctrl+D to return to your previous session.\n")
+            print(f"\n🚀 Switched working directory to: {target_dir}")
+            print(f"Shell spawned in: {target_dir}")
+            print("💡 Type 'exit' or press Ctrl+D to return to your previous directory.\n")
             try:
                 subprocess.run([shell], cwd=target_dir)
             except Exception as e:

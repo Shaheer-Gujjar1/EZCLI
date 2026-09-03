@@ -179,21 +179,36 @@ def main() -> None:
             if not check_textual_installed(console):
                 sys.exit(1)
             from .explorer.explorer_app import run_choose_directory
-            initial_dir = sub_args[0] if sub_args else "~"
-            run_choose_directory(initial_dir)
+            print_only = False
+            clean_sub = []
+            for a in sub_args:
+                if a in ("-p", "--print-path"):
+                    print_only = True
+                else:
+                    clean_sub.append(a)
+            initial_dir = clean_sub[0] if clean_sub else "~"
+            run_choose_directory(initial_dir, print_path_only=print_only)
         elif feature.id == "copy":
-            if len(sub_args) < 2 and not check_textual_installed(console):
+            if not check_textual_installed(console):
                 sys.exit(1)
-            from .file_cli import run_cli_file_op
-            run_cli_file_op("copy", sub_args, console=console)
+            from .file_cli import run_cli_stage
+            run_cli_stage("copy", console=console)
         elif feature.id == "move":
-            if len(sub_args) < 2 and not check_textual_installed(console):
+            if not check_textual_installed(console):
                 sys.exit(1)
-            from .file_cli import run_cli_file_op
-            run_cli_file_op("move", sub_args, console=console)
+            from .file_cli import run_cli_stage
+            run_cli_stage("move", console=console)
+        elif feature.id == "paste":
+            if not check_textual_installed(console):
+                sys.exit(1)
+            from .file_cli import run_cli_paste
+            run_cli_paste(console=console)
         elif feature.id == "undo":
             from .file_cli import run_cli_undo
             run_cli_undo(console=console)
+        elif feature.id == "redo":
+            from .file_cli import run_cli_redo
+            run_cli_redo(console=console)
     except BrokenPipeError:
         try:
             devnull = os.open(os.devnull, os.O_WRONLY)

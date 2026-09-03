@@ -41,7 +41,7 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
 
         # Dispatch renderer
         renderer_fn = getattr(renderers, feature.renderer_name, None)
-        if renderer_fn or feature.id in ("choose_directory", "copy", "move", "undo"):
+        if renderer_fn or feature.id in ("choose_directory", "copy", "move", "paste", "undo", "redo"):
             try:
                 if feature.subcommand == "big_files" or feature.id == "big_files":
                     folder = args_values[0] if args_values else "~"
@@ -67,14 +67,20 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
                     from .explorer.explorer_app import run_choose_directory
                     run_choose_directory("~")
                 elif feature.id == "copy":
-                    from .file_cli import run_cli_file_op
-                    run_cli_file_op("copy", [], console=console)
+                    from .file_cli import run_cli_stage
+                    run_cli_stage("copy", console=console)
                 elif feature.id == "move":
-                    from .file_cli import run_cli_file_op
-                    run_cli_file_op("move", [], console=console)
+                    from .file_cli import run_cli_stage
+                    run_cli_stage("move", console=console)
+                elif feature.id == "paste":
+                    from .file_cli import run_cli_paste
+                    run_cli_paste(console=console)
                 elif feature.id == "undo":
                     from .file_cli import run_cli_undo
                     run_cli_undo(console=console)
+                elif feature.id == "redo":
+                    from .file_cli import run_cli_redo
+                    run_cli_redo(console=console)
                 else:
                     renderer_fn(console)
             except Exception as e:
