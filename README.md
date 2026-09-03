@@ -32,16 +32,18 @@ Distributions are automatically detected via `/etc/os-release` and verified for 
 
 ### Prerequisites
 - Python 3.8+ (Python 3.12+ tested)
-- `rich` (`pip install rich` or `sudo apt install python3-rich`)
-- An emoji font (e.g., `fonts-noto-color-emoji`)
+- `python3-rich` (`sudo apt install python3-rich` or `pip install rich`)
+- An emoji font (`sudo apt install fonts-noto-color-emoji`)
 
-### Running Directly
+### Quick Install (Automated)
+Run the automated installer to link `ezcli` globally to `/usr/local/bin`:
 ```bash
-# Clone the repository
-git clone https://github.com/shaheer/EZCLI.git
-cd EZCLI
+./install.sh
+```
 
-# Make the executable runnable
+### Running Directly (No Installation Needed)
+```bash
+# Make the script runnable
 chmod +x ezcli
 
 # Run the interactive menu
@@ -56,6 +58,51 @@ chmod +x ezcli
 pip install -e .
 # Now ezcli is available anywhere in your PATH
 ezcli help
+```
+
+---
+
+## 💻 Testing on Another PC
+
+To test EasyCLI on another Debian or Ubuntu machine:
+
+### Option 1: Via Git / GitHub (Recommended)
+1. Push your changes to your Git repository:
+   ```bash
+   git add .
+   git commit -m "feat: EasyCLI v0.1 release"
+   git push
+   ```
+2. On your other PC, clone and install:
+   ```bash
+   git clone <your-repo-url>
+   cd EZCLI
+   ./install.sh
+   ezcli
+   ```
+
+### Option 2: Copying via Network (`scp`)
+Transfer the folder directly to your other PC:
+```bash
+# From this PC:
+scp -r /home/shaheer/Documents/GitHub/EZCLI user@<other-pc-ip>:~/EZCLI
+
+# On the other PC:
+cd ~/EZCLI
+./install.sh
+ezcli
+```
+
+### Option 3: Copying via USB Drive / Archive
+Create a compressed archive to move via USB or cloud drive:
+```bash
+tar -czvf ezcli-v0.1.tar.gz -C /home/shaheer/Documents/GitHub EZCLI
+
+# On the other PC, extract and run:
+tar -xzvf ezcli-v0.1.tar.gz
+cd EZCLI
+./install.sh
+ezcli
 ```
 
 ---
