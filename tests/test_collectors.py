@@ -14,6 +14,7 @@ from ezcli_app.collectors import (
     collect_service_status,
     collect_network_info,
     collect_logs,
+    collect_installed_packages,
 )
 
 
@@ -113,6 +114,23 @@ class TestCollectors(unittest.TestCase):
         self.assertIn("permission_limited", logs)
         self.assertIsInstance(logs["logs"], list)
 
+    def test_collect_installed_packages(self):
+        # All packages
+        res = collect_installed_packages()
+        self.assertGreater(res["total_apt"], 0)
+        self.assertGreater(res["total_count"], 0)
+        self.assertIsInstance(res["matches"], list)
+
+        # Filtered packages
+        res_curl = collect_installed_packages("curl")
+        self.assertGreater(len(res_curl["matches"]), 0)
+        self.assertTrue(any("curl" in p["name"].lower() for p in res_curl["matches"]))
+
+        # Non-matching filter
+        res_none = collect_installed_packages("definitelynotaninstalledpkgxyz123")
+        self.assertEqual(len(res_none["matches"]), 0)
+
 
 if __name__ == "__main__":
     unittest.main()
+

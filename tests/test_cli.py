@@ -69,6 +69,13 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(res.returncode, 0)
         self.assertIn("Storage Partitions", res.stdout)
 
+    def test_installed_direct(self):
+        res = self.run_ezcli("installed", "curl")
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("Installed Packages", res.stdout)
+        self.assertIn("curl", res.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
+

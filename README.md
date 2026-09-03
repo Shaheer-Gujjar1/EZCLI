@@ -135,6 +135,7 @@ ezcli help
 | ⚙️ | `ezcli service-status <name>` | `systemctl is-active`, `systemctl is-enabled` | Status card with running state and boot enablement indicators. |
 | 🌐 | `ezcli network-info` | `ip addr`, `ip route`, `/etc/resolv.conf` | Overview card and table of network interfaces, IP addresses, gateway, DNS, and online status. |
 | 📄 | `ezcli logs [N]` | `journalctl -n N --no-pager` | Color-coded system logs by severity (errors red, warnings yellow, ok green). Defaults to 50 lines. |
+| 📋 | `ezcli installed [app_name]` | `dpkg-query`, `apt list --installed`, `flatpak list`, `snap list` | List all installed packages or filter installed apps by keyword (equivalent to `apt list --installed \| grep -i <app>`). |
 
 ---
 

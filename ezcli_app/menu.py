@@ -58,6 +58,9 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
                 elif feature.subcommand == "logs" or feature.id == "logs":
                     lines = int(args_values[0]) if (args_values and args_values[0].isdigit()) else 50
                     renderer_fn(console, lines)
+                elif feature.subcommand in ("installed", "installed-packages") or feature.id == "installed_packages":
+                    filt = args_values[0] if args_values else ""
+                    renderer_fn(console, filt)
                 else:
                     renderer_fn(console)
             except Exception as e:
@@ -129,7 +132,7 @@ def interactive_menu(console: Console) -> None:
 
         try:
             choice = Prompt.ask(
-                "[bold cyan]Select a feature [1-10][/bold cyan] (or [bold]r[/bold]efresh, [bold]q[/bold]uit)",
+                f"[bold cyan]Select a feature [1-{len(FEATURES)}][/bold cyan] (or [bold]r[/bold]efresh, [bold]q[/bold]uit)",
                 default="1",
             ).strip().lower()
         except (KeyboardInterrupt, EOFError):

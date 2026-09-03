@@ -155,9 +155,31 @@ FEATURES: List[FeatureTemplate] = [
         ],
         renderer_name="render_logs",
     ),
+    FeatureTemplate(
+        id="installed_packages",
+        subcommand="installed",
+        title="Installed Packages",
+        icon="📋",
+        description="List installed packages or search installed apps by name (apt, flatpak, snap)",
+        wrapped_commands=["dpkg-query", "apt list --installed", "flatpak list", "snap list"],
+        arguments=[
+            ArgumentDef(
+                name="filter",
+                help="Optional package name or keyword to filter (e.g. curl, vlc, telegram)",
+                required=False,
+                default="",
+            )
+        ],
+        renderer_name="render_installed_packages",
+    ),
 ]
 
 # Lookup map by subcommand
 FEATURES_BY_SUBCOMMAND: Dict[str, FeatureTemplate] = {
     f.subcommand: f for f in FEATURES
 }
+# Aliases
+for f in FEATURES:
+    if f.id == "installed_packages":
+        FEATURES_BY_SUBCOMMAND["installed-packages"] = f
+

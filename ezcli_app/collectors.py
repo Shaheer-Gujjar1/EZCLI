@@ -609,6 +609,157 @@ def collect_package_search(term: str, limit: int = 25) -> Dict[str, Any]:
 
 
 # ==============================================================================
+# 5b. Installed Packages Collector
+# ==============================================================================
+def collect_installed_packages(filter_term: str = "") -> Dict[str, Any]:
+    """
+    Collect installed packages across APT, Flatpak, and Snap.
+    Supports optional case-insensitive keyword filtering (like apt list --installed | grep -i <app>).
+    """
+    result: Dict[str, Any] = {
+        "filter": filter_term.strip(),
+        "total_apt": 0,
+        "total_flatpak": 0,
+        "total_snap": 0,
+        "total_count": 0,
+        "matches": [],
+        "error": "",
+    }
+
+    term_lower = filter_term.strip().lower()
+    all_items: List[Dict[str, Any]] = []
+
+    # 1. Collect installed APT packages via fast dpkg-query
+    rc, out, _ = run_command_safe(
+        ["dpkg-query", "-W", "-f", "${Package}\t${Version}\t${Installed-Size}\t${binary:Summary}\n"],
+        timeout=8,
+    )
+    if rc == 0 and out:
+        for line in out.splitlines():
+            if not line:
+                continue
+            parts = line.split("\t")
+            pkg_name = parts[0].strip() if len(parts) > 0 else ""
+            version = parts[1].strip() if len(parts) > 1 else ""
+            size_kb_str = parts[2].strip() if len(parts) > 2 else ""
+            desc = parts[3].strip() if len(parts) > 3 else ""
+
+            if not pkg_name:
+                continue
+
+            result["total_apt"] += 1
+
+            # Check filter if provided
+            if term_lower:
+                if term_lower not in pkg_name.lower() and term_lower not in desc.lower():
+                    continue
+
+            # Format installed size
+            try:
+                kb = int(size_kb_str)
+                size_formatted = format_bytes(kb * 1024)
+            except ValueError:
+                size_formatted = size_kb_str or "-"
+
+            all_items.append({
+                "name": pkg_name,
+                "app_id": pkg_name,
+                "version": version,
+                "size": size_formatted,
+                "description": desc or "[dim]System package[/dim]",
+                "platform": "apt",
+                "platform_name": "APT",
+                "platform_icon": "📦",
+            })
+
+    # 2. Collect installed Flatpak applications
+    if shutil.which("flatpak"):
+        rc_fl, out_fl, _ = run_command_safe(
+            ["flatpak", "list", "--app", "--columns=name,application,version,size,description"],
+            timeout=5,
+        )
+        if rc_fl == 0 and out_fl:
+            lines = out_fl.splitlines()
+            if len(lines) > 1:
+                # skip header
+                for line in lines[1:]:
+                    parts = line.split("\t")
+                    if len(parts) < 2:
+                        parts = line.split()
+                    if not parts:
+                        continue
+                    name = parts[0].strip()
+                    app_id = parts[1].strip() if len(parts) > 1 else name
+                    version = parts[2].strip() if len(parts) > 2 else ""
+                    size = parts[3].strip() if len(parts) > 3 else ""
+                    desc = parts[4].strip() if len(parts) > 4 else ""
+
+                    result["total_flatpak"] += 1
+
+                    if term_lower:
+                        if term_lower not in name.lower() and term_lower not in app_id.lower() and term_lower not in desc.lower():
+                            continue
+
+                    all_items.append({
+                        "name": name,
+                        "app_id": app_id,
+                        "version": version,
+                        "size": size or "-",
+                        "description": desc or "Flatpak application",
+                        "platform": "flatpak",
+                        "platform_name": "Flatpak",
+                        "platform_icon": "🟣",
+                    })
+
+    # 3. Collect installed Snap applications
+    if shutil.which("snap"):
+        rc_sn, out_sn, _ = run_command_safe(["snap", "list"], timeout=4)
+        if rc_sn == 0 and out_sn:
+            lines = out_sn.splitlines()
+            if len(lines) > 1:
+                for line in lines[1:]:
+                    parts = line.split()
+                    if len(parts) >= 3:
+                        name = parts[0].strip()
+                        version = parts[1].strip()
+                        result["total_snap"] += 1
+
+                        if term_lower and term_lower not in name.lower():
+                            continue
+
+                        all_items.append({
+                            "name": name,
+                            "app_id": name,
+                            "version": version,
+                            "size": "-",
+                            "description": "Snap package",
+                            "platform": "snap",
+                            "platform_name": "Snap",
+                            "platform_icon": "🟢",
+                        })
+
+    result["total_count"] = result["total_apt"] + result["total_flatpak"] + result["total_snap"]
+
+    # Rank filtered items so exact name matches appear first
+    if term_lower:
+        def rank_installed(item: Dict[str, Any]) -> Tuple[int, str]:
+            n = item["name"].lower()
+            if n == term_lower:
+                return (0, n)
+            elif n.startswith(term_lower):
+                return (1, n)
+            elif term_lower in n:
+                return (2, n)
+            else:
+                return (3, n)
+
+        all_items.sort(key=rank_installed)
+
+    result["matches"] = all_items
+    return result
+
+
+# ==============================================================================
 # 6. Package Details
 # ==============================================================================
 def collect_package_info(name: str) -> Dict[str, Any]:

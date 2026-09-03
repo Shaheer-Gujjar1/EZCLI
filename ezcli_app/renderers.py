@@ -18,6 +18,7 @@ from .collectors import (
     collect_service_status,
     collect_network_info,
     collect_logs,
+    collect_installed_packages,
 )
 
 
@@ -571,3 +572,98 @@ def render_logs(console: Console, lines_count: int = 50) -> None:
         else:
             console.print(raw)
     console.print()
+
+
+# ==============================================================================
+# 11. Installed Packages Renderer
+# ==============================================================================
+def render_installed_packages(console: Console, filter_term: str = "") -> None:
+    """Render installed packages with optional keyword filtering."""
+    status_msg = f"Filtering installed packages for '{filter_term}'..." if filter_term else "Scanning installed packages..."
+    with console.status(f"[bold cyan]{status_msg}[/bold cyan]", spinner="dots"):
+        data = collect_installed_packages(filter_term)
+
+    # Summary Badges Panel
+    summary_table = Table(box=None, show_header=False, padding=(0, 2))
+    summary_table.add_column("Property", style="bold cyan", width=24)
+    summary_table.add_column("Value", style="white")
+
+    breakdown = f"📦 APT: [bold cyan]{data['total_apt']}[/bold cyan]"
+    if data["total_flatpak"] > 0:
+        breakdown += f"  |  🟣 Flatpak: [bold magenta]{data['total_flatpak']}[/bold magenta]"
+    if data["total_snap"] > 0:
+        breakdown += f"  |  🟢 Snap: [bold green]{data['total_snap']}[/bold green]"
+
+    summary_table.add_row("Total Installed Packages", f"[bold green]{data['total_count']:,}[/bold green]")
+    summary_table.add_row("Ecosystem Breakdown", breakdown)
+
+    if filter_term:
+        summary_table.add_row("Active Filter", f"[bold yellow]'{filter_term}'[/bold yellow] ({len(data['matches'])} matching)")
+    else:
+        summary_table.add_row("Search Tip", "Filter installed apps with [cyan]ezcli installed <app_name>[/cyan]")
+
+    console.print(
+        Panel(
+            summary_table,
+            title="[bold cyan]📋 Installed Packages Overview[/bold cyan]",
+            border_style="cyan",
+            box=box.ROUNDED,
+            padding=(1, 1),
+        )
+    )
+
+    matches = data.get("matches", [])
+    if not matches:
+        if filter_term:
+            console.print(
+                Panel(
+                    f"[bold yellow]No installed packages matching '{filter_term}' were found.[/bold yellow]\n\n"
+                    f"💡 [dim]To search repositories for available packages to install, run:[/dim]\n"
+                    f"   [bold cyan]ezcli package-search {filter_term}[/bold cyan]",
+                    border_style="yellow",
+                    box=box.ROUNDED,
+                    title="[bold yellow]No Matches[/bold yellow]",
+                )
+            )
+        return
+
+    # Limit default view to 50 if no filter
+    display_items = matches if filter_term else matches[:50]
+
+    title_str = (
+        f"[bold]Installed Packages Matching '{filter_term}' ({len(matches)} found)[/bold]"
+        if filter_term
+        else f"[bold]Installed Packages (Showing first {len(display_items)} of {data['total_count']:,})[/bold]"
+    )
+
+    table = Table(
+        box=box.ROUNDED,
+        border_style="cyan",
+        padding=(0, 1),
+        title=title_str,
+    )
+    table.add_column("#", justify="right", style="bold yellow", width=4)
+    table.add_column("Platform", style="white", width=12)
+    table.add_column("Package / Application", style="bold green", width=26)
+    table.add_column("Version", style="yellow", width=18)
+    table.add_column("Size", justify="right", style="dim", width=10)
+    table.add_column("Description", style="white")
+
+    for idx, item in enumerate(display_items, 1):
+        plat_badge = f"{item['platform_icon']} {item['platform_name']}"
+        table.add_row(
+            str(idx),
+            plat_badge,
+            item["name"],
+            item["version"] or "-",
+            item["size"] or "-",
+            item["description"],
+        )
+
+    console.print(table)
+
+    if not filter_term and len(matches) > len(display_items):
+        console.print(
+            f"[dim]Showing {len(display_items)} of {data['total_count']:,} installed packages. "
+            f"Run [bold cyan]ezcli installed <app_name>[/bold cyan] to search for specific packages.[/dim]\n"
+        )

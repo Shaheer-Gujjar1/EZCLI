@@ -143,6 +143,17 @@ def main() -> None:
                     console.print(f"[bold red]Error:[/bold red] Invalid line count '{sub_args[0]}'. Must be an integer.")
                     sys.exit(1)
             renderers.render_logs(console, lines)
+        elif feature.id == "installed_packages":
+            filter_term = " ".join(sub_args) if sub_args else ""
+            renderers.render_installed_packages(console, filter_term)
+    except BrokenPipeError:
+        try:
+            import os
+            devnull = os.open(os.devnull, os.O_WRONLY)
+            os.dup2(devnull, sys.stdout.fileno())
+        except Exception:
+            pass
+        sys.exit(0)
     except KeyboardInterrupt:
         console.print("\n[dim]Command interrupted.[/dim]")
         sys.exit(130)
