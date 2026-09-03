@@ -17,19 +17,22 @@ from . import renderers
 def check_textual_installed(console: Console) -> bool:
     """Check if modern textual (>=0.2.0) is installed, showing a friendly setup panel if missing or outdated."""
     try:
-        mod = importlib.import_module("textual.app")
-        if hasattr(mod, "App"):
-            return True
+        importlib.import_module("textual.containers")
+        importlib.import_module("textual.widgets")
+        return True
     except (ImportError, AttributeError):
         pass
 
     console.print(
         Panel(
             "📁 [bold cyan]EasyCLI Terminal File Explorer[/bold cyan]\n\n"
-            "[bold yellow]Modern 'textual' (v0.2.0+) is required[/bold yellow] to run the interactive file explorer.\n\n"
-            "If your distro's apt package is an ancient release (e.g. 0.1.18 on Ubuntu 22.04), please install or upgrade Textual with:\n"
-            "   [bold green]pip3 install --upgrade textual[/bold green]\n"
-            "or run the EasyCLI setup script:\n"
+            "[bold yellow]Modern Textual (v0.2.0+) is required[/bold yellow] to run the interactive file explorer.\n\n"
+            "Your system currently has an ancient release (such as 0.1.18 from [dim]sudo apt install python3-textual[/dim]).\n\n"
+            "To fix this, upgrade to modern Textual on your system by running:\n"
+            "   [bold green]sudo apt remove -y python3-textual && pip3 install textual[/bold green]\n"
+            "or (if using pip with PEP 668):\n"
+            "   [bold green]pip3 install --upgrade --break-system-packages textual[/bold green]\n"
+            "or re-run the automated installer:\n"
             "   [bold green]./install.sh[/bold green]",
             title="[bold yellow]Textual Upgrade Required[/bold yellow]",
             border_style="yellow",
