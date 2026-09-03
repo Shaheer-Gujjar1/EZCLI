@@ -14,7 +14,11 @@ venv_site = glob.glob(os.path.expanduser("~/.local/share/ezcli/venv/lib/python*/
 if venv_site and venv_site[0] not in sys.path:
     sys.path.insert(0, venv_site[0])
 
-from textual.app import App, ComposeResult
+from textual.app import App
+try:
+    from textual.app import ComposeResult
+except ImportError:
+    ComposeResult = Any  # type: ignore
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
 from textual.screen import ModalScreen

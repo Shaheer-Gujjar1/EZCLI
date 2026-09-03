@@ -15,27 +15,28 @@ from . import renderers
 
 
 def check_textual_installed(console: Console) -> bool:
-    """Check if textual is installed, showing a friendly setup panel if missing."""
+    """Check if modern textual (>=0.2.0) is installed, showing a friendly setup panel if missing or outdated."""
     try:
-        importlib.import_module("textual")
-        return True
-    except ImportError:
-        console.print(
-            Panel(
-                "📁 [bold cyan]EasyCLI Terminal File Explorer[/bold cyan]\n\n"
-                "[bold yellow]Missing Dependency:[/bold yellow] 'textual' is required to run the interactive file explorer.\n\n"
-                "To install it on your system, please run:\n"
-                "   [bold green]sudo apt install -y python3-textual[/bold green]\n"
-                "or (if using pip):\n"
-                "   [bold green]pip3 install textual[/bold green]\n"
-                "or re-run the installer:\n"
-                "   [bold green]./install.sh[/bold green]",
-                title="[bold yellow]Dependency Required[/bold yellow]",
-                border_style="yellow",
-                box=box.ROUNDED,
-            )
+        mod = importlib.import_module("textual.app")
+        if hasattr(mod, "App"):
+            return True
+    except (ImportError, AttributeError):
+        pass
+
+    console.print(
+        Panel(
+            "📁 [bold cyan]EasyCLI Terminal File Explorer[/bold cyan]\n\n"
+            "[bold yellow]Modern 'textual' (v0.2.0+) is required[/bold yellow] to run the interactive file explorer.\n\n"
+            "If your distro's apt package is an ancient release (e.g. 0.1.18 on Ubuntu 22.04), please install or upgrade Textual with:\n"
+            "   [bold green]pip3 install --upgrade textual[/bold green]\n"
+            "or run the EasyCLI setup script:\n"
+            "   [bold green]./install.sh[/bold green]",
+            title="[bold yellow]Textual Upgrade Required[/bold yellow]",
+            border_style="yellow",
+            box=box.ROUNDED,
         )
-        return False
+    )
+    return False
 
 
 def print_custom_help(console: Console) -> None:

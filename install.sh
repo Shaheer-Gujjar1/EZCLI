@@ -14,10 +14,19 @@ python3 -c "import rich" 2>/dev/null || {
     echo "Installing python3-rich..."
     sudo apt update && sudo apt install -y python3-rich || pip3 install rich || pip install rich
 }
-python3 -c "import textual" 2>/dev/null || {
-    echo "Installing python3-textual..."
-    sudo apt install -y python3-textual 2>/dev/null || pip3 install textual 2>/dev/null || pip install textual 2>/dev/null || true
-}
+# Ensure modern textual (>=0.2.0) is available
+if ! python3 -c "from textual.widgets import DataTable" 2>/dev/null; then
+    echo "Modern Textual not found in system python. Setting up in user environment..."
+    mkdir -p "$HOME/.local/share/ezcli"
+    if [ ! -d "$HOME/.local/share/ezcli/venv" ]; then
+        python3 -m venv "$HOME/.local/share/ezcli/venv" 2>/dev/null || (sudo apt update && sudo apt install -y python3-venv python3-pip && python3 -m venv "$HOME/.local/share/ezcli/venv")
+    fi
+    if [ -f "$HOME/.local/share/ezcli/venv/bin/pip" ]; then
+        "$HOME/.local/share/ezcli/venv/bin/pip" install --upgrade textual rich
+    else
+        pip3 install --upgrade textual 2>/dev/null || pip install --upgrade textual 2>/dev/null || true
+    fi
+fi
 
 # Ensure emoji font is present
 if ! fc-list : family 2>/dev/null | grep -qi "emoji"; then
