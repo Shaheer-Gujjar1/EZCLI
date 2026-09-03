@@ -59,8 +59,10 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
                     lines = int(args_values[0]) if (args_values and args_values[0].isdigit()) else 50
                     renderer_fn(console, lines)
                 elif feature.subcommand in ("installed", "installed-packages") or feature.id == "installed_packages":
-                    filt = args_values[0] if args_values else ""
-                    renderer_fn(console, filt)
+                    renderer_fn(console)
+                elif feature.subcommand == "installed-package-search" or feature.id == "installed_package_search":
+                    term = args_values[0] if args_values else ""
+                    renderer_fn(console, term)
                 else:
                     renderer_fn(console)
             except Exception as e:

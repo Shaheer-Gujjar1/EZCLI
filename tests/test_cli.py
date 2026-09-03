@@ -69,13 +69,23 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(res.returncode, 0)
         self.assertIn("Storage Partitions", res.stdout)
 
-    def test_installed_direct(self):
-        res = self.run_ezcli("installed", "curl")
+    def test_installed_packages_direct(self):
+        res = self.run_ezcli("installed-packages")
         self.assertEqual(res.returncode, 0)
         self.assertIn("Installed Packages", res.stdout)
+
+    def test_installed_package_search_direct(self):
+        res = self.run_ezcli("installed-package-search", "curl")
+        self.assertEqual(res.returncode, 0)
         self.assertIn("curl", res.stdout)
+
+    def test_installed_package_search_missing_arg(self):
+        res = self.run_ezcli("installed-package-search")
+        self.assertEqual(res.returncode, 1)
+        self.assertIn("requires argument", res.stdout)
 
 
 if __name__ == "__main__":
     unittest.main()
+
 

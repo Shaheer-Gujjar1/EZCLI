@@ -157,20 +157,29 @@ FEATURES: List[FeatureTemplate] = [
     ),
     FeatureTemplate(
         id="installed_packages",
-        subcommand="installed",
+        subcommand="installed-packages",
         title="Installed Packages",
         icon="📋",
-        description="List installed packages or search installed apps by name (apt, flatpak, snap)",
-        wrapped_commands=["dpkg-query", "apt list --installed", "flatpak list", "snap list"],
+        description="List all installed system and desktop packages (wraps apt list --installed)",
+        wrapped_commands=["apt list --installed", "dpkg-query", "flatpak list", "snap list"],
+        arguments=[],
+        renderer_name="render_installed_packages",
+    ),
+    FeatureTemplate(
+        id="installed_package_search",
+        subcommand="installed-package-search",
+        title="Search Installed Packages",
+        icon="🔎",
+        description="Search installed packages by name (wraps apt list --installed | grep -i <name>)",
+        wrapped_commands=["apt list --installed | grep -i <name>", "dpkg-query"],
         arguments=[
             ArgumentDef(
-                name="filter",
-                help="Optional package name or keyword to filter (e.g. curl, vlc, telegram)",
-                required=False,
-                default="",
+                name="name",
+                help="Package name or application keyword to search",
+                required=True,
             )
         ],
-        renderer_name="render_installed_packages",
+        renderer_name="render_installed_package_search",
     ),
 ]
 
@@ -178,8 +187,9 @@ FEATURES: List[FeatureTemplate] = [
 FEATURES_BY_SUBCOMMAND: Dict[str, FeatureTemplate] = {
     f.subcommand: f for f in FEATURES
 }
+
 # Aliases
-for f in FEATURES:
-    if f.id == "installed_packages":
-        FEATURES_BY_SUBCOMMAND["installed-packages"] = f
+if "installed-packages" in FEATURES_BY_SUBCOMMAND:
+    FEATURES_BY_SUBCOMMAND["installed"] = FEATURES_BY_SUBCOMMAND["installed-packages"]
+
 

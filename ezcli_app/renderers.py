@@ -597,10 +597,10 @@ def render_installed_packages(console: Console, filter_term: str = "") -> None:
     summary_table.add_row("Total Installed Packages", f"[bold green]{data['total_count']:,}[/bold green]")
     summary_table.add_row("Ecosystem Breakdown", breakdown)
 
-    if filter_term:
-        summary_table.add_row("Active Filter", f"[bold yellow]'{filter_term}'[/bold yellow] ({len(data['matches'])} matching)")
+    if not filter_term:
+        summary_table.add_row("Search Tip", "Search installed apps with [cyan]ezcli installed-package-search <app_name>[/cyan]")
     else:
-        summary_table.add_row("Search Tip", "Filter installed apps with [cyan]ezcli installed <app_name>[/cyan]")
+        summary_table.add_row("Active Search", f"[bold yellow]'{filter_term}'[/bold yellow] ({len(data['matches'])} matching)")
 
     console.print(
         Panel(
@@ -665,5 +665,11 @@ def render_installed_packages(console: Console, filter_term: str = "") -> None:
     if not filter_term and len(matches) > len(display_items):
         console.print(
             f"[dim]Showing {len(display_items)} of {data['total_count']:,} installed packages. "
-            f"Run [bold cyan]ezcli installed <app_name>[/bold cyan] to search for specific packages.[/dim]\n"
+            f"Run [bold cyan]ezcli installed-package-search <app_name>[/bold cyan] to search for specific packages.[/dim]\n"
         )
+
+
+def render_installed_package_search(console: Console, term: str) -> None:
+    """Search installed packages by name (wraps apt list --installed | grep -i <app>)."""
+    render_installed_packages(console, filter_term=term)
+

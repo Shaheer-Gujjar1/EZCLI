@@ -144,8 +144,10 @@ def main() -> None:
                     sys.exit(1)
             renderers.render_logs(console, lines)
         elif feature.id == "installed_packages":
-            filter_term = " ".join(sub_args) if sub_args else ""
-            renderers.render_installed_packages(console, filter_term)
+            renderers.render_installed_packages(console)
+        elif feature.id == "installed_package_search":
+            term = " ".join(sub_args)
+            renderers.render_installed_package_search(console, term)
     except BrokenPipeError:
         try:
             import os
