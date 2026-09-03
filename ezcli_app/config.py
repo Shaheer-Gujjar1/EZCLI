@@ -76,8 +76,8 @@ FEATURES: List[FeatureTemplate] = [
         subcommand="package-search",
         title="Search Packages",
         icon="🔍",
-        description="Search apt repository packages without clutter or apt noise",
-        wrapped_commands=["apt search"],
+        description="Search packages across APT 📦, Flatpak 🟣, and Snap 🟢 with platform choices",
+        wrapped_commands=["apt search", "flathub", "snapcraft"],
         arguments=[
             ArgumentDef(
                 name="term",

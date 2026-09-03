@@ -188,9 +188,54 @@ def render_big_files(console: Console, folder: str = "~") -> None:
 # ==============================================================================
 # 5. Package Search Renderer
 # ==============================================================================
-def render_package_search(console: Console, term: str) -> None:
-    """Render package search results."""
-    with console.status(f"[bold cyan]Searching repositories for '{term}'...[/bold cyan]", spinner="dots"):
+def render_package_choice_card(console: Console, pkg: Dict[str, Any]) -> None:
+    """Render platform details, install command, and setup guide for selected package."""
+    plat = pkg.get("platform", "apt")
+    plat_icon = pkg.get("platform_icon", "📦")
+    plat_name = pkg.get("platform_name", "APT")
+    name = pkg.get("name", "")
+    app_id = pkg.get("app_id", name)
+    is_supported = pkg.get("platform_supported", True)
+
+    table = Table(box=None, show_header=False, padding=(0, 2))
+    table.add_column("Property", style="bold cyan", no_wrap=True, width=18)
+    table.add_column("Value", style="white")
+
+    table.add_row("Platform", f"{plat_icon} {plat_name}")
+    table.add_row("Package / App ID", f"[bold green]{app_id}[/bold green]")
+    if name != app_id:
+        table.add_row("Application Name", name)
+
+    st_text = "[bold green]Installed[/bold green]" if pkg.get("installed") else "[yellow]Available (Not Installed)[/yellow]"
+    table.add_row("Installed Status", st_text)
+
+    if pkg.get("description"):
+        table.add_row("Description", pkg["description"])
+
+    if is_supported:
+        table.add_row("System Support", f"[bold green]✔ {plat_name} runtime is installed on this PC[/bold green]")
+        table.add_row("Install Command", f"[bold cyan]{pkg.get('install_cmd', '')}[/bold cyan]")
+        if plat == "flatpak":
+            table.add_row("Run Command", f"[dim]flatpak run {app_id}[/dim]")
+    else:
+        table.add_row("System Support", f"[bold red]✖ {plat_name} is NOT installed on this PC[/bold red]")
+        table.add_row("Setup Required", f"To enable {plat_name} on Debian/Ubuntu, run:\n[bold yellow]{pkg.get('setup_cmd', '')}[/bold yellow]")
+        table.add_row("Then Install", f"[bold cyan]{pkg.get('install_cmd', '')}[/bold cyan]")
+
+    border_color = "cyan" if is_supported else "yellow"
+    panel = Panel(
+        table,
+        title=f"[bold]{plat_icon} {plat_name}: {name}[/bold]",
+        border_style=border_color,
+        box=box.ROUNDED,
+        padding=(1, 1),
+    )
+    console.print(panel)
+
+
+def render_package_search(console: Console, term: str, interactive: bool = True) -> None:
+    """Render multi-platform package search results (APT, Flatpak, Snap)."""
+    with console.status(f"[bold cyan]Searching APT 📦, Flatpak 🟣, and Snap 🟢 for '{term}'...[/bold cyan]", spinner="dots"):
         data = collect_package_search(term)
 
     if data.get("error"):
@@ -199,25 +244,69 @@ def render_package_search(console: Console, term: str) -> None:
 
     packages = data.get("packages", [])
     if not packages:
-        console.print(f"[yellow]No packages matching '{term}' were found.[/yellow]")
+        tips_table = Table(box=None, show_header=False, padding=(0, 1))
+        tips_table.add_column("Icon", style="bold cyan", width=3)
+        tips_table.add_column("Guidance", style="white")
+        tips_table.add_row("🔄", "Refresh Index: Debian systems read from a local package cache. Run [bold green]sudo apt update[/bold green] to fetch the latest index.")
+        tips_table.add_row("🔍", "Broader Search: Try searching with a broader keyword (e.g. 'player', 'codec', or 'video').")
+        tips_table.add_row("📦", f"Direct Lookup: If you know the package name, run [bold cyan]ezcli package {term}[/bold cyan] directly.")
+        tips_table.add_row("🌐", "Repositories: Some packages require 'contrib' or 'non-free' in /etc/apt/sources.list.")
+
+        console.print(
+            Panel(
+                tips_table,
+                title=f"[bold yellow]🔍 No Packages Matching '{term}'[/bold yellow]",
+                border_style="yellow",
+                box=box.ROUNDED,
+                padding=(1, 1),
+            )
+        )
         return
 
     table = Table(
         box=box.ROUNDED,
         border_style="cyan",
         padding=(0, 1),
-        title=f"[bold]Search Results for '{term}' ({len(packages)} packages)[/bold]",
+        title=f"[bold]Search Results for '{term}' ({len(packages)} packages across APT, Flatpak, Snap)[/bold]",
     )
-    table.add_column("Package", style="bold green", no_wrap=True)
+    table.add_column("#", justify="right", style="bold yellow", width=3)
+    table.add_column("Platform", style="white", width=12)
+    table.add_column("Package / App ID", style="bold green", width=22)
     table.add_column("Status", justify="center", width=12)
     table.add_column("Description", style="white")
 
-    for pkg in packages:
+    for idx, pkg in enumerate(packages, 1):
         status = "[bold green]Installed[/bold green]" if pkg["installed"] else "[dim]Available[/dim]"
         desc = pkg["description"] or "[dim]No description[/dim]"
-        table.add_row(pkg["name"], status, desc)
+        plat_badge = f"{pkg.get('platform_icon', '📦')} {pkg.get('platform_name', 'APT')}"
+        table.add_row(str(idx), plat_badge, pkg.get("app_id", pkg["name"]), status, desc)
 
     console.print(table)
+
+    # Interactive item selection for viewing platform details & install commands
+    import sys
+    if interactive and sys.stdin.isatty():
+        console.print()
+        while True:
+            try:
+                from rich.prompt import Prompt
+                choice = Prompt.ask(
+                    f"[bold cyan]Select an item [1-{len(packages)}] to view details & install command[/bold cyan] (or press Enter to exit)",
+                    default="",
+                ).strip()
+            except (KeyboardInterrupt, EOFError):
+                break
+
+            if not choice:
+                break
+
+            if choice.isdigit() and 1 <= int(choice) <= len(packages):
+                selected = packages[int(choice) - 1]
+                console.print()
+                render_package_choice_card(console, selected)
+                console.print()
+            else:
+                console.print(f"[yellow]Please choose a number between 1 and {len(packages)} or press Enter to exit.[/yellow]")
 
 
 # ==============================================================================
@@ -295,7 +384,24 @@ def render_available_updates(console: Console) -> None:
 
     updates = data.get("updates", [])
     if not updates:
-        console.print("[bold green]System is up to date![/bold green] No upgradable packages found.")
+        status_table = Table(box=None, show_header=False, padding=(0, 2))
+        status_table.add_column("Property", style="bold cyan", width=18)
+        status_table.add_column("Value", style="white")
+        status_table.add_row("Status", "[bold green]✔ All system packages are up to date[/bold green]")
+        status_table.add_row("Upgradable Packages", "[bold green]0 packages pending[/bold green]")
+        status_table.add_row("Cache Timestamp", f"{data['last_updated_str']}")
+        status_table.add_row("How It Works", "EasyCLI inspects local package indices via [dim]apt list --upgradable[/dim].")
+        status_table.add_row("Check For Updates", "To fetch new upstream updates, run [bold cyan]sudo apt update[/bold cyan], then re-check.")
+
+        console.print(
+            Panel(
+                status_table,
+                title="[bold green]🔄 System Update Status[/bold green]",
+                border_style="green",
+                box=box.ROUNDED,
+                padding=(1, 1),
+            )
+        )
         return
 
     table = Table(

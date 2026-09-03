@@ -394,13 +394,80 @@ def collect_big_files(folder_path: str = "~", limit: int = 15) -> Dict[str, Any]
 # ==============================================================================
 # 5. Package Search
 # ==============================================================================
-def collect_package_search(term: str, limit: int = 30) -> Dict[str, Any]:
+def query_flathub(term: str, limit: int = 5) -> List[Dict[str, Any]]:
+    """Query Flathub API for matching Flatpak packages (timeout 2.5s)."""
+    items = []
+    try:
+        import urllib.request
+        payload = json.dumps({"query": term}).encode("utf-8")
+        req = urllib.request.Request(
+            "https://flathub.org/api/v2/search",
+            data=payload,
+            headers={"User-Agent": "ezcli/0.1", "Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=2.5) as resp:
+            data = json.loads(resp.read().decode())
+            for h in data.get("hits", [])[:limit]:
+                app_id = h.get("app_id", "")
+                name = h.get("name") or app_id
+                summary = h.get("summary", "") or ""
+                items.append({
+                    "name": name,
+                    "app_id": app_id,
+                    "version_info": "",
+                    "description": summary,
+                    "platform": "flatpak",
+                    "platform_name": "Flatpak",
+                    "platform_icon": "🟣",
+                    "installed": False,
+                })
+    except Exception:
+        pass
+    return items
+
+
+def query_snapcraft(term: str, limit: int = 5) -> List[Dict[str, Any]]:
+    """Query Snapcraft Store API for matching Snap packages (timeout 2.5s)."""
+    items = []
+    try:
+        import urllib.request
+        req = urllib.request.Request(
+            f"https://api.snapcraft.io/v2/snaps/find?q={term}&fields=title,summary,version",
+            headers={"User-Agent": "ezcli/0.1", "Snap-Device-Series": "16"},
+        )
+        with urllib.request.urlopen(req, timeout=2.5) as resp:
+            data = json.loads(resp.read().decode())
+            for r in data.get("results", [])[:limit]:
+                snap_info = r.get("snap", {})
+                name = r.get("name", "")
+                title = snap_info.get("title") or name
+                summary = snap_info.get("summary", "") or ""
+                items.append({
+                    "name": title,
+                    "app_id": name,
+                    "version_info": snap_info.get("version", ""),
+                    "description": summary,
+                    "platform": "snap",
+                    "platform_name": "Snap",
+                    "platform_icon": "🟢",
+                    "installed": False,
+                })
+    except Exception:
+        pass
+    return items
+
+
+def collect_package_search(term: str, limit: int = 25) -> Dict[str, Any]:
     """
-    Search packages via apt search <term> and strip noise headers.
+    Search packages across APT (📦), Flatpak (🟣), and Snap (🟢).
+    Intelligently ranks results and checks local runtime availability.
     """
     result: Dict[str, Any] = {
         "term": term,
         "packages": [],
+        "has_apt": shutil.which("apt") is not None,
+        "has_flatpak": shutil.which("flatpak") is not None,
+        "has_snap": shutil.which("snap") is not None,
         "error": "",
     }
 
@@ -408,46 +475,136 @@ def collect_package_search(term: str, limit: int = 30) -> Dict[str, Any]:
         result["error"] = "No search term provided."
         return result
 
-    term = term.strip()
-    rc, out, err = run_command_safe(["apt", "search", term], timeout=15)
-    if rc != 0 and not out:
-        result["error"] = err or f"Failed to run apt search for '{term}'"
-        return result
+    term_clean = term.strip()
+    term_lower = term_clean.lower()
+    apt_packages_map: Dict[str, Dict[str, Any]] = {}
 
-    packages: List[Dict[str, str]] = []
-    current_pkg: Optional[Dict[str, str]] = None
+    # 1. Primary: Run apt search
+    rc, out, err = run_command_safe(["apt", "search", term_clean], timeout=15)
+    if rc == 0 and out:
+        current_pkg: Optional[Dict[str, Any]] = None
+        for line in out.splitlines():
+            line_clean = line.strip()
+            if not line_clean:
+                continue
+            if line_clean.startswith(("Sorting...", "Full Text Search...", "WARNING:")):
+                continue
 
-    for line in out.splitlines():
-        line_clean = line.strip()
-        # Skip apt header noise
-        if not line_clean:
-            continue
-        if line_clean.startswith(("Sorting...", "Full Text Search...", "WARNING:")):
-            continue
+            # Check if this line is a package header (e.g., 'curl/jammy,now 7.81.0-1ubuntu1.16 amd64 [installed]')
+            if "/" in line and not line.startswith(" "):
+                if current_pkg and current_pkg["name"] not in apt_packages_map:
+                    apt_packages_map[current_pkg["name"]] = current_pkg
+                parts = line.split("/", 1)
+                name = parts[0].strip()
+                rest = parts[1].strip() if len(parts) > 1 else ""
+                installed = "[installed" in line.lower()
+                current_pkg = {
+                    "name": name,
+                    "app_id": name,
+                    "version_info": rest,
+                    "description": "",
+                    "platform": "apt",
+                    "platform_name": "APT",
+                    "platform_icon": "📦",
+                    "installed": installed,
+                }
+            elif current_pkg and not current_pkg["description"]:
+                current_pkg["description"] = line_clean
 
-        # Check if this line is a package header (e.g., 'curl/jammy,now 7.81.0-1ubuntu1.16 amd64 [installed]')
-        if "/" in line and not line.startswith(" "):
-            if current_pkg:
-                packages.append(current_pkg)
-                if len(packages) >= limit:
-                    break
-            parts = line.split("/", 1)
-            name = parts[0].strip()
-            rest = parts[1].strip() if len(parts) > 1 else ""
-            installed = "[installed" in line.lower()
-            current_pkg = {
-                "name": name,
-                "version_info": rest,
-                "description": "",
-                "installed": installed,
-            }
-        elif current_pkg and not current_pkg["description"]:
-            current_pkg["description"] = line_clean
+        if current_pkg and current_pkg["name"] not in apt_packages_map:
+            apt_packages_map[current_pkg["name"]] = current_pkg
 
-    if current_pkg and len(packages) < limit:
-        packages.append(current_pkg)
+    # Fallback to apt-cache search if apt search was empty
+    if not apt_packages_map:
+        rc_ac, out_ac, _ = run_command_safe(["apt-cache", "search", term_clean], timeout=10)
+        if rc_ac == 0 and out_ac:
+            for line in out_ac.splitlines():
+                line_clean = line.strip()
+                if " - " in line_clean:
+                    pkg_name, desc = line_clean.split(" - ", 1)
+                    pkg_name = pkg_name.strip()
+                    if pkg_name not in apt_packages_map:
+                        rc_dpkg, _, _ = run_command_safe(["dpkg", "-s", pkg_name], timeout=2)
+                        installed = (rc_dpkg == 0)
+                        apt_packages_map[pkg_name] = {
+                            "name": pkg_name,
+                            "app_id": pkg_name,
+                            "version_info": "",
+                            "description": desc.strip(),
+                            "platform": "apt",
+                            "platform_name": "APT",
+                            "platform_icon": "📦",
+                            "installed": installed,
+                        }
 
-    result["packages"] = packages
+    # Rank APT packages
+    def rank_key(item: Dict[str, Any]) -> Tuple[int, str]:
+        n = item["name"].lower()
+        if n == term_lower:
+            return (0, n)
+        elif n.startswith(term_lower):
+            return (1, n)
+        elif term_lower in n:
+            return (2, n)
+        else:
+            return (3, n)
+
+    ranked_apt = sorted(apt_packages_map.values(), key=rank_key)
+
+    # 2. Query Flatpak (Flathub)
+    flatpak_items = query_flathub(term_clean, limit=4)
+    # Check if installed locally if flatpak binary exists
+    if result["has_flatpak"] and flatpak_items:
+        rc_fl, out_fl, _ = run_command_safe(["flatpak", "list", "--app", "--columns=application"], timeout=3)
+        if rc_fl == 0 and out_fl:
+            installed_apps = set(out_fl.splitlines())
+            for item in flatpak_items:
+                if item["app_id"] in installed_apps:
+                    item["installed"] = True
+
+    # 3. Query Snap (Snapcraft)
+    snap_items = query_snapcraft(term_clean, limit=4)
+    # Check if installed locally if snap binary exists
+    if result["has_snap"] and snap_items:
+        rc_sn, out_sn, _ = run_command_safe(["snap", "list"], timeout=3)
+        if rc_sn == 0 and out_sn:
+            installed_snaps = set(line.split()[0] for line in out_sn.splitlines() if line.split())
+            for item in snap_items:
+                if item["app_id"] in installed_snaps:
+                    item["installed"] = True
+
+    # Combine results: prioritized APT matches, followed by Flatpak, Snap, and additional APT
+    combined: List[Dict[str, Any]] = []
+
+    # Add top APT matches (up to 5)
+    top_apt = ranked_apt[:5]
+    remaining_apt = ranked_apt[5:]
+
+    # Interleave / organize
+    combined.extend(top_apt)
+    combined.extend(flatpak_items)
+    combined.extend(snap_items)
+    combined.extend(remaining_apt)
+
+    # Attach install & setup command metadata
+    for pkg in combined:
+        plat = pkg["platform"]
+        app_id = pkg.get("app_id", pkg["name"])
+        name = pkg["name"]
+        if plat == "apt":
+            pkg["install_cmd"] = f"sudo apt install -y {app_id}"
+            pkg["setup_cmd"] = ""
+            pkg["platform_supported"] = result["has_apt"]
+        elif plat == "flatpak":
+            pkg["install_cmd"] = f"flatpak install flathub {app_id}"
+            pkg["setup_cmd"] = "sudo apt install -y flatpak && flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo"
+            pkg["platform_supported"] = result["has_flatpak"]
+        elif plat == "snap":
+            pkg["install_cmd"] = f"sudo snap install {app_id}"
+            pkg["setup_cmd"] = "sudo apt install -y snapd"
+            pkg["platform_supported"] = result["has_snap"]
+
+    result["packages"] = combined[:limit]
     return result
 
 

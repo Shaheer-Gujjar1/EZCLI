@@ -129,7 +129,7 @@ ezcli help
 | ⚡ | `ezcli stats` | `free -h`, `uptime`, `nproc` | CPU load averages and RAM/Swap usage with colored inline progress bars. |
 | 💽 | `ezcli disk-info` | `df -h` | Table of storage mounts, sizes, used/available space, and inline usage bars (filters out pseudo-filesystems). |
 | 📁 | `ezcli big-files [folder]` | `du -h --max-depth=1`, `find` | Table of largest files and folders in directory with a progress spinner. Defaults to `~`. |
-| 🔍 | `ezcli package-search <term>` | `apt search` | Clean table of matching repository packages and descriptions, stripping apt noise lines. |
+| 🔍 | `ezcli package-search <term>` | `apt search`, `flathub`, `snapcraft` | Universal search across **APT 📦**, **Flatpak 🟣**, and **Snap 🟢** with interactive platform selection & installation commands. |
 | 📦 | `ezcli package <name>` | `apt show`, `dpkg -s` | Card showing package version, size, homepage, description, and installed status. |
 | 🔄 | `ezcli available-updates` | `apt list --upgradable` | Table of upgradable packages and versions using existing lists only (never runs `apt update`). |
 | ⚙️ | `ezcli service-status <name>` | `systemctl is-active`, `systemctl is-enabled` | Status card with running state and boot enablement indicators. |
