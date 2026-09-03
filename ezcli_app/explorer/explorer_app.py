@@ -14,15 +14,15 @@ venv_site = glob.glob(os.path.expanduser("~/.local/share/ezcli/venv/lib/python*/
 if venv_site and venv_site[0] not in sys.path:
     sys.path.insert(0, venv_site[0])
 
-from textual.app import App
+from textual.app import App  # type: ignore
 try:
-    from textual.app import ComposeResult
+    from textual.app import ComposeResult  # type: ignore
 except ImportError:
     ComposeResult = Any  # type: ignore
-from textual.binding import Binding
-from textual.containers import Container, Horizontal, Vertical
-from textual.screen import ModalScreen
-from textual.widgets import (
+from textual.binding import Binding  # type: ignore
+from textual.containers import Container, Horizontal, Vertical  # type: ignore
+from textual.screen import ModalScreen  # type: ignore
+from textual.widgets import (  # type: ignore
     DataTable,
     Footer,
     Header,
@@ -32,7 +32,7 @@ from textual.widgets import (
     OptionList,
     Static,
 )
-from textual.widgets.option_list import Option
+from textual.widgets.option_list import Option  # type: ignore
 
 from ..collectors import format_bytes
 from .file_icons import get_file_icon
@@ -222,7 +222,8 @@ class ExplorerApp(App[Optional[Any]]):
         border-bottom: solid cyan;
     }
     #breadcrumb-label {
-        color: bold cyan;
+        color: cyan;
+        text-style: bold;
     }
     #status-summary {
         color: yellow;
@@ -256,7 +257,8 @@ class ExplorerApp(App[Optional[Any]]):
         display: none;
         text-align: center;
         margin-top: 5;
-        color: bold red;
+        color: red;
+        text-style: bold;
     }
     """
 

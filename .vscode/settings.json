@@ -1,0 +1,6 @@
+{
+  "python.defaultInterpreterPath": "/home/shaheer/.local/share/ezcli/venv/bin/python3",
+  "python.analysis.extraPaths": [
+    "/home/shaheer/.local/share/ezcli/venv/lib/python3.12/site-packages"
+  ]
+}
