@@ -14,7 +14,6 @@ venv_site = glob.glob(os.path.expanduser("~/.local/share/ezcli/venv/lib/python*/
 if venv_site and venv_site[0] not in sys.path:
     sys.path.insert(0, venv_site[0])
 
-from textual import on
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Container, Horizontal, Vertical
@@ -494,16 +493,20 @@ class ExplorerApp(App[Optional[Any]]):
         search_input.display = True
         search_input.focus()
 
-    @on(Input.Changed, "#search-input")
-    def on_search_changed(self, event: Input.Changed) -> None:
-        self.active_search_query = event.value
-        self.apply_sorting_and_filtering()
+    def on_input_changed(self, event: Input.Changed) -> None:
+        input_id = getattr(event, "input", None)
+        ctrl_id = getattr(input_id, "id", None) or getattr(event.control, "id", None)
+        if ctrl_id == "search-input":
+            self.active_search_query = event.value
+            self.apply_sorting_and_filtering()
 
-    @on(Input.Submitted, "#search-input")
-    def on_search_submitted(self, event: Input.Submitted) -> None:
-        search_input = self.query_one("#search-input", Input)
-        search_input.display = False
-        self.query_one(DataTable).focus()
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        input_id = getattr(event, "input", None)
+        ctrl_id = getattr(input_id, "id", None) or getattr(event.control, "id", None)
+        if ctrl_id == "search-input":
+            search_input = self.query_one("#search-input", Input)
+            search_input.display = False
+            self.query_one(DataTable).focus()
 
     def action_toggle_hidden(self) -> None:
         self.show_hidden = not self.show_hidden

@@ -249,8 +249,7 @@ FEATURES_BY_SUBCOMMAND: Dict[str, FeatureTemplate] = {
     f.subcommand: f for f in FEATURES
 }
 
-# Aliases
-if "installed-packages" in FEATURES_BY_SUBCOMMAND:
-    FEATURES_BY_SUBCOMMAND["installed"] = FEATURES_BY_SUBCOMMAND["installed-packages"]
-
-
+# Convenient aliases
+FEATURES_BY_SUBCOMMAND["installed"] = FEATURES_BY_SUBCOMMAND["installed-packages"]
+FEATURES_BY_SUBCOMMAND["choose"] = FEATURES_BY_SUBCOMMAND["choose-directory"]
+FEATURES_BY_SUBCOMMAND["explorer"] = FEATURES_BY_SUBCOMMAND["choose-directory"]

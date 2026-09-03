@@ -41,7 +41,7 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
 
         # Dispatch renderer
         renderer_fn = getattr(renderers, feature.renderer_name, None)
-        if renderer_fn:
+        if renderer_fn or feature.id in ("choose_directory", "copy", "move", "undo"):
             try:
                 if feature.subcommand == "big_files" or feature.id == "big_files":
                     folder = args_values[0] if args_values else "~"

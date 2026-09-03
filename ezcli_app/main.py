@@ -1,6 +1,5 @@
-"""Main entry point and CLI dispatcher for EasyCLI (ezcli)."""
-
-import argparse
+import importlib
+import os
 import sys
 from rich import box
 from rich.console import Console
@@ -13,6 +12,30 @@ from .distro import detect_distro
 from .emoji import ensure_emoji_capability
 from .menu import interactive_menu
 from . import renderers
+
+
+def check_textual_installed(console: Console) -> bool:
+    """Check if textual is installed, showing a friendly setup panel if missing."""
+    try:
+        importlib.import_module("textual")
+        return True
+    except ImportError:
+        console.print(
+            Panel(
+                "📁 [bold cyan]EasyCLI Terminal File Explorer[/bold cyan]\n\n"
+                "[bold yellow]Missing Dependency:[/bold yellow] 'textual' is required to run the interactive file explorer.\n\n"
+                "To install it on your system, please run:\n"
+                "   [bold green]sudo apt install -y python3-textual[/bold green]\n"
+                "or (if using pip):\n"
+                "   [bold green]pip3 install textual[/bold green]\n"
+                "or re-run the installer:\n"
+                "   [bold green]./install.sh[/bold green]",
+                title="[bold yellow]Dependency Required[/bold yellow]",
+                border_style="yellow",
+                box=box.ROUNDED,
+            )
+        )
+        return False
 
 
 def print_custom_help(console: Console) -> None:
@@ -149,13 +172,19 @@ def main() -> None:
             term = " ".join(sub_args)
             renderers.render_installed_package_search(console, term)
         elif feature.id == "choose_directory":
+            if not check_textual_installed(console):
+                sys.exit(1)
             from .explorer.explorer_app import run_choose_directory
             initial_dir = sub_args[0] if sub_args else "~"
             run_choose_directory(initial_dir)
         elif feature.id == "copy":
+            if len(sub_args) < 2 and not check_textual_installed(console):
+                sys.exit(1)
             from .file_cli import run_cli_file_op
             run_cli_file_op("copy", sub_args, console=console)
         elif feature.id == "move":
+            if len(sub_args) < 2 and not check_textual_installed(console):
+                sys.exit(1)
             from .file_cli import run_cli_file_op
             run_cli_file_op("move", sub_args, console=console)
         elif feature.id == "undo":
@@ -163,7 +192,6 @@ def main() -> None:
             run_cli_undo(console=console)
     except BrokenPipeError:
         try:
-            import os
             devnull = os.open(os.devnull, os.O_WRONLY)
             os.dup2(devnull, sys.stdout.fileno())
         except Exception:
