@@ -14,11 +14,7 @@ venv_site = glob.glob(os.path.expanduser("~/.local/share/ezcli/venv/lib/python*/
 if venv_site and venv_site[0] not in sys.path:
     sys.path.insert(0, venv_site[0])
 
-from textual.app import App  # type: ignore
-try:
-    from textual.app import ComposeResult  # type: ignore
-except ImportError:
-    ComposeResult = Any  # type: ignore
+from textual.app import App, ComposeResult  # type: ignore
 from textual.binding import Binding  # type: ignore
 from textual.containers import Container, Horizontal, Vertical  # type: ignore
 from textual.screen import ModalScreen  # type: ignore
@@ -204,6 +200,18 @@ class ActionMenuModal(ModalScreen[str]):
             self.dismiss("cancel")
 
 
+def is_directory_locked(path: str) -> bool:
+    """Check whether a directory requires elevated permissions to read."""
+    try:
+        if not (os.access(path, os.R_OK) and os.access(path, os.X_OK)):
+            return True
+        with os.scandir(path) as it:
+            next(it, None)
+        return False
+    except (PermissionError, OSError):
+        return True
+
+
 # ==============================================================================
 # Main Explorer Application
 # ==============================================================================
@@ -279,9 +287,13 @@ class ExplorerApp(App[Optional[Any]]):
         self,
         mode: str = "choose_dir",  # "choose_dir", "pick_source", "pick_dest"
         initial_dir: str = "~",
+        is_admin: bool = False,
+        print_path_only: bool = False,
     ):
         super().__init__()
         self.mode = mode
+        self.is_admin = is_admin
+        self.print_path_only = print_path_only
         self.current_dir = os.path.abspath(os.path.expanduser(initial_dir))
         self.show_hidden = False
         self.sort_mode = "name"  # "name", "size", "date"
@@ -333,13 +345,14 @@ class ExplorerApp(App[Optional[Any]]):
         """Format path with home emoji and breadcrumb dividers."""
         home = str(Path.home())
         display_path = self.current_dir
+        locked_badge = " 🔒" if is_directory_locked(self.current_dir) else ""
         if display_path == home:
-            return "🏠 Home (~)"
+            return f"🏠 Home (~){locked_badge}"
         elif display_path.startswith(home):
             rel = display_path[len(home):].strip("/")
-            return "🏠 ~ / " + " / ".join(rel.split("/"))
+            return f"🏠 ~ / " + " / ".join(rel.split("/")) + locked_badge
         else:
-            return "📁 " + " / ".join([p for p in display_path.split("/") if p])
+            return f"📁 " + " / ".join([p for p in display_path.split("/") if p]) + locked_badge
 
     def get_status_summary_string(self) -> str:
         """Format selection counter and active sorting state."""
@@ -376,6 +389,7 @@ class ExplorerApp(App[Optional[Any]]):
         # Add parent directory row '..' if not root
         if self.current_dir != "/":
             parent = os.path.dirname(self.current_dir)
+            parent_locked = is_directory_locked(parent)
             self.cached_entries.append({
                 "name": ".. (Parent Folder)",
                 "path": parent,
@@ -385,7 +399,8 @@ class ExplorerApp(App[Optional[Any]]):
                 "mtime_str": "-",
                 "size_bytes": 0,
                 "mtime": 0,
-                "icon": "📁",
+                "icon": "🔒" if parent_locked else "📁",
+                "is_locked": parent_locked,
             })
 
         try:
@@ -398,7 +413,13 @@ class ExplorerApp(App[Optional[Any]]):
                     try:
                         st = entry.stat(follow_symlinks=False)
                         is_dir = entry.is_dir(follow_symlinks=False)
-                        icon = get_file_icon(name, is_dir=is_dir)
+                        is_locked = False
+                        if is_dir:
+                            is_locked = is_directory_locked(entry.path)
+                            icon = "🔒" if is_locked else get_file_icon(name, is_dir=is_dir)
+                        else:
+                            icon = get_file_icon(name, is_dir=is_dir)
+
                         size_str = format_bytes(st.st_size) if not is_dir else "-"
                         mtime_dt = datetime.datetime.fromtimestamp(st.st_mtime)
                         mtime_str = mtime_dt.strftime("%Y-%m-%d %H:%M")
@@ -413,13 +434,17 @@ class ExplorerApp(App[Optional[Any]]):
                             "size_bytes": st.st_size,
                             "mtime": st.st_mtime,
                             "icon": icon,
+                            "is_locked": is_locked,
                         })
                     except (PermissionError, FileNotFoundError):
                         continue
 
         except PermissionError:
+            if self.is_admin:
+                self.prompt_and_elevate_directory(self.current_dir, auto=True)
+                return
             table.display = False
-            perm_msg.update("🔒 [bold red]Permission Denied[/bold red]\nYou do not have permission to read this directory.")
+            perm_msg.update("🔒 [bold red]Permission Denied[/bold red]\nAdmin rights are required to read this directory.\n\n[bold cyan]Press [Enter] to open with admin rights[/bold cyan] or [q] to quit.")
             perm_msg.display = True
             return
         except Exception as e:
@@ -569,6 +594,13 @@ class ExplorerApp(App[Optional[Any]]):
     def action_confirm_open(self) -> None:
         """Handle Enter key: navigate folder or confirm selection."""
         table = self.query_one(DataTable)
+        perm_msg = self.query_one("#permission-message", Static)
+
+        # If currently showing permission denied on the current directory
+        if not table.display and perm_msg.display:
+            self.prompt_and_elevate_directory(self.current_dir)
+            return
+
         if not self.filtered_entries or table.cursor_row is None:
             return
 
@@ -576,6 +608,9 @@ class ExplorerApp(App[Optional[Any]]):
 
         # 1. Navigating inside directories
         if item["is_dir"]:
+            if item.get("is_locked"):
+                self.prompt_and_elevate_directory(item["path"])
+                return
             self.load_directory(item["path"])
             return
 
@@ -585,6 +620,79 @@ class ExplorerApp(App[Optional[Any]]):
                 self.selected_paths.add(item["path"])
             self.exit(list(self.selected_paths))
             return
+
+    def prompt_and_elevate_directory(self, target_path: str, auto: bool = False) -> None:
+        """Prompt user for elevation and load locked directory using helper."""
+        from ..elevation import elevated_read_dir
+        with self.suspend():
+            from rich.console import Console
+            c = Console()
+            success, entries, err = elevated_read_dir(
+                path=target_path,
+                show_hidden=self.show_hidden,
+                reason=f"Read contents of protected folder '{target_path}'",
+                console=c,
+            )
+
+        if success:
+            self.load_elevated_entries(target_path, entries)
+        else:
+            if err and not auto:
+                self.notify(f"Elevation failed: {err}", severity="error")
+
+    def load_elevated_entries(self, target_path: str, entries: List[Dict[str, Any]]) -> None:
+        """Populate table with elevated directory entries."""
+        table = self.query_one(DataTable)
+        empty_msg = self.query_one("#empty-message", Static)
+        perm_msg = self.query_one("#permission-message", Static)
+
+        self.current_dir = target_path
+        table.clear()
+        empty_msg.display = False
+        perm_msg.display = False
+        table.display = True
+
+        self.cached_entries = []
+        if self.current_dir != "/":
+            parent = os.path.dirname(self.current_dir)
+            parent_locked = is_directory_locked(parent)
+            self.cached_entries.append({
+                "name": ".. (Parent Folder)",
+                "path": parent,
+                "is_dir": True,
+                "is_parent": True,
+                "size_str": "-",
+                "mtime_str": "-",
+                "size_bytes": 0,
+                "mtime": 0,
+                "icon": "🔒" if parent_locked else "📁",
+                "is_locked": parent_locked,
+            })
+
+        for e in entries:
+            name = e["name"]
+            is_dir = e["is_dir"]
+            is_locked = False
+            if is_dir:
+                is_locked = is_directory_locked(e["path"])
+                icon = "🔒" if is_locked else get_file_icon(name, is_dir=is_dir)
+            else:
+                icon = get_file_icon(name, is_dir=is_dir)
+            self.cached_entries.append({
+                "name": name,
+                "path": e["path"],
+                "is_dir": is_dir,
+                "is_parent": False,
+                "size_str": e.get("size_str", "-"),
+                "mtime_str": e.get("mtime_str", "-"),
+                "size_bytes": e.get("size_bytes", 0),
+                "mtime": e.get("mtime", 0),
+                "icon": icon,
+                "is_locked": is_locked,
+            })
+
+        self.apply_sorting_and_filtering()
+        self.update_headers()
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Mouse click or Enter on DataTable."""
@@ -650,7 +758,9 @@ class ExplorerApp(App[Optional[Any]]):
             self.exit({"action": "print_only", "dir": chosen_dir})
             return
 
-        def handle_action(action: str) -> None:
+        def handle_action(action: Optional[str]) -> None:
+            if not action:
+                return
             if action == "shell":
                 self.exit({"action": "shell", "dir": chosen_dir})
             elif action == "copy_path":
@@ -664,10 +774,9 @@ class ExplorerApp(App[Optional[Any]]):
 # ==============================================================================
 # Helper Runners for CLI commands
 # ==============================================================================
-def run_choose_directory(initial_dir: str = "~", print_path_only: bool = False) -> None:
+def run_choose_directory(initial_dir: str = "~", print_path_only: bool = False, is_admin: bool = False) -> None:
     """Launch the interactive directory explorer."""
-    app = ExplorerApp(mode="choose_dir", initial_dir=initial_dir)
-    app.print_path_only = print_path_only
+    app = ExplorerApp(mode="choose_dir", initial_dir=initial_dir, is_admin=is_admin, print_path_only=print_path_only)
     result = app.run()
 
     if isinstance(result, dict):
@@ -708,9 +817,9 @@ def run_choose_directory(initial_dir: str = "~", print_path_only: bool = False) 
             console.print(Panel(t, title="📁 Directory Information", border_style="cyan"))
 
 
-def run_source_picker(initial_dir: str = "~") -> List[str]:
+def run_source_picker(initial_dir: str = "~", is_admin: bool = False) -> List[str]:
     """Launch explorer to pick source files/directories for copy or move."""
-    app = ExplorerApp(mode="pick_source", initial_dir=initial_dir)
+    app = ExplorerApp(mode="pick_source", initial_dir=initial_dir, is_admin=is_admin)
     app.BINDINGS.append(Binding("c", "confirm_selection", "Confirm", show=True))
 
     def action_confirm_selection(self: ExplorerApp) -> None:
@@ -726,9 +835,9 @@ def run_source_picker(initial_dir: str = "~") -> List[str]:
     return result if isinstance(result, list) else []
 
 
-def run_destination_picker(initial_dir: str = "~") -> Optional[str]:
+def run_destination_picker(initial_dir: str = "~", is_admin: bool = False) -> Optional[str]:
     """Launch explorer to pick target destination directory."""
-    app = ExplorerApp(mode="pick_dest", initial_dir=initial_dir)
+    app = ExplorerApp(mode="pick_dest", initial_dir=initial_dir, is_admin=is_admin)
     app.BINDINGS.append(Binding("c", "confirm_dest", "Select Target", show=True))
 
     def action_confirm_dest(self: ExplorerApp) -> None:

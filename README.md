@@ -229,6 +229,51 @@ ezcli redo
 - Displays a redo preview card and asks for `[y/N]` confirmation.
 - Re-applies the operation and updates the undo history.
 
+---
+
+## 🔒 Safe Privilege Elevation (Why `sudo ezcli` is Never Needed)
+
+EasyCLI features a beginner-friendly, secure, and transparent privilege-elevation layer:
+
+### 1. The Core Architecture
+- **Never `sudo ezcli`**: The EasyCLI application always launches and runs as your normal user. You never need to run `sudo ezcli`, and EasyCLI will never instruct you to do so. Running an entire terminal application under `sudo` can write root-owned config/history files to your home folder and poses security risks.
+- **Small Privileged Helper**: Only the specific underlying operation (such as reading system journal files, scanning `/root`, or pasting a file into `/etc`) is elevated through a lightweight internal helper.
+
+### 2. Adaptive Permission Handling
+- **Partial Permission Failure**: If some data was successfully collected but some locations were blocked (e.g. `ezcli big-files` scanning a folder with restricted subfolders, or `ezcli logs` showing user logs because system journals are restricted), EasyCLI displays all available results first, followed by a friendly offer:
+  ```text
+  ⚠️ Some locations were inaccessible. Retry with admin rights? [Y/n]
+  ```
+  On yes, only the blocked portion is elevated and updated.
+- **Full Permission Failure**: If the task cannot produce anything without admin rights (e.g. `ezcli big-files /root`), EasyCLI shows a clear explanation card:
+  ```text
+  🔒 Admin rights are required for this task.
+  ```
+  and offers to run it with admin rights now, mentioning the `--admin` flag.
+- **Explicit Mode (`--admin`)**: Every subcommand accepts an `--admin` flag (e.g. `ezcli logs --admin`, `ezcli big-files /root --admin`, `ezcli paste --admin`) to run elevated from the start.
+
+### 3. Authentication UX
+- **Visible Dot Feedback**: During password entry, EasyCLI provides visible bullet feedback (`••••••••`) instead of sudo's silent prompt, making it easy to know your typing is registered.
+- **Plain English Explanations**: Before asking for your password, EasyCLI clearly explains what will be done and why admin rights are needed.
+- **Friendly Error Messages**: On a mistyped password, EasyCLI displays:
+  ```text
+  Wrong password — no problem, try again.
+  ```
+  Never showing raw sudo lectures or warnings.
+- **Strict Privacy**: Passwords are never saved or logged; memory buffers are cleared immediately after authentication.
+
+### 4. Risk Guardrails
+- **Read-Only Operations (Low Risk)**: Diagnostic scans, log inspection, and status checks require quick yes/no confirmation only.
+- **Write Operations (High Risk)**: Pasting, moving, undoing, or redoing into protected system directories displays the full EasyCLI guardrails:
+  - **`🛡️ HIGH RISK: System / Protected Location`** badge
+  - Impact preview (items, sizes, collisions)
+  - Conflict resolution policy (`ask`, `skip`, `overwrite`, `rename`)
+  - Explicit confirmation prompt before elevation
+
+### 5. Explorer Integration
+In `ezcli choose-directory`, directories that the normal user cannot read are marked with a lock emoji (`🔒`). Pressing `[Enter]` on a locked folder offers elevation and, on authentication, reloads the directory contents seamlessly.
+
+---
 
 ## 🎨 Icon & Font Policy
 
@@ -249,12 +294,13 @@ EZCLI/
 ├── setup.py               # Setup script
 ├── install.sh             # 1-step deployment script
 ├── README.md              # Documentation and guide
-├── tests/                 # Comprehensive unit test suite (35 tests)
+├── tests/                 # Comprehensive unit test suite (53 tests)
 │   ├── test_distro.py     # Distro parser and derivative detection tests
 │   ├── test_collectors.py # System inspection and installed package tests
 │   ├── test_file_ops.py   # Copy, move, cross-filesystem, and conflict tests
 │   ├── test_undo.py       # Reversible undo engine verification
-│   └── test_cli.py        # CLI dispatch, flags, and end-to-end flow tests
+│   ├── test_cli.py        # CLI dispatch, flags, and end-to-end flow tests
+│   └── test_elevation.py  # Privilege elevation & permission-denied simulation tests
 └── ezcli_app/
     ├── __init__.py        # Package version (__version__ = "0.2.0")
     ├── config.py          # Declarative FeatureTemplate definitions & aliases
@@ -263,14 +309,16 @@ EZCLI/
     ├── collectors.py      # Subprocess execution and multi-platform queries
     ├── renderers.py       # Rich visual layout and box-drawing renderers
     ├── menu.py            # Interactive TUI menu and keyboard navigation
-    ├── main.py            # Subcommand parser and dispatcher
+    ├── main.py            # Subcommand parser, --admin flag handler, and dispatcher
+    ├── elevation.py       # Shared privilege-elevation layer & password UX
+    ├── privileged_helper.py# Minimal privileged helper for elevated tasks
     ├── file_engine.py     # Safe file operations, SHA256 checks, conflict policies
-    ├── file_cli.py        # Interactive copy, move, and undo CLI handlers
+    ├── file_cli.py        # Interactive copy, move, paste, and undo CLI handlers
     ├── undo.py            # Reversible undo history engine (~/.local/share/ezcli)
-    └── explorer/          # Textual TUI File Explorer
+    └── explorer/          # Textual TUI File Explorer with lock-emoji integration
         ├── file_icons.py  # Emoji mapping per file extension and MIME type
         ├── places.py      # Bookmarks and standard quick places
-        └── explorer_app.py# Reusable file manager and directory picker
+        └── explorer_app.py# Reusable file manager, pickers, and elevation reload
 ```
 
 ---
@@ -282,4 +330,4 @@ To run the automated unit test suite:
 python3 -m unittest discover tests/
 ```
 
-All 35 unit tests validate distro detection, collector safety, file operations, conflict policies, cross-filesystem moves, undo engine, command parsing, and CLI flags.
+All 53 unit tests validate distro detection, collector safety, file operations, conflict policies, cross-filesystem moves, undo engine, command parsing, CLI flags, permission-denied simulations, and the privilege elevation layer.

@@ -304,19 +304,21 @@ def collect_disk_info() -> List[Dict[str, Any]]:
 # ==============================================================================
 # 4. Big Files & Folders
 # ==============================================================================
-def format_bytes(num_bytes: int) -> str:
+def format_bytes(num_bytes: float) -> str:
     """Format bytes into human-readable string."""
+    size = num_bytes
     for unit in ["B", "KB", "MB", "GB", "TB"]:
-        if num_bytes < 1024.0 or unit == "TB":
-            return f"{num_bytes:.1f} {unit}" if unit != "B" else f"{num_bytes} B"
-        num_bytes /= 1024.0
-    return f"{num_bytes:.1f} PB"
+        if size < 1024.0 or unit == "TB":
+            return f"{size:.1f} {unit}" if unit != "B" else f"{int(size)} B"
+        size /= 1024.0
+    return f"{size:.1f} PB"
 
 
-def collect_big_files(folder_path: str = "~", limit: int = 15) -> Dict[str, Any]:
+def collect_big_files(folder_path: str = "~", limit: int = 10, is_admin: bool = False) -> Dict[str, Any]:
     """
-    Scan directory for largest items with depth limit, skipping unreadable paths.
-    Wraps du -h --max-depth=1 and find defensively.
+    Scan directory for largest files and folders.
+    Detects partial permission failures (some subfolders blocked) and full permission failures (entire folder blocked).
+    Supports elevated re-scan via privileged helper when is_admin=True.
     """
     target = os.path.abspath(os.path.expanduser(folder_path))
     result: Dict[str, Any] = {
@@ -324,6 +326,9 @@ def collect_big_files(folder_path: str = "~", limit: int = 15) -> Dict[str, Any]
         "exists": False,
         "error": "",
         "items": [],
+        "inaccessible_paths": [],
+        "partial_failure": False,
+        "full_failure": False,
     }
 
     if not os.path.exists(target):
@@ -335,15 +340,58 @@ def collect_big_files(folder_path: str = "~", limit: int = 15) -> Dict[str, Any]
         return result
 
     result["exists"] = True
+    items_map: Dict[str, Dict[str, Any]] = {}
+    inaccessible_paths: List[str] = []
+
+    # If running with elevated admin rights
+    if is_admin:
+        from .elevation import elevated_run_command
+        success, out, err = elevated_run_command(
+            ["du", "-k", "--max-depth=1", target],
+            reason=f"Scan files and directory sizes in protected folder '{target}'",
+            task_description=f"Scan largest items in '{target}' with administrator rights",
+        )
+        if success and out:
+            for line in out.splitlines():
+                parts = line.split("\t", 1)
+                if len(parts) == 2:
+                    try:
+                        kb = int(parts[0])
+                        p = parts[1].strip()
+                        if p == target:
+                            continue
+                        name = os.path.basename(p)
+                        is_dir = os.path.isdir(p)
+                        items_map[p] = {
+                            "name": name,
+                            "path": p,
+                            "size_bytes": kb * 1024,
+                            "size_str": format_bytes(kb * 1024),
+                            "is_dir": is_dir,
+                        }
+                    except ValueError:
+                        continue
+
+            sorted_items = sorted(items_map.values(), key=lambda x: x["size_bytes"], reverse=True)
+            result["items"] = sorted_items[:limit]
+            return result
+        elif not success and not out:
+            result["error"] = err or "Failed to scan folder with administrator rights."
+            return result
 
     # 1. First run du -k --max-depth=1 with a defensive timeout
-    items_map: Dict[str, Dict[str, Any]] = {}
     rc, out, err = run_command_safe(
         ["du", "-k", "--max-depth=1", target],
         timeout=6,
     )
 
-    if rc == 0 and out:
+    if err:
+        for err_line in err.splitlines():
+            if "permission denied" in err_line.lower():
+                # Extract path from 'du: cannot read directory ...'
+                inaccessible_paths.append(err_line.strip())
+
+    if (rc == 0 or out) and out:
         for line in out.splitlines():
             parts = line.split("\t", 1)
             if len(parts) == 2:
@@ -365,6 +413,7 @@ def collect_big_files(folder_path: str = "~", limit: int = 15) -> Dict[str, Any]
                     continue
 
     # 2. Fast scan immediate files & direct children in case du timed out or for top files
+    scandir_failed = False
     try:
         with os.scandir(target) as it:
             for entry in it:
@@ -380,10 +429,21 @@ def collect_big_files(folder_path: str = "~", limit: int = 15) -> Dict[str, Any]
                             "is_dir": entry.is_dir(follow_symlinks=False),
                         }
                 except (PermissionError, FileNotFoundError):
+                    inaccessible_paths.append(entry.path)
                     continue
     except PermissionError:
-        result["error"] = f"Permission denied reading directory contents of '{target}'"
-        return result
+        scandir_failed = True
+
+    # 3. Analyze partial vs full failure
+    if not items_map:
+        if scandir_failed or inaccessible_paths:
+            result["full_failure"] = True
+            result["error"] = "Admin rights are required for this task."
+            return result
+    else:
+        if scandir_failed or inaccessible_paths:
+            result["partial_failure"] = True
+            result["inaccessible_paths"] = inaccessible_paths
 
     # Sort descending by size
     sorted_items = sorted(items_map.values(), key=lambda x: x["size_bytes"], reverse=True)
@@ -1142,10 +1202,11 @@ def collect_network_info() -> Dict[str, Any]:
 # ==============================================================================
 # 10. Logs
 # ==============================================================================
-def collect_logs(lines_count: int = 50) -> Dict[str, Any]:
+def collect_logs(lines_count: int = 50, is_admin: bool = False) -> Dict[str, Any]:
     """
     Collect recent journal logs with journalctl -n N --no-pager.
     Handles lack of systemd-journal permission gracefully.
+    Supports elevated execution via privileged helper when is_admin=True.
     """
     result: Dict[str, Any] = {
         "requested_lines": lines_count,
@@ -1156,27 +1217,40 @@ def collect_logs(lines_count: int = 50) -> Dict[str, Any]:
     }
 
     cmd = ["journalctl", "-n", str(lines_count), "--no-pager"]
-    rc, out, err = run_command_safe(cmd, timeout=8)
 
-    # Check for journal access permission hints in stderr or stdout
-    full_text = f"{out}\n{err}"
-    if "Users in groups 'adm', 'systemd-journal' can see all messages" in full_text or "not seeing messages from other users" in full_text:
-        result["permission_limited"] = True
-        result["permission_message"] = (
-            "Notice: Showing user-level logs only. To view full system and service logs, "
-            "your user account requires membership in the 'adm' or 'systemd-journal' group."
+    if is_admin:
+        from .elevation import elevated_run_command
+        success, out, err = elevated_run_command(
+            cmd,
+            reason="Read full system and service journals without standard user restrictions",
+            task_description=f"Inspect last {lines_count} journal log entries with administrator rights",
         )
+        if not success and not out:
+            result["error"] = err or "Could not retrieve journal logs with admin rights."
+            return result
+        rc = 0
+    else:
+        rc, out, err = run_command_safe(cmd, timeout=8)
 
-    if rc != 0 and not out:
-        if "No journal files were found" in err or "Permission denied" in err:
+        # Check for journal access permission hints in stderr or stdout
+        full_text = f"{out}\n{err}"
+        if "Users in groups 'adm', 'systemd-journal' can see all messages" in full_text or "not seeing messages from other users" in full_text:
             result["permission_limited"] = True
             result["permission_message"] = (
-                "Unable to read system journals: Permission denied. "
-                "EasyCLI is running in read-only mode without root permissions."
+                "Notice: Showing user-level logs only. To view full system and service logs, "
+                "your user account requires membership in the 'adm' or 'systemd-journal' group."
             )
-        else:
-            result["error"] = err or "Could not retrieve journal logs."
-        return result
+
+        if rc != 0 and not out:
+            if "No journal files were found" in err or "Permission denied" in err:
+                result["permission_limited"] = True
+                result["permission_message"] = (
+                    "Unable to read system journals: Permission denied. "
+                    "EasyCLI is running in read-only mode without root permissions."
+                )
+            else:
+                result["error"] = err or "Could not retrieve journal logs."
+            return result
 
     parsed_logs: List[Dict[str, str]] = []
     lines = out.splitlines()

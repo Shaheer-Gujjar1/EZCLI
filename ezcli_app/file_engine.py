@@ -117,6 +117,21 @@ def preview_file_operation(
     }
 
 
+def is_destination_protected(destination: str) -> bool:
+    """Return True if destination path (or closest existing parent) is not writable by current user."""
+    from .elevation import is_root
+    if is_root():
+        return False
+    abs_dst = os.path.abspath(os.path.expanduser(destination))
+    curr = abs_dst
+    while not os.path.exists(curr):
+        parent = os.path.dirname(curr)
+        if parent == curr:
+            break
+        curr = parent
+    return not os.access(curr, os.W_OK)
+
+
 def execute_file_operation(
     action: str,  # "copy" or "move"
     sources: List[str],
@@ -124,15 +139,21 @@ def execute_file_operation(
     conflict_policy: str = "ask",  # "ask", "skip", "overwrite", "rename"
     prompt_callback: Optional[Callable[[str], str]] = None,
     progress_callback: Optional[Callable[[int, int, str, int, int], None]] = None,
+    is_admin: bool = False,
 ) -> Tuple[bool, str, List[Dict[str, Any]]]:
     """
     Execute copy or move with conflict resolution, integrity checks, and undo logging.
+    Supports elevated execution via privileged helper when is_admin=True or protected destination.
     Returns (success, message, executed_items).
     """
+    from .elevation import elevated_file_copy, elevated_file_move, elevated_make_dir
+
     raw_dst = os.path.abspath(os.path.expanduser(destination))
     items, total_bytes, errors = scan_source_items(sources)
     if not items:
         return False, "No valid source items to process.", []
+
+    needs_elevation = is_admin or is_destination_protected(raw_dst)
 
     is_single_rename = (
         len(items) == 1
@@ -145,12 +166,22 @@ def execute_file_operation(
         parent_dir = os.path.dirname(raw_dst)
         try:
             os.makedirs(parent_dir, exist_ok=True)
+        except PermissionError:
+            if needs_elevation:
+                elevated_make_dir(parent_dir)
+            else:
+                return False, f"Permission denied creating directory '{parent_dir}'. Admin rights required.", []
         except Exception as e:
             return False, f"Cannot create directory '{parent_dir}': {e}", []
     else:
         if not os.path.isdir(raw_dst):
             try:
                 os.makedirs(raw_dst, exist_ok=True)
+            except PermissionError:
+                if needs_elevation:
+                    elevated_make_dir(raw_dst)
+                else:
+                    return False, f"Permission denied creating destination directory '{raw_dst}'. Admin rights required.", []
             except Exception as e:
                 return False, f"Cannot create destination directory '{raw_dst}': {e}", []
 
@@ -196,10 +227,15 @@ def execute_file_operation(
         # Perform Action
         try:
             if action == "copy":
-                if is_dir:
-                    shutil.copytree(src, target, dirs_exist_ok=True)
+                if needs_elevation:
+                    success, err = elevated_file_copy(src, target, is_dir=is_dir, skip_explanation=True)
+                    if not success:
+                        return False, f"Elevated copy failed: {err}", executed
                 else:
-                    shutil.copy2(src, target)
+                    if is_dir:
+                        shutil.copytree(src, target, dirs_exist_ok=True)
+                    else:
+                        shutil.copy2(src, target)
 
                 executed.append({
                     "src": src,
@@ -209,28 +245,33 @@ def execute_file_operation(
                 })
 
             elif action == "move":
-                src_dev = os.stat(src).st_dev if os.path.exists(src) else None
-                is_cross_fs = (src_dev is not None and dst_dev is not None and src_dev != dst_dev)
-
-                if is_cross_fs:
-                    # Cross-filesystem move: copy first, verify checksum, then delete source
-                    if is_dir:
-                        shutil.copytree(src, target, dirs_exist_ok=True)
-                        shutil.rmtree(src)
-                    else:
-                        shutil.copy2(src, target)
-                        # Verify integrity
-                        src_chk = compute_sha256(src)
-                        dst_chk = compute_sha256(target)
-                        if src_chk != dst_chk:
-                            # Integrity verification failed! Abort deleting source
-                            if os.path.exists(target):
-                                os.remove(target)
-                            return False, f"Integrity check failed moving '{name}'. Source preserved.", executed
-                        os.remove(src)
+                if needs_elevation:
+                    success, err = elevated_file_move(src, target, skip_explanation=True)
+                    if not success:
+                        return False, f"Elevated move failed: {err}", executed
                 else:
-                    # Same-filesystem move: atomic move/rename
-                    shutil.move(src, target)
+                    src_dev = os.stat(src).st_dev if os.path.exists(src) else None
+                    is_cross_fs = (src_dev is not None and dst_dev is not None and src_dev != dst_dev)
+
+                    if is_cross_fs:
+                        # Cross-filesystem move: copy first, verify checksum, then delete source
+                        if is_dir:
+                            shutil.copytree(src, target, dirs_exist_ok=True)
+                            shutil.rmtree(src)
+                        else:
+                            shutil.copy2(src, target)
+                            # Verify integrity
+                            src_chk = compute_sha256(src)
+                            dst_chk = compute_sha256(target)
+                            if src_chk != dst_chk:
+                                # Integrity verification failed! Abort deleting source
+                                if os.path.exists(target):
+                                    os.remove(target)
+                                return False, f"Integrity check failed moving '{name}'. Source preserved.", executed
+                            os.remove(src)
+                    else:
+                        # Same-filesystem move: atomic move/rename
+                        shutil.move(src, target)
 
                 executed.append({
                     "src": src,

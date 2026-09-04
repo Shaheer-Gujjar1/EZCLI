@@ -105,7 +105,7 @@ def detect_distro(os_release_path: Optional[str] = None) -> DistroInfo:
         pretty_name=pretty_name,
         codename=codename,
         id_like=id_like,
-        is_debian_based=bool(is_derivative),
+        is_debian_based=is_derivative,
         package_manager="apt / dpkg" if (has_apt or has_dpkg) else "unknown",
         init_system="systemd" if has_systemd else "unknown",
     )

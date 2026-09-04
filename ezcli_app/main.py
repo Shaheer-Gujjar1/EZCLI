@@ -47,14 +47,20 @@ def print_custom_help(console: Console) -> None:
     distro = detect_distro()
     header_text = (
         f"[bold cyan]EasyCLI (ezcli) v{__version__}[/bold cyan] ─ Friendly Linux Command Frontend\n"
-        f"[dim]Platform:[/dim] [green]{distro.pretty_name}[/green] | [dim]Mode:[/dim] [bold yellow]100% Read-Only[/bold yellow]"
+        f"[dim]Platform:[/dim] [green]{distro.pretty_name}[/green] | [dim]Admin Mode:[/dim] [bold yellow]Automatic & Safe[/bold yellow]"
     )
     console.print(Panel(header_text, box=box.ROUNDED, border_style="cyan"))
 
     console.print("[bold]Usage:[/bold]")
     console.print("  [cyan]ezcli[/cyan]                      [dim]Open interactive TUI menu[/dim]")
     console.print("  [cyan]ezcli <subcommand> [args][/cyan]  [dim]Run subcommand directly and print output[/dim]")
+    console.print("  [cyan]ezcli <subcommand> --admin[/cyan] [dim]Run subcommand with elevated admin rights through helper[/dim]")
     console.print("  [cyan]ezcli help[/cyan]                 [dim]Show this help message[/dim]\n")
+
+    console.print("[bold]Options:[/bold]")
+    console.print("  [green]--admin[/green]                    [dim]Run underlying operation with elevated rights (no sudo ezcli needed)[/dim]")
+    console.print("  [green]-h, --help[/green]                 [dim]Show this help message[/dim]")
+    console.print("  [green]-v, --version[/green]              [dim]Show EasyCLI version[/dim]\n")
 
     table = Table(
         box=box.ROUNDED,
@@ -86,7 +92,7 @@ def print_custom_help(console: Console) -> None:
         )
 
     console.print(table)
-    console.print()
+    console.print("[dim]💡 Tip: Never run 'sudo ezcli'. EasyCLI always runs safely as your normal user\n   and elevates only the specific underlying action through a small privileged helper.[/dim]\n")
 
 
 def main() -> None:
@@ -96,6 +102,18 @@ def main() -> None:
 
     console = Console()
     args = sys.argv[1:]
+
+    # Check if user invoked 'sudo ezcli' directly
+    if os.geteuid() == 0 and "SUDO_USER" in os.environ:
+        console.print(
+            "[bold yellow]Notice:[/bold yellow] You started EasyCLI with 'sudo ezcli'.\n"
+            "Running the entire app as root is not needed or recommended.\n"
+            "EasyCLI automatically and safely elevates only specific tasks when required.\n"
+        )
+
+    # Global --admin flag parsing (can appear anywhere in arguments)
+    is_admin = "--admin" in args
+    args = [a for a in args if a != "--admin"]
 
     # 1. No arguments -> Interactive TUI Menu
     if not args:
@@ -115,7 +133,7 @@ def main() -> None:
 
     # 3. Version flag
     if first_arg in ("--version", "-v", "version"):
-        console.print(f"EasyCLI (ezcli) v{__version__} [dim](Read-Only)[/dim]")
+        console.print(f"EasyCLI (ezcli) v{__version__} [dim](Safe Admin Architecture)[/dim]")
         sys.exit(0)
 
     # 4. Check if subcommand matches a registered feature
@@ -140,27 +158,27 @@ def main() -> None:
     # Dispatch to appropriate renderer
     try:
         if feature.id == "system_info":
-            renderers.render_system_info(console)
+            renderers.render_system_info(console, is_admin=is_admin)
         elif feature.id == "stats":
-            renderers.render_stats(console)
+            renderers.render_stats(console, is_admin=is_admin)
         elif feature.id == "disk_info":
-            renderers.render_disk_info(console)
+            renderers.render_disk_info(console, is_admin=is_admin)
         elif feature.id == "big_files":
             folder = sub_args[0] if sub_args else "~"
-            renderers.render_big_files(console, folder)
+            renderers.render_big_files(console, folder, is_admin=is_admin)
         elif feature.id == "package_search":
             term = " ".join(sub_args)
-            renderers.render_package_search(console, term)
+            renderers.render_package_search(console, term, is_admin=is_admin)
         elif feature.id == "package":
             pkg_name = sub_args[0]
-            renderers.render_package(console, pkg_name)
+            renderers.render_package(console, pkg_name, is_admin=is_admin)
         elif feature.id == "available_updates":
-            renderers.render_available_updates(console)
+            renderers.render_available_updates(console, is_admin=is_admin)
         elif feature.id == "service_status":
             svc_name = sub_args[0]
-            renderers.render_service_status(console, svc_name)
+            renderers.render_service_status(console, svc_name, is_admin=is_admin)
         elif feature.id == "network_info":
-            renderers.render_network_info(console)
+            renderers.render_network_info(console, is_admin=is_admin)
         elif feature.id == "logs":
             lines = 50
             if sub_args:
@@ -169,12 +187,12 @@ def main() -> None:
                 except ValueError:
                     console.print(f"[bold red]Error:[/bold red] Invalid line count '{sub_args[0]}'. Must be an integer.")
                     sys.exit(1)
-            renderers.render_logs(console, lines)
+            renderers.render_logs(console, lines, is_admin=is_admin)
         elif feature.id == "installed_packages":
-            renderers.render_installed_packages(console)
+            renderers.render_installed_packages(console, is_admin=is_admin)
         elif feature.id == "installed_package_search":
             term = " ".join(sub_args)
-            renderers.render_installed_package_search(console, term)
+            renderers.render_installed_package_search(console, term, is_admin=is_admin)
         elif feature.id == "choose_directory":
             if not check_textual_installed(console):
                 sys.exit(1)
@@ -187,28 +205,28 @@ def main() -> None:
                 else:
                     clean_sub.append(a)
             initial_dir = clean_sub[0] if clean_sub else "~"
-            run_choose_directory(initial_dir, print_path_only=print_only)
+            run_choose_directory(initial_dir, print_path_only=print_only, is_admin=is_admin)
         elif feature.id == "copy":
             if not check_textual_installed(console):
                 sys.exit(1)
             from .file_cli import run_cli_stage
-            run_cli_stage("copy", console=console)
+            run_cli_stage("copy", console=console, is_admin=is_admin)
         elif feature.id == "move":
             if not check_textual_installed(console):
                 sys.exit(1)
             from .file_cli import run_cli_stage
-            run_cli_stage("move", console=console)
+            run_cli_stage("move", console=console, is_admin=is_admin)
         elif feature.id == "paste":
             if not check_textual_installed(console):
                 sys.exit(1)
             from .file_cli import run_cli_paste
-            run_cli_paste(console=console)
+            run_cli_paste(console=console, is_admin=is_admin)
         elif feature.id == "undo":
             from .file_cli import run_cli_undo
-            run_cli_undo(console=console)
+            run_cli_undo(console=console, is_admin=is_admin)
         elif feature.id == "redo":
             from .file_cli import run_cli_redo
-            run_cli_redo(console=console)
+            run_cli_redo(console=console, is_admin=is_admin)
     except BrokenPipeError:
         try:
             devnull = os.open(os.devnull, os.O_WRONLY)
@@ -216,6 +234,18 @@ def main() -> None:
         except Exception:
             pass
         sys.exit(0)
+    except PermissionError as e:
+        console.print(
+            Panel(
+                "🔒 [bold red]Admin rights are required for this task.[/bold red]\n\n"
+                f"Permission denied: {e}\n\n"
+                "💡 [bold]Tip:[/bold] You can also pass [bold cyan]--admin[/bold cyan] to run with admin rights.",
+                title="[bold yellow]Admin Rights Required[/bold yellow]",
+                border_style="yellow",
+                box=box.ROUNDED,
+            )
+        )
+        sys.exit(1)
     except KeyboardInterrupt:
         console.print("\n[dim]Command interrupted.[/dim]")
         sys.exit(130)

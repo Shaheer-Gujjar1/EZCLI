@@ -1,11 +1,11 @@
 """Rich-based formatters and renderers for EasyCLI subcommands."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 from rich import box
 from rich.console import Console
 from rich.panel import Panel
+from rich.prompt import Confirm
 from rich.table import Table
-from rich.text import Text
 
 from .collectors import (
     collect_system_info,
@@ -24,8 +24,8 @@ from .collectors import (
 
 def make_bar(percent: float, width: int = 10) -> str:
     """Generate a compact inline visual bar with color coding."""
-    pct = max(0.0, min(100.0, float(percent)))
-    filled = int(round((pct / 100.0) * width))
+    pct = max(0.0, min(100.0, percent))
+    filled = round((pct / 100.0) * width)
     empty = width - filled
     bar_chars = "█" * filled + "░" * empty
     if pct >= 85:
@@ -40,7 +40,7 @@ def make_bar(percent: float, width: int = 10) -> str:
 # ==============================================================================
 # 1. System Info Renderer
 # ==============================================================================
-def render_system_info(console: Console) -> None:
+def render_system_info(console: Console, is_admin: bool = False) -> None:
     """Render system info card."""
     data = collect_system_info()
 
@@ -65,9 +65,10 @@ def render_system_info(console: Console) -> None:
     if data.get("chassis"):
         table.add_row("Chassis Type", data["chassis"])
 
+    title_admin = " [dim](Admin Mode)[/dim]" if is_admin else ""
     panel = Panel(
         table,
-        title="[bold cyan]💻 System Information[/bold cyan]",
+        title=f"[bold cyan]💻 System Information{title_admin}[/bold cyan]",
         border_style="cyan",
         box=box.ROUNDED,
         padding=(1, 1),
@@ -78,7 +79,7 @@ def render_system_info(console: Console) -> None:
 # ==============================================================================
 # 2. Resource Stats Renderer
 # ==============================================================================
-def render_stats(console: Console) -> None:
+def render_stats(console: Console, is_admin: bool = False) -> None:
     """Render CPU and RAM usage statistics card."""
     data = collect_stats()
 
@@ -103,9 +104,10 @@ def render_stats(console: Console) -> None:
         swap_details = f"{data['swap_used_str']} used / {data['swap_total_str']} total"
         table.add_row("Swap Space", swap_bar, swap_details)
 
+    title_admin = " [dim](Admin Mode)[/dim]" if is_admin else ""
     panel = Panel(
         table,
-        title="[bold cyan]⚡ System Resource Statistics[/bold cyan]",
+        title=f"[bold cyan]⚡ System Resource Statistics{title_admin}[/bold cyan]",
         border_style="cyan",
         box=box.ROUNDED,
         padding=(1, 1),
@@ -116,7 +118,7 @@ def render_stats(console: Console) -> None:
 # ==============================================================================
 # 3. Disk Space Renderer
 # ==============================================================================
-def render_disk_info(console: Console) -> None:
+def render_disk_info(console: Console, is_admin: bool = False) -> None:
     """Render disk space usage table with inline usage bars."""
     disks = collect_disk_info()
 
@@ -124,7 +126,8 @@ def render_disk_info(console: Console) -> None:
         console.print("[yellow]No physical or persistent storage partitions found.[/yellow]")
         return
 
-    table = Table(box=box.ROUNDED, border_style="cyan", padding=(0, 1), title="[bold]Storage Partitions[/bold]")
+    title_admin = " [dim](Admin Mode)[/dim]" if is_admin else ""
+    table = Table(box=box.ROUNDED, border_style="cyan", padding=(0, 1), title=f"[bold]Storage Partitions{title_admin}[/bold]")
     table.add_column("Mount Point", style="bold green", no_wrap=True)
     table.add_column("Filesystem", style="dim white")
     table.add_column("Total", justify="right", style="cyan")
@@ -149,10 +152,27 @@ def render_disk_info(console: Console) -> None:
 # ==============================================================================
 # 4. Big Files Renderer
 # ==============================================================================
-def render_big_files(console: Console, folder: str = "~") -> None:
-    """Scan and render top largest items."""
-    with console.status(f"[bold cyan]Scanning directory '{folder}'...[/bold cyan]", spinner="dots"):
-        data = collect_big_files(folder)
+def render_big_files(console: Console, folder: str = "~", is_admin: bool = False) -> None:
+    """Scan and render top largest items with partial and full permission handling."""
+    status_text = f"Scanning directory '{folder}' (Admin Rights Active)..." if is_admin else f"Scanning directory '{folder}'..."
+    with console.status(f"[bold cyan]{status_text}[/bold cyan]", spinner="dots"):
+        data = collect_big_files(folder, is_admin=is_admin)
+
+    # 1. Full permission failure
+    if data.get("full_failure"):
+        console.print(
+            Panel(
+                "🔒 [bold red]Admin rights are required for this task.[/bold red]\n\n"
+                f"EasyCLI cannot inspect '{data['folder']}' without administrator rights.\n\n"
+                f"💡 [bold]Tip:[/bold] You can also run [bold cyan]ezcli big-files {folder} --admin[/bold cyan] directly.",
+                title="[bold yellow]Admin Rights Required[/bold yellow]",
+                border_style="yellow",
+                box=box.ROUNDED,
+            )
+        )
+        if not is_admin and Confirm.ask("Would you like to run it with admin rights now?", default=True):
+            render_big_files(console, folder, is_admin=True)
+        return
 
     if data.get("error"):
         console.print(f"[bold red]Error:[/bold red] {data['error']}")
@@ -163,11 +183,12 @@ def render_big_files(console: Console, folder: str = "~") -> None:
         console.print(f"[yellow]No files or folders found in {data['folder']}[/yellow]")
         return
 
+    title_admin = " [dim](Admin Mode)[/dim]" if is_admin else ""
     table = Table(
         box=box.ROUNDED,
         border_style="cyan",
         padding=(0, 1),
-        title=f"[bold]Top Largest Items in {data['folder']}[/bold]",
+        title=f"[bold]Top Largest Items in {data['folder']}{title_admin}[/bold]",
     )
     table.add_column("#", justify="right", style="dim", width=3)
     table.add_column("Type", justify="center", style="cyan", width=5)
@@ -184,6 +205,12 @@ def render_big_files(console: Console, folder: str = "~") -> None:
         )
 
     console.print(table)
+
+    # 2. Partial permission failure offer
+    if not is_admin and data.get("partial_failure"):
+        console.print()
+        if Confirm.ask("⚠️ Some locations were inaccessible. Retry with admin rights? [Y/n]", default=True):
+            render_big_files(console, folder, is_admin=True)
 
 
 # ==============================================================================
@@ -234,7 +261,7 @@ def render_package_choice_card(console: Console, pkg: Dict[str, Any]) -> None:
     console.print(panel)
 
 
-def render_package_search(console: Console, term: str, interactive: bool = True) -> None:
+def render_package_search(console: Console, term: str, interactive: bool = True, is_admin: bool = False) -> None:
     """Render multi-platform package search results (APT, Flatpak, Snap)."""
     with console.status(f"[bold cyan]Searching APT 📦, Flatpak 🟣, and Snap 🟢 for '{term}'...[/bold cyan]", spinner="dots"):
         data = collect_package_search(term)
@@ -313,7 +340,7 @@ def render_package_search(console: Console, term: str, interactive: bool = True)
 # ==============================================================================
 # 6. Package Details Renderer
 # ==============================================================================
-def render_package(console: Console, name: str) -> None:
+def render_package(console: Console, name: str, is_admin: bool = False) -> None:
     """Render detailed package information card."""
     with console.status(f"[bold cyan]Querying details for package '{name}'...[/bold cyan]", spinner="dots"):
         data = collect_package_info(name)
@@ -362,7 +389,7 @@ def render_package(console: Console, name: str) -> None:
 # ==============================================================================
 # 7. Available Updates Renderer
 # ==============================================================================
-def render_available_updates(console: Console) -> None:
+def render_available_updates(console: Console, is_admin: bool = False) -> None:
     """Render list of upgradable packages without running apt update."""
     with console.status("[bold cyan]Checking upgradable packages...[/bold cyan]", spinner="dots"):
         data = collect_available_updates()
@@ -425,7 +452,7 @@ def render_available_updates(console: Console) -> None:
 # ==============================================================================
 # 8. Service Status Renderer
 # ==============================================================================
-def render_service_status(console: Console, service_name: str) -> None:
+def render_service_status(console: Console, service_name: str, is_admin: bool = False) -> None:
     """Render systemd service status card."""
     data = collect_service_status(service_name)
 
@@ -483,7 +510,7 @@ def render_service_status(console: Console, service_name: str) -> None:
 # ==============================================================================
 # 9. Network Info Renderer
 # ==============================================================================
-def render_network_info(console: Console) -> None:
+def render_network_info(console: Console, is_admin: bool = False) -> None:
     """Render network interfaces, gateway, DNS, and connectivity status."""
     data = collect_network_info()
 
@@ -536,21 +563,28 @@ def render_network_info(console: Console) -> None:
 # ==============================================================================
 # 10. Logs Renderer
 # ==============================================================================
-def render_logs(console: Console, lines_count: int = 50) -> None:
-    """Render system logs with severity coloring."""
-    data = collect_logs(lines_count)
-
-    if data.get("permission_limited") and data.get("permission_message"):
-        console.print(
-            Panel(
-                f"[bold yellow]{data['permission_message']}[/bold yellow]",
-                border_style="yellow",
-                box=box.ROUNDED,
-                title="[bold yellow]Journal Permissions[/bold yellow]",
-            )
-        )
+def render_logs(console: Console, lines_count: int = 50, is_admin: bool = False) -> None:
+    """Render system logs with severity coloring, handling partial and full permission failures."""
+    status_text = f"Retrieving system logs (Admin Rights Active)..." if is_admin else "Retrieving system logs..."
+    with console.status(f"[bold cyan]{status_text}[/bold cyan]", spinner="dots"):
+        data = collect_logs(lines_count, is_admin=is_admin)
 
     if data.get("error"):
+        if "permission" in data["error"].lower() or "admin rights" in data["error"].lower():
+            console.print(
+                Panel(
+                    "🔒 [bold red]Admin rights are required for this task.[/bold red]\n\n"
+                    f"{data['error']}\n\n"
+                    f"💡 [bold]Tip:[/bold] You can also run [bold cyan]ezcli logs {lines_count} --admin[/bold cyan] directly.",
+                    title="[bold yellow]Admin Rights Required[/bold yellow]",
+                    border_style="yellow",
+                    box=box.ROUNDED,
+                )
+            )
+            if not is_admin and Confirm.ask("Would you like to run it with admin rights now?", default=True):
+                render_logs(console, lines_count, is_admin=True)
+            return
+
         console.print(f"[bold red]Error:[/bold red] {data['error']}")
         return
 
@@ -559,7 +593,8 @@ def render_logs(console: Console, lines_count: int = 50) -> None:
         console.print("[dim]No journal log entries available.[/dim]")
         return
 
-    console.print(f"\n[bold]📄 Recent System Logs (last {len(logs)} entries):[/bold]")
+    title_admin = " [dim](Admin Mode)[/dim]" if is_admin else ""
+    console.print(f"\n[bold]📄 Recent System Logs (last {len(logs)} entries){title_admin}:[/bold]")
     for entry in logs:
         lvl = entry["level"]
         raw = entry["raw"]
@@ -573,11 +608,16 @@ def render_logs(console: Console, lines_count: int = 50) -> None:
             console.print(raw)
     console.print()
 
+    # Offer elevation if partial failure (user-level logs only)
+    if not is_admin and data.get("permission_limited"):
+        if Confirm.ask("⚠️ Some locations were inaccessible (showing user-level logs only). Retry with admin rights? [Y/n]", default=True):
+            render_logs(console, lines_count, is_admin=True)
+
 
 # ==============================================================================
 # 11. Installed Packages Renderer
 # ==============================================================================
-def render_installed_packages(console: Console, filter_term: str = "") -> None:
+def render_installed_packages(console: Console, filter_term: str = "", is_admin: bool = False) -> None:
     """Render installed packages with optional keyword filtering."""
     status_msg = f"Filtering installed packages for '{filter_term}'..." if filter_term else "Scanning installed packages..."
     with console.status(f"[bold cyan]{status_msg}[/bold cyan]", spinner="dots"):
@@ -669,7 +709,7 @@ def render_installed_packages(console: Console, filter_term: str = "") -> None:
         )
 
 
-def render_installed_package_search(console: Console, term: str) -> None:
+def render_installed_package_search(console: Console, term: str, is_admin: bool = False) -> None:
     """Search installed packages by name (wraps apt list --installed | grep -i <app>)."""
     render_installed_packages(console, filter_term=term)
 

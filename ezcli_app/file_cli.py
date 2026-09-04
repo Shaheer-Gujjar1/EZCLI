@@ -24,7 +24,12 @@ from .explorer.explorer_app import (
     run_source_picker,
 )
 from .explorer.file_icons import get_file_icon
-from .file_engine import execute_file_operation, preview_file_operation, scan_source_items
+from .file_engine import (
+    execute_file_operation,
+    is_destination_protected,
+    preview_file_operation,
+    scan_source_items,
+)
 from .undo import (
     clear_clipboard,
     execute_redo,
@@ -60,7 +65,7 @@ def prompt_conflict_resolution(console: Console, filename: str) -> str:
 # ==============================================================================
 # Copy & Move Staging
 # ==============================================================================
-def run_cli_stage(action: str, console: Optional[Console] = None) -> None:
+def run_cli_stage(action: str, console: Optional[Console] = None, is_admin: bool = False) -> None:
     """Launch the mini explorer to choose files/folders to copy or move."""
     console = console or Console()
     icon = "📋" if action == "copy" else "🚚"
@@ -117,7 +122,7 @@ def run_cli_stage(action: str, console: Optional[Console] = None) -> None:
 # ==============================================================================
 # Paste Flow
 # ==============================================================================
-def run_cli_paste(console: Optional[Console] = None) -> None:
+def run_cli_paste(console: Optional[Console] = None, is_admin: bool = False) -> None:
     """Launch destination explorer to choose destination and execute paste."""
     console = console or Console()
 
@@ -147,6 +152,8 @@ def run_cli_paste(console: Optional[Console] = None) -> None:
         console.print("[dim]Paste cancelled. Staged items remain safely on your clipboard.[/dim]")
         return
 
+    is_protected = is_admin or is_destination_protected(destination)
+
     # Generate Preview
     preview = preview_file_operation(action, sources, destination)
     if preview.get("errors"):
@@ -161,7 +168,14 @@ def run_cli_paste(console: Optional[Console] = None) -> None:
     table.add_column("Key", style="bold cyan", width=18)
     table.add_column("Value", style="white")
 
-    table.add_row("Operation", f"[bold green]{icon} {action.upper()}[/bold green]")
+    if is_protected:
+        table.add_row(
+            "🛡️ Risk Badge",
+            "[bold red]HIGH RISK (Protected System Directory — Admin Rights Required)[/bold red]",
+        )
+
+    action_title = f"{action.upper()} (Admin Rights Active)" if is_protected else action.upper()
+    table.add_row("Operation", f"[bold green]{icon} {action_title}[/bold green]")
     table.add_row("Total Items", str(preview["count"]))
     table.add_row("Total Size", preview["total_size_str"])
     table.add_row("Destination", f"[bold cyan]📁 {preview['destination']}[/bold cyan]")
@@ -181,10 +195,11 @@ def run_cli_paste(console: Optional[Console] = None) -> None:
             f"[bold yellow]⚠️ {len(collisions)} item(s) already exist at destination![/bold yellow]",
         )
 
+    card_border = "red" if is_protected else ("cyan" if action == "copy" else "yellow")
     panel = Panel(
         table,
         title=f"{icon} [bold]{action.capitalize()} Summary[/bold]",
-        border_style="cyan" if action == "copy" else "yellow",
+        border_style=card_border,
         box=box.ROUNDED,
         padding=(1, 1),
     )
@@ -207,10 +222,23 @@ def run_cli_paste(console: Optional[Console] = None) -> None:
         }.get(policy_choice, "ask")
 
     # Confirmation Prompt
-    confirmed = Confirm.ask(f"Proceed with {action}?", default=True)
+    prompt_msg = f"Proceed with elevated {action} into protected directory?" if is_protected else f"Proceed with {action}?"
+    confirmed = Confirm.ask(prompt_msg, default=True)
     if not confirmed:
         console.print("[dim]Paste cancelled by user. Items remain safely on your clipboard.[/dim]")
         return
+
+    # If protected, show plain English explanation before password entry
+    if is_protected:
+        from .elevation import explain_elevation
+        if not explain_elevation(
+            reason=f"Destination directory '{destination}' requires administrator rights to write or modify files.",
+            task_description=f"Paste {preview['count']} item(s) into '{destination}'",
+            risk_level="high",
+            console=console,
+        ):
+            console.print("[dim]Paste cancelled. Staged items remain safely on your clipboard.[/dim]")
+            return
 
     # Execute with Live Progress Bar
     total_items = preview["count"]
@@ -240,6 +268,7 @@ def run_cli_paste(console: Optional[Console] = None) -> None:
             conflict_policy=conflict_policy,
             prompt_callback=lambda fname: prompt_conflict_resolution(console, fname),
             progress_callback=on_progress,
+            is_admin=is_protected,
         )
 
     if success:
@@ -264,7 +293,7 @@ def run_cli_paste(console: Optional[Console] = None) -> None:
 # ==============================================================================
 # Undo & Redo Handlers
 # ==============================================================================
-def run_cli_undo(console: Optional[Console] = None) -> None:
+def run_cli_undo(console: Optional[Console] = None, is_admin: bool = False) -> None:
     """Revert the most recent paste operation."""
     console = console or Console()
     last_op = peek_last_operation()
@@ -288,7 +317,18 @@ def run_cli_undo(console: Optional[Console] = None) -> None:
     timestamp = last_op.get("timestamp", "unknown")
     items = last_op.get("items", [])
 
-    table.add_row("Operation to Revert", f"[bold yellow]{action}[/bold yellow]")
+    is_protected = is_admin or any(
+        is_destination_protected(i.get("dst", "")) or is_destination_protected(i.get("src", ""))
+        for i in items
+    )
+    if is_protected:
+        table.add_row(
+            "🛡️ Risk Badge",
+            "[bold red]HIGH RISK (Reverting Protected System Files — Admin Rights Required)[/bold red]",
+        )
+
+    action_label = f"{action} (Admin Rights Active)" if is_protected else action
+    table.add_row("Operation to Revert", f"[bold yellow]{action_label}[/bold yellow]")
     table.add_row("Timestamp", timestamp)
     table.add_row("Total Items", str(len(items)))
 
@@ -304,16 +344,28 @@ def run_cli_undo(console: Optional[Console] = None) -> None:
     panel = Panel(
         table,
         title="⏪ [bold]Undo Operation Preview[/bold]",
-        border_style="yellow",
+        border_style="red" if is_protected else "yellow",
         box=box.ROUNDED,
         padding=(1, 1),
     )
     console.print(panel)
 
-    confirmed = Confirm.ask(f"Are you sure you want to revert this {action} operation?", default=True)
+    prompt_msg = f"Are you sure you want to revert this elevated {action} operation?" if is_protected else f"Are you sure you want to revert this {action} operation?"
+    confirmed = Confirm.ask(prompt_msg, default=True)
     if not confirmed:
         console.print("[dim]Undo cancelled.[/dim]")
         return
+
+    if is_protected:
+        from .elevation import explain_elevation
+        if not explain_elevation(
+            reason="Reverting files located in protected system directories requires administrator rights.",
+            task_description=f"Revert {action} of {len(items)} item(s)",
+            risk_level="high",
+            console=console,
+        ):
+            console.print("[dim]Undo cancelled.[/dim]")
+            return
 
     success, msg, reverted = execute_undo(last_op)
     if success:
@@ -336,7 +388,7 @@ def run_cli_undo(console: Optional[Console] = None) -> None:
         console.print(f"[bold red]Undo Error:[/bold red] {msg}")
 
 
-def run_cli_redo(console: Optional[Console] = None) -> None:
+def run_cli_redo(console: Optional[Console] = None, is_admin: bool = False) -> None:
     """Re-apply the most recently undone operation."""
     console = console or Console()
     redo_op = peek_redo_operation()
@@ -360,7 +412,18 @@ def run_cli_redo(console: Optional[Console] = None) -> None:
     timestamp = redo_op.get("timestamp", "unknown")
     items = redo_op.get("items", [])
 
-    table.add_row("Operation to Re-apply", f"[bold magenta]{action}[/bold magenta]")
+    is_protected = is_admin or any(
+        is_destination_protected(i.get("dst", "")) or is_destination_protected(i.get("src", ""))
+        for i in items
+    )
+    if is_protected:
+        table.add_row(
+            "🛡️ Risk Badge",
+            "[bold red]HIGH RISK (Re-applying Protected System Files — Admin Rights Required)[/bold red]",
+        )
+
+    action_label = f"{action} (Admin Rights Active)" if is_protected else action
+    table.add_row("Operation to Re-apply", f"[bold magenta]{action_label}[/bold magenta]")
     table.add_row("Original Timestamp", timestamp)
     table.add_row("Total Items", str(len(items)))
 
@@ -376,16 +439,28 @@ def run_cli_redo(console: Optional[Console] = None) -> None:
     panel = Panel(
         table,
         title="⏩ [bold]Redo Operation Preview[/bold]",
-        border_style="magenta",
+        border_style="red" if is_protected else "magenta",
         box=box.ROUNDED,
         padding=(1, 1),
     )
     console.print(panel)
 
-    confirmed = Confirm.ask(f"Are you sure you want to re-apply this {action} operation?", default=True)
+    prompt_msg = f"Are you sure you want to re-apply this elevated {action} operation?" if is_protected else f"Are you sure you want to re-apply this {action} operation?"
+    confirmed = Confirm.ask(prompt_msg, default=True)
     if not confirmed:
         console.print("[dim]Redo cancelled.[/dim]")
         return
+
+    if is_protected:
+        from .elevation import explain_elevation
+        if not explain_elevation(
+            reason="Re-applying files to protected system directories requires administrator rights.",
+            task_description=f"Re-apply {action} of {len(items)} item(s)",
+            risk_level="high",
+            console=console,
+        ):
+            console.print("[dim]Redo cancelled.[/dim]")
+            return
 
     success, msg, reapplied = execute_redo(redo_op)
     if success:
