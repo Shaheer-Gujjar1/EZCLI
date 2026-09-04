@@ -18,7 +18,6 @@ from textual.containers import Container, Horizontal, Vertical  # type: ignore
 from textual.screen import ModalScreen  # type: ignore
 from textual.widgets import (  # type: ignore
     Button,
-    Footer,
     Header,
     Input,
     Label,
@@ -585,17 +584,17 @@ class EditorApp(App[bool]):
     """
 
     BINDINGS = [
-        Binding("ctrl+s", "save_file", "Save [Ctrl+S]", show=True),
-        Binding("ctrl+x", "save_and_exit", "Save & Exit [Ctrl+X]", show=True),
-        Binding("ctrl+q", "exit_editor", "Exit [Ctrl+Q]", show=True),
-        Binding("escape", "handle_escape", "Exit [Esc]", show=False),
-        Binding("ctrl+f", "toggle_find", "Find & Replace [Ctrl+F]", show=True),
-        Binding("ctrl+g", "goto_line", "Go to Line [Ctrl+G]", show=True),
+        Binding("ctrl+s", "save_file", "Save", show=False),
+        Binding("ctrl+x", "save_and_exit", "Save & Exit", show=False),
+        Binding("ctrl+q", "exit_editor", "Exit", show=False),
+        Binding("escape", "handle_escape", "Exit", show=False),
+        Binding("ctrl+f", "toggle_find", "Find & Replace", show=False),
+        Binding("ctrl+g", "goto_line", "Go to Line", show=False),
         Binding("ctrl+l", "goto_line", "Go to Line", show=False),
-        Binding("ctrl+w", "toggle_wrap", "Wrap [Ctrl+W]", show=True),
-        Binding("ctrl+z", "undo_action", "Undo [Ctrl+Z]", show=True),
-        Binding("ctrl+y", "redo_action", "Redo [Ctrl+Y]", show=True),
-        Binding("f2", "show_help", "Help [F2]", show=True),
+        Binding("ctrl+w", "toggle_wrap", "Wrap", show=False),
+        Binding("ctrl+z", "undo_action", "Undo", show=False),
+        Binding("ctrl+y", "redo_action", "Redo", show=False),
+        Binding("f2", "show_help", "Help", show=False),
         Binding("ctrl+h", "show_help", "Help", show=False),
     ]
 
@@ -675,14 +674,12 @@ class EditorApp(App[bool]):
 
         # Mouse Interactive Bottom Action Bar with Direct Click Buttons
         with Horizontal(id="editor-bottom-bar"):
-            yield Button("💾 Save [Ctrl+S]", id="bot-save", variant="primary")
-            yield Button("💾 Save & Exit [Ctrl+X]", id="bot-save-exit", variant="success")
-            yield Button("❌ Exit [Ctrl+Q]", id="bot-exit", variant="error")
-            yield Button("🔍 Find [Ctrl+F]", id="bot-find")
-            yield Button("🚀 Jump [Ctrl+G]", id="bot-goto")
-            yield Button("❓ Help [F2]", id="bot-help")
-
-        yield Footer()
+            yield Button("💾 Save", id="bot-save", variant="primary")
+            yield Button("💾 Save & Exit", id="bot-save-exit", variant="success")
+            yield Button("❌ Exit", id="bot-exit", variant="error")
+            yield Button("🔍 Find & Replace", id="bot-find")
+            yield Button("🚀 Go to Line", id="bot-goto")
+            yield Button("❓ Help", id="bot-help")
 
     def on_mount(self) -> None:
         self.update_header()
