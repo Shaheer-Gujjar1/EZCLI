@@ -443,16 +443,10 @@ class EditorApp(App[bool]):
 
     #editor-header-bar {
         dock: top;
-        height: auto;
+        height: 1;
         background: $surface-darken-1;
         border-bottom: solid cyan;
         padding: 0 1;
-    }
-
-    #editor-title-row {
-        height: 1;
-        margin-top: 0;
-        padding: 0;
         align-vertical: middle;
     }
 
@@ -464,20 +458,6 @@ class EditorApp(App[bool]):
     #editor-path-breadcrumb {
         width: auto;
         color: $text-muted;
-    }
-
-    #editor-toolbar {
-        height: 3;
-        align-vertical: middle;
-        padding: 0;
-        margin: 0;
-    }
-
-    #editor-toolbar Button {
-        min-width: 0;
-        height: 3;
-        margin-right: 1;
-        padding: 0 1;
     }
 
     #find-replace-panel {
@@ -568,18 +548,46 @@ class EditorApp(App[bool]):
 
     #editor-bottom-bar {
         dock: bottom;
-        height: 3;
+        height: 1;
         background: $surface-darken-1;
-        border-top: solid cyan;
         align-vertical: middle;
         padding: 0 1;
+        border-top: solid $surface-lighten-1;
     }
 
     #editor-bottom-bar Button {
         min-width: 0;
-        height: 3;
-        margin-right: 1;
+        height: 1;
+        margin: 0 1 0 0;
         padding: 0 1;
+        border: none;
+        background: transparent;
+        color: $text;
+        text-style: bold;
+    }
+
+    #editor-bottom-bar Button:hover {
+        background: $surface-lighten-1;
+    }
+
+    #bot-save {
+        color: #4ade80;
+    }
+
+    #bot-save-exit {
+        color: #38bdf8;
+    }
+
+    #bot-find {
+        color: #facc15;
+    }
+
+    #bot-help {
+        color: #c084fc;
+    }
+
+    #bot-exit {
+        color: #f87171;
     }
     """
 
@@ -617,23 +625,10 @@ class EditorApp(App[bool]):
         self.last_search_term = ""
 
     def compose(self) -> ComposeResult:
-        # Header Container with Title Row & Interactive Mouse Toolbar
-        with Container(id="editor-header-bar"):
-            with Horizontal(id="editor-title-row"):
-                yield Label("", id="editor-header-title")
-                yield Label("", id="editor-path-breadcrumb")
-            with Horizontal(id="editor-toolbar"):
-                yield Button("💾 Save", id="tb-save", variant="success")
-                yield Button("💾 Save & Exit", id="tb-save-exit", variant="success")
-                yield Button("🔍 Find & Replace", id="tb-find", variant="primary")
-                yield Button("↩️ Undo", id="tb-undo")
-                yield Button("↪️ Redo", id="tb-redo")
-                yield Button("🚀 Go to Line", id="tb-goto")
-                yield Button("🔄 Wrap: On", id="tb-wrap")
-                yield Button("🎨 Theme", id="tb-theme")
-                yield Button("🔤 Syntax", id="tb-syntax")
-                yield Button("❓ Help", id="tb-help")
-                yield Button("❌ Exit", id="tb-exit", variant="error")
+        # Clean Single-line Header Bar with Title and Path Breadcrumb
+        with Horizontal(id="editor-header-bar"):
+            yield Label("", id="editor-header-title")
+            yield Label("", id="editor-path-breadcrumb")
 
         # Interactive Find & Replace Collapsible Panel
         with Vertical(id="find-replace-panel"):
@@ -672,14 +667,13 @@ class EditorApp(App[bool]):
                 yield Button("🔄 Wrap: On", id="sb-wrap", classes="status-bar-btn")
                 yield Label(" │ UTF-8", id="status-encoding-label")
 
-        # Mouse Interactive Bottom Action Bar with Direct Click Buttons
+        # Compact Mouse-Interactive Bottom Action Bar (Non-redundant & Screen-fit)
         with Horizontal(id="editor-bottom-bar"):
-            yield Button("💾 Save", id="bot-save", variant="primary")
-            yield Button("💾 Save & Exit", id="bot-save-exit", variant="success")
-            yield Button("❌ Exit", id="bot-exit", variant="error")
-            yield Button("🔍 Find & Replace", id="bot-find")
-            yield Button("🚀 Go to Line", id="bot-goto")
+            yield Button("💾 Save", id="bot-save")
+            yield Button("💾 Save & Exit", id="bot-save-exit")
+            yield Button("🔍 Find", id="bot-find")
             yield Button("❓ Help", id="bot-help")
+            yield Button("❌ Exit", id="bot-exit")
 
     def on_mount(self) -> None:
         self.update_header()
@@ -727,7 +721,6 @@ class EditorApp(App[bool]):
         self.query_one("#sb-syntax", Button).label = f"🔤 {lang_name}"
         self.query_one("#sb-theme", Button).label = f"🎨 {self.active_theme.replace('_', ' ').capitalize()}"
         self.query_one("#sb-wrap", Button).label = wrap_label
-        self.query_one("#tb-wrap", Button).label = wrap_label
 
     def on_text_area_changed(self, event: TextArea.Changed) -> None:
         """Track modifications in real time."""

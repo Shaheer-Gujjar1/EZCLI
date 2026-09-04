@@ -348,20 +348,15 @@ When you run `ezcli edit-file choose-directory` (or `ezcli edit-file` with no ar
 - Navigate directories using arrow keys or mouse; press **`[Enter]`** or **`[c]`** on any file to open it directly in the editor.
 - Regular `ezcli choose-directory` browsing remains 100% clean and isolated.
 
-### 3. Advanced Features & Interactive Mouse Controls
-- **Dual Mouse Interactive Toolbars:** Full mouse support with one-click buttons accessible from both top and bottom bars:
+### 3. Advanced Features & Compact Mouse Controls
+- **Compact Bottom Action Bar:** Sleek 1-line action buttons designed to fit even smaller terminal windows without overflowing or wrapping:
   - `[💾 Save]`: Save buffer immediately (auto-prompts elevation if write-protected).
-  - `[💾 Save & Exit]`: Clickable button to save buffer and immediately exit in a single click.
-  - `[❌ Exit]`: Exits editor cleanly (prompts to save or discard if unsaved changes exist).
-  - `[🔍 Find & Replace]`: Toggles interactive find & replace panel.
-  - `[↩️ Undo]` / `[↪️ Redo]`: Instantly revert or re-apply text edits.
-  - `[🚀 Go to Line]`: Opens interactive line jump dialog (`GotoLineModal`).
-  - `[🔄 Wrap: On/Off]`: Toggles word wrapping on the fly.
-  - `[🎨 Theme]`: Opens visual theme picker (`VS Code Dark`, `Dracula`, `Monokai`, `GitHub Light`).
-  - `[🔤 Syntax]`: Opens visual language picker (Python, Bash, JS, TS, HTML, CSS, Markdown, Rust, Go, SQL, etc.).
-  - `[❓ Help]`: Opens mouse-friendly shortcut cheat sheet.
-- **Interactive Bottom Action Bar:** Clean, high-visibility clickable buttons at the bottom of the screen:
-  `[💾 Save]`  `[💾 Save & Exit]`  `[❌ Exit]`  `[🔍 Find & Replace]`  `[🚀 Go to Line]`  `[❓ Help]`
+  - `[💾 Save & Exit]`: One-click button to save changes and exit editor immediately.
+  - `[🔍 Find]`: Toggles interactive find & replace panel.
+  - `[❓ Help]`: Opens mouse-friendly shortcut & controls guide.
+  - `[❌ Exit]`: Safely exits editor (prompts to save or discard if unsaved changes exist).
+- **Interactive Clickable Status Bar:** Status badges double as instant configuration buttons—click `[📍 Ln, Col]` to jump to line, click `[🔤 Syntax]` to switch language, click `[🎨 Theme]` to change theme, or click `[🔄 Wrap]` to toggle word wrap.
+- **Sleek Single-Line Header:** Displays file icon, filename, modification status, admin elevation badge, and path breadcrumb without redundant buttons.
 - **Interactive Find & Replace:** Find query, Replace query, Next/Prev navigation, single-match replace, and whole-file Replace All with match counts.
 - **Clickable Status Bar:** Status badges are interactive buttons—click line/col to jump to line, click syntax to switch language, click theme to change theme, or click wrap to toggle soft wrap.
 - **Line Numbers & Coordinate Status:** Line numbers displayed by default; live cursor coordinates (`Ln 12, Col 5`), line count, file size, encoding, and syntax language indicators.
