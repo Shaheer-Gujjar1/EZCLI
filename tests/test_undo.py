@@ -48,6 +48,7 @@ class TestUndoEngine(unittest.TestCase):
         # 2. Inspect last operation
         last_op = peek_last_operation()
         self.assertIsNotNone(last_op)
+        assert last_op is not None
         self.assertEqual(last_op["action"], "move")
 
         # 3. Execute undo
@@ -73,6 +74,8 @@ class TestUndoEngine(unittest.TestCase):
 
         # Undo copy
         last_op = peek_last_operation()
+        self.assertIsNotNone(last_op)
+        assert last_op is not None
         u_success, u_msg, reverted = execute_undo(last_op)
         self.assertTrue(u_success)
 
@@ -89,6 +92,8 @@ class TestUndoEngine(unittest.TestCase):
         success, msg, executed = execute_file_operation("move", [self.file1], self.dst_dir)
         self.assertTrue(success)
         last_op = peek_last_operation()
+        self.assertIsNotNone(last_op)
+        assert last_op is not None
 
         # Undo
         u_success, u_msg, reverted = execute_undo(last_op)
@@ -106,6 +111,7 @@ class TestUndoEngine(unittest.TestCase):
         set_clipboard("copy", [self.file1])
         clip = get_clipboard()
         self.assertIsNotNone(clip)
+        assert clip is not None
         self.assertEqual(clip["action"], "copy")
         self.assertIn(self.file1, clip["items"])
 

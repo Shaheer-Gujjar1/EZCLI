@@ -1,4 +1,4 @@
-"""Tests for EasyCLI shared privilege-elevation layer, simulated permission-denied scenarios, and --admin flag."""
+"""Tests for EasyCLI shared privilege-elevation layer, simulated permission-denied scenarios, and automatic elevation."""
 
 import io
 import os
@@ -202,12 +202,12 @@ class TestPermissionDeniedSimulations(unittest.TestCase):
             os.chmod(ro_dir, stat.S_IRWXU)
 
 
-class TestAdminFlagCLI(unittest.TestCase):
-    """Test that --admin flag is accepted across subcommands."""
+class TestAutomaticElevationCLI(unittest.TestCase):
+    """Test that subcommands run cleanly and elevation is automatic with no --admin flag required."""
 
-    def test_admin_flag_parsing_system_info(self):
+    def test_subcommands_run_without_flags(self):
         proc = subprocess.run(
-            [sys.executable, "-m", "ezcli_app.main", "system-info", "--admin"],
+            [sys.executable, "-m", "ezcli_app.main", "system-info"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -215,11 +215,10 @@ class TestAdminFlagCLI(unittest.TestCase):
         )
         self.assertEqual(proc.returncode, 0)
         self.assertIn("System Information", proc.stdout)
-        self.assertIn("Admin Mode", proc.stdout)
 
-    def test_admin_flag_before_subcommand(self):
+    def test_stats_run(self):
         proc = subprocess.run(
-            [sys.executable, "-m", "ezcli_app.main", "--admin", "stats"],
+            [sys.executable, "-m", "ezcli_app.main", "stats"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -228,9 +227,9 @@ class TestAdminFlagCLI(unittest.TestCase):
         self.assertEqual(proc.returncode, 0)
         self.assertIn("System Resource Statistics", proc.stdout)
 
-    def test_admin_flag_disk_info(self):
+    def test_disk_info_run(self):
         proc = subprocess.run(
-            [sys.executable, "-m", "ezcli_app.main", "disk-info", "--admin"],
+            [sys.executable, "-m", "ezcli_app.main", "disk-info"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -239,7 +238,7 @@ class TestAdminFlagCLI(unittest.TestCase):
         self.assertEqual(proc.returncode, 0)
         self.assertIn("Storage Partitions", proc.stdout)
 
-    def test_admin_flag_help_text(self):
+    def test_help_has_no_admin_flag(self):
         proc = subprocess.run(
             [sys.executable, "-m", "ezcli_app.main", "help"],
             stdout=subprocess.PIPE,
@@ -248,8 +247,29 @@ class TestAdminFlagCLI(unittest.TestCase):
             timeout=10,
         )
         self.assertEqual(proc.returncode, 0)
-        self.assertIn("--admin", proc.stdout)
+        self.assertNotIn("--admin", proc.stdout)
         self.assertIn("Never run 'sudo ezcli'", proc.stdout)
+
+    def test_big_files_choose_directory_dispatch(self):
+        """Verify that 'ezcli big-files choose-directory' launches the explorer picker."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            test_file = os.path.join(tmpdir, "big_test.dat")
+            with open(test_file, "wb") as f:
+                f.write(b"0" * 1024)
+
+            with patch("ezcli_app.main.check_textual_installed", return_value=True), \
+                 patch("ezcli_app.explorer.explorer_app.ExplorerApp.run", return_value=tmpdir):
+                from io import StringIO
+                from rich.console import Console
+                import ezcli_app.main as m
+
+                with patch.object(sys, "argv", ["ezcli", "big-files", "choose-directory"]):
+                    # Running main should call the picker and scan
+                    with patch("ezcli_app.renderers.render_big_files") as mock_render:
+                        m.main()
+                        mock_render.assert_called_once()
+                        # Verified that chosen directory from picker was passed to renderer
+                        self.assertEqual(mock_render.call_args[0][1], tmpdir)
 
     def test_user_not_in_sudoers(self):
         """Verify that when a user is not in the sudoers file, a friendly English error is returned."""

@@ -184,6 +184,7 @@ class ActionMenuModal(ModalScreen[str]):
             yield Label(f"📁 Selected Directory: [bold cyan]{self.directory_path}[/bold cyan]")
             yield Label("Choose what you would like to do:\n")
             yield OptionList(
+                Option("✨ Create new file or folder here", id="create"),
                 Option("🐚 Open shell here (spawn $SHELL at this directory)", id="shell"),
                 Option("📋 Copy path to clipboard / view path", id="copy_path"),
                 Option("ℹ️ Show directory information & disk usage", id="info"),
@@ -210,6 +211,62 @@ def is_directory_locked(path: str) -> bool:
         return False
     except (PermissionError, OSError):
         return True
+
+
+class CreateItemModal(ModalScreen[Optional[Dict[str, str]]]):
+    """Modal dialog to visually create a folder or blank file in the current directory."""
+
+    DEFAULT_CSS = """
+    CreateItemModal {
+        align: center middle;
+        background: rgba(0, 0, 0, 0.75);
+    }
+    #create-card {
+        width: 60;
+        height: auto;
+        border: round cyan;
+        background: $surface;
+        padding: 1 2;
+    }
+    #create-input {
+        margin: 1 0;
+    }
+    .hint {
+        color: gray;
+        margin-top: 1;
+    }
+    """
+
+    def __init__(self, current_dir: str):
+        super().__init__()
+        self.current_dir = current_dir
+        self.item_type = "folder"
+
+    def compose(self) -> ComposeResult:
+        with Container(id="create-card"):
+            yield Label(f"✨ [bold cyan]Create New Item[/bold cyan] in: [dim]{self.current_dir}[/dim]\n")
+            yield OptionList(
+                Option("📁 New Folder", id="type_folder"),
+                Option("📄 New File", id="type_file"),
+                id="type-selector",
+            )
+            yield Input(placeholder="Enter name (e.g. project or notes.txt)...", id="create-input")
+            yield Label("[dim]Press Enter to confirm, Esc to cancel[/dim]", classes="hint")
+
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        opt_id = str(event.option.id)
+        self.item_type = "file" if opt_id == "type_file" else "folder"
+        self.query_one("#create-input", Input).focus()
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        name = event.value.strip()
+        if not name:
+            return
+        self.dismiss({"action": "create", "type": self.item_type, "name": name})
+
+    def on_key(self, event) -> None:
+        if event.key == "escape":
+            self.dismiss(None)
 
 
 # ==============================================================================
@@ -274,6 +331,7 @@ class ExplorerApp(App[Optional[Any]]):
         Binding("q", "quit_explorer", "Quit", show=True),
         Binding("c", "choose_current", "Choose Folder [c]", show=True),
         Binding("enter", "confirm_open", "Open", show=True),
+        Binding("n", "create_item", "Create [n]", show=True),
         Binding("space", "toggle_select", "Select", show=True),
         Binding("slash", "start_search", "Search", show=True),
         Binding("p", "open_places", "Places", show=True),
@@ -767,8 +825,66 @@ class ExplorerApp(App[Optional[Any]]):
                 self.exit({"action": "copy_path", "dir": chosen_dir})
             elif action == "info":
                 self.exit({"action": "info", "dir": chosen_dir})
+            elif action == "create":
+                self.action_create_item()
 
         self.push_screen(ActionMenuModal(chosen_dir), handle_action)
+
+    def action_create_item(self) -> None:
+        """Open the visual item creation modal to create folders or files."""
+        def handle_created(result: Optional[Dict[str, str]]) -> None:
+            if not result or result.get("action") != "create":
+                return
+            item_type = result.get("type", "folder")
+            name = result.get("name", "").strip()
+            if not name:
+                return
+
+            from ..create_cli import validate_item_name
+            valid, err = validate_item_name(name)
+            if not valid:
+                self.notify(f"Invalid name: {err}", severity="error")
+                return
+
+            target_path = os.path.join(self.current_dir, name)
+            if os.path.exists(target_path):
+                self.notify(f"An item named '{name}' already exists here!", severity="error")
+                return
+
+            try:
+                if item_type == "folder":
+                    os.makedirs(target_path, exist_ok=False)
+                else:
+                    with open(target_path, "x", encoding="utf-8"):
+                        pass
+                self.notify(f"Created {item_type} '{name}' ✨", severity="information")
+                self.load_directory(self.current_dir)
+            except PermissionError:
+                from ..elevation import elevated_create_file, elevated_make_dir
+                with self.suspend():
+                    from rich.console import Console
+                    c = Console()
+                    if item_type == "folder":
+                        success, elev_err = elevated_make_dir(
+                            target_path,
+                            reason=f"Create folder '{name}' in protected directory '{self.current_dir}'",
+                            console=c,
+                        )
+                    else:
+                        success, elev_err = elevated_create_file(
+                            target_path,
+                            reason=f"Create file '{name}' in protected directory '{self.current_dir}'",
+                            console=c,
+                        )
+                if success:
+                    self.notify(f"Created {item_type} '{name}' with admin rights ✨", severity="information")
+                    self.load_directory(self.current_dir)
+                else:
+                    self.notify(f"Creation failed: {elev_err}", severity="error")
+            except Exception as e:
+                self.notify(f"Error creating {item_type}: {e}", severity="error")
+
+        self.push_screen(CreateItemModal(self.current_dir), handle_created)
 
 
 # ==============================================================================

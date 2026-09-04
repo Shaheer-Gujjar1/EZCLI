@@ -54,11 +54,9 @@ def print_custom_help(console: Console) -> None:
     console.print("[bold]Usage:[/bold]")
     console.print("  [cyan]ezcli[/cyan]                      [dim]Open interactive TUI menu[/dim]")
     console.print("  [cyan]ezcli <subcommand> [args][/cyan]  [dim]Run subcommand directly and print output[/dim]")
-    console.print("  [cyan]ezcli <subcommand> --admin[/cyan] [dim]Run subcommand with elevated admin rights through helper[/dim]")
     console.print("  [cyan]ezcli help[/cyan]                 [dim]Show this help message[/dim]\n")
 
     console.print("[bold]Options:[/bold]")
-    console.print("  [green]--admin[/green]                    [dim]Run underlying operation with elevated rights (no sudo ezcli needed)[/dim]")
     console.print("  [green]-h, --help[/green]                 [dim]Show this help message[/dim]")
     console.print("  [green]-v, --version[/green]              [dim]Show EasyCLI version[/dim]\n")
 
@@ -111,10 +109,6 @@ def main() -> None:
             "EasyCLI automatically and safely elevates only specific tasks when required.\n"
         )
 
-    # Global --admin flag parsing (can appear anywhere in arguments)
-    is_admin = "--admin" in args
-    args = [a for a in args if a != "--admin"]
-
     # 1. No arguments -> Interactive TUI Menu
     if not args:
         try:
@@ -133,7 +127,7 @@ def main() -> None:
 
     # 3. Version flag
     if first_arg in ("--version", "-v", "version"):
-        console.print(f"EasyCLI (ezcli) v{__version__} [dim](Safe Admin Architecture)[/dim]")
+        console.print(f"EasyCLI (ezcli) v{__version__} [dim](Safe Automatic Elevation)[/dim]")
         sys.exit(0)
 
     # 4. Check if subcommand matches a registered feature
@@ -158,27 +152,39 @@ def main() -> None:
     # Dispatch to appropriate renderer
     try:
         if feature.id == "system_info":
-            renderers.render_system_info(console, is_admin=is_admin)
+            renderers.render_system_info(console)
         elif feature.id == "stats":
-            renderers.render_stats(console, is_admin=is_admin)
+            renderers.render_stats(console)
         elif feature.id == "disk_info":
-            renderers.render_disk_info(console, is_admin=is_admin)
+            renderers.render_disk_info(console)
         elif feature.id == "big_files":
-            folder = sub_args[0] if sub_args else "~"
-            renderers.render_big_files(console, folder, is_admin=is_admin)
+            raw_folder = sub_args[0] if sub_args else "~"
+            if raw_folder.lower() in ("choose-directory", "choose", "picker", "select"):
+                if not check_textual_installed(console):
+                    sys.exit(1)
+                from .explorer.explorer_app import ExplorerApp
+                app = ExplorerApp(mode="pick_dest", initial_dir="~")
+                chosen_dir = app.run()
+                if not chosen_dir or not isinstance(chosen_dir, str):
+                    console.print("[dim]Directory selection cancelled.[/dim]")
+                    return
+                folder = chosen_dir
+            else:
+                folder = raw_folder
+            renderers.render_big_files(console, folder)
         elif feature.id == "package_search":
             term = " ".join(sub_args)
-            renderers.render_package_search(console, term, is_admin=is_admin)
+            renderers.render_package_search(console, term)
         elif feature.id == "package":
             pkg_name = sub_args[0]
-            renderers.render_package(console, pkg_name, is_admin=is_admin)
+            renderers.render_package(console, pkg_name)
         elif feature.id == "available_updates":
-            renderers.render_available_updates(console, is_admin=is_admin)
+            renderers.render_available_updates(console)
         elif feature.id == "service_status":
             svc_name = sub_args[0]
-            renderers.render_service_status(console, svc_name, is_admin=is_admin)
+            renderers.render_service_status(console, svc_name)
         elif feature.id == "network_info":
-            renderers.render_network_info(console, is_admin=is_admin)
+            renderers.render_network_info(console)
         elif feature.id == "logs":
             lines = 50
             if sub_args:
@@ -187,12 +193,12 @@ def main() -> None:
                 except ValueError:
                     console.print(f"[bold red]Error:[/bold red] Invalid line count '{sub_args[0]}'. Must be an integer.")
                     sys.exit(1)
-            renderers.render_logs(console, lines, is_admin=is_admin)
+            renderers.render_logs(console, lines)
         elif feature.id == "installed_packages":
-            renderers.render_installed_packages(console, is_admin=is_admin)
+            renderers.render_installed_packages(console)
         elif feature.id == "installed_package_search":
             term = " ".join(sub_args)
-            renderers.render_installed_package_search(console, term, is_admin=is_admin)
+            renderers.render_installed_package_search(console, term)
         elif feature.id == "choose_directory":
             if not check_textual_installed(console):
                 sys.exit(1)
@@ -205,28 +211,40 @@ def main() -> None:
                 else:
                     clean_sub.append(a)
             initial_dir = clean_sub[0] if clean_sub else "~"
-            run_choose_directory(initial_dir, print_path_only=print_only, is_admin=is_admin)
+            run_choose_directory(initial_dir, print_path_only=print_only)
         elif feature.id == "copy":
             if not check_textual_installed(console):
                 sys.exit(1)
             from .file_cli import run_cli_stage
-            run_cli_stage("copy", console=console, is_admin=is_admin)
+            run_cli_stage("copy", console=console)
         elif feature.id == "move":
             if not check_textual_installed(console):
                 sys.exit(1)
             from .file_cli import run_cli_stage
-            run_cli_stage("move", console=console, is_admin=is_admin)
+            run_cli_stage("move", console=console)
         elif feature.id == "paste":
             if not check_textual_installed(console):
                 sys.exit(1)
             from .file_cli import run_cli_paste
-            run_cli_paste(console=console, is_admin=is_admin)
+            run_cli_paste(console=console)
         elif feature.id == "undo":
             from .file_cli import run_cli_undo
-            run_cli_undo(console=console, is_admin=is_admin)
+            run_cli_undo(console=console)
         elif feature.id == "redo":
             from .file_cli import run_cli_redo
-            run_cli_redo(console=console, is_admin=is_admin)
+            run_cli_redo(console=console)
+        elif feature.id == "create_folder":
+            from .create_cli import run_cli_create_folder
+            choose_dest = any(a.lower() in ("choose-directory", "choose", "picker", "select") for a in sub_args)
+            clean_sub = [a for a in sub_args if a.lower() not in ("choose-directory", "choose", "picker", "select")]
+            folder_name = clean_sub[0] if clean_sub else None
+            run_cli_create_folder(folder_name=folder_name, choose_dest=choose_dest, console=console)
+        elif feature.id == "create_file":
+            from .create_cli import run_cli_create_file
+            choose_dest = any(a.lower() in ("choose-directory", "choose", "picker", "select") for a in sub_args)
+            clean_sub = [a for a in sub_args if a.lower() not in ("choose-directory", "choose", "picker", "select")]
+            file_name = clean_sub[0] if clean_sub else None
+            run_cli_create_file(file_name=file_name, choose_dest=choose_dest, console=console)
     except BrokenPipeError:
         try:
             devnull = os.open(os.devnull, os.O_WRONLY)
@@ -238,8 +256,7 @@ def main() -> None:
         console.print(
             Panel(
                 "🔒 [bold red]Admin rights are required for this task.[/bold red]\n\n"
-                f"Permission denied: {e}\n\n"
-                "💡 [bold]Tip:[/bold] You can also pass [bold cyan]--admin[/bold cyan] to run with admin rights.",
+                f"Permission denied: {e}",
                 title="[bold yellow]Admin Rights Required[/bold yellow]",
                 border_style="yellow",
                 box=box.ROUNDED,

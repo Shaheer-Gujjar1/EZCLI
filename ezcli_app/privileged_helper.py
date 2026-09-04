@@ -166,6 +166,20 @@ def helper_make_dir(path: str) -> Dict[str, Any]:
         return {"success": False, "error": f"Elevated mkdir error: {e}"}
 
 
+def helper_create_file(path: str) -> Dict[str, Any]:
+    """Create a blank file in a protected location."""
+    abs_path = os.path.abspath(os.path.expanduser(path))
+    parent_dir = os.path.dirname(abs_path)
+    try:
+        if parent_dir:
+            os.makedirs(parent_dir, exist_ok=True)
+        with open(abs_path, "a", encoding="utf-8"):
+            pass
+        return {"success": True, "path": abs_path}
+    except Exception as e:
+        return {"success": False, "error": f"Elevated file creation error: {e}"}
+
+
 def dispatch_helper_request(request: Dict[str, Any]) -> Dict[str, Any]:
     """Process a single privileged helper request."""
     action = request.get("action")
@@ -183,6 +197,8 @@ def dispatch_helper_request(request: Dict[str, Any]) -> Dict[str, Any]:
         return helper_file_delete(params.get("path", ""), params.get("is_dir", False))
     elif action == "make_dir":
         return helper_make_dir(params.get("path", ""))
+    elif action == "create_file":
+        return helper_create_file(params.get("path", ""))
     else:
         return {"success": False, "error": f"Unknown helper action '{action}'."}
 

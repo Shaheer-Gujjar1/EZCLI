@@ -163,8 +163,7 @@ def render_big_files(console: Console, folder: str = "~", is_admin: bool = False
         console.print(
             Panel(
                 "🔒 [bold red]Admin rights are required for this task.[/bold red]\n\n"
-                f"EasyCLI cannot inspect '{data['folder']}' without administrator rights.\n\n"
-                f"💡 [bold]Tip:[/bold] You can also run [bold cyan]ezcli big-files {folder} --admin[/bold cyan] directly.",
+                f"EasyCLI cannot inspect '{data['folder']}' without administrator rights.",
                 title="[bold yellow]Admin Rights Required[/bold yellow]",
                 border_style="yellow",
                 box=box.ROUNDED,
@@ -574,8 +573,7 @@ def render_logs(console: Console, lines_count: int = 50, is_admin: bool = False)
             console.print(
                 Panel(
                     "🔒 [bold red]Admin rights are required for this task.[/bold red]\n\n"
-                    f"{data['error']}\n\n"
-                    f"💡 [bold]Tip:[/bold] You can also run [bold cyan]ezcli logs {lines_count} --admin[/bold cyan] directly.",
+                    f"{data['error']}",
                     title="[bold yellow]Admin Rights Required[/bold yellow]",
                     border_style="yellow",
                     box=box.ROUNDED,

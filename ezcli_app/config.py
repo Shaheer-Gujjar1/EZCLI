@@ -64,7 +64,7 @@ FEATURES: List[FeatureTemplate] = [
         arguments=[
             ArgumentDef(
                 name="folder",
-                help="Path to folder to scan (defaults to user home directory)",
+                help="Path to folder (or 'choose-directory' to select visually; defaults to ~)",
                 required=False,
                 default="~",
             )
@@ -248,6 +248,40 @@ FEATURES: List[FeatureTemplate] = [
         arguments=[],
         renderer_name="run_cli_redo",
     ),
+    FeatureTemplate(
+        id="create_folder",
+        subcommand="create-folder",
+        title="Create New Folder",
+        icon="📁",
+        description="Create a new folder directly or via visual directory picker",
+        wrapped_commands=["create-folder"],
+        arguments=[
+            ArgumentDef(
+                name="name",
+                help="Name of folder to create (or 'choose-directory' to pick location visually)",
+                required=False,
+                default="",
+            )
+        ],
+        renderer_name="run_cli_create_folder",
+    ),
+    FeatureTemplate(
+        id="create_file",
+        subcommand="create-file",
+        title="Create New File",
+        icon="📄",
+        description="Create a new blank file directly or via visual directory picker",
+        wrapped_commands=["create-file"],
+        arguments=[
+            ArgumentDef(
+                name="name",
+                help="Name of file to create with extension (or 'choose-directory' to pick location visually)",
+                required=False,
+                default="",
+            )
+        ],
+        renderer_name="run_cli_create_file",
+    ),
 ]
 
 # Lookup map by subcommand
@@ -259,3 +293,5 @@ FEATURES_BY_SUBCOMMAND: Dict[str, FeatureTemplate] = {
 FEATURES_BY_SUBCOMMAND["installed"] = FEATURES_BY_SUBCOMMAND["installed-packages"]
 FEATURES_BY_SUBCOMMAND["choose"] = FEATURES_BY_SUBCOMMAND["choose-directory"]
 FEATURES_BY_SUBCOMMAND["explorer"] = FEATURES_BY_SUBCOMMAND["choose-directory"]
+FEATURES_BY_SUBCOMMAND["new-folder"] = FEATURES_BY_SUBCOMMAND["create-folder"]
+FEATURES_BY_SUBCOMMAND["new-file"] = FEATURES_BY_SUBCOMMAND["create-file"]

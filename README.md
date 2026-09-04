@@ -128,7 +128,7 @@ ezcli help
 | 💻 | `ezcli system-info` | `hostnamectl`, `uptime -p`, `/etc/os-release` | Key-value card with OS name/version, hostname, kernel, architecture, and uptime. |
 | ⚡ | `ezcli stats` | `free -h`, `uptime`, `nproc` | CPU load averages and RAM/Swap usage with colored inline progress bars. |
 | 💽 | `ezcli disk-info` | `df -h` | Table of storage mounts, sizes, used/available space, and inline usage bars (filters out pseudo-filesystems). |
-| 📁 | `ezcli big-files [folder]` | `du -h --max-depth=1`, `find` | Table of largest files and folders in directory with a progress spinner. Defaults to `~`. |
+| 📁 | `ezcli big-files [path \| choose-directory]` | `du -h --max-depth=1`, `find` | Table of largest files and folders. Provide a path or use `choose-directory` to pick visually via the mini explorer. Defaults to `~`. |
 | 🔍 | `ezcli package-search <term>` | `apt search`, `flathub`, `snapcraft` | Universal search across **APT 📦**, **Flatpak 🟣**, and **Snap 🟢** with interactive platform selection & installation commands. |
 | 📦 | `ezcli package <name>` | `apt show`, `dpkg -s` | Card showing package version, size, homepage, description, and installed status. |
 | 🔄 | `ezcli available-updates` | `apt list --upgradable` | Table of upgradable packages and versions using existing lists only (never runs `apt update`). |
@@ -138,6 +138,8 @@ ezcli help
 | 📋 | `ezcli installed-packages` | `apt list --installed`, `dpkg-query`, `flatpak list`, `snap list` | List all installed packages across system and desktop platforms (wraps `apt list --installed`). |
 | 🔎 | `ezcli installed-package-search <name>` | `apt list --installed \| grep -i <name>`, `dpkg-query` | Search installed packages and applications by name (wraps `apt list --installed \| grep -i <name>`). |
 | 📁 | `ezcli choose-directory [path]` | `explorer` | Graphical terminal file explorer with mouse navigation, file-type emojis, bookmarks, and subshell launcher. |
+| 📁 | `ezcli create-folder <name> [choose-directory]` | `create-folder` | Create a new folder directly or choose parent directory visually with mini explorer. Handles admin rights automatically. |
+| 📄 | `ezcli create-file <name> [choose-directory]` | `create-file` | Create a new blank file directly or choose destination directory visually with mini explorer. Handles admin rights automatically. |
 | 📋 | `ezcli copy` | `cp` | Choose file(s) or folder(s) to copy using the mini file explorer and stage to clipboard. |
 | 🚚 | `ezcli move` | `mv` | Choose file(s) or folder(s) to move using the mini file explorer and stage to clipboard. |
 | 📥 | `ezcli paste` | `paste` | Choose destination folder using the mini explorer, preview summary, confirm with y/n, and paste. |
@@ -157,13 +159,14 @@ ezcli choose-directory
 - **Mouse Navigation**: Click any item to select/highlight; double-click a folder to enter.
 - **`[Enter]`**: Open/enter directory.
 - **`[Space]`**: Multi-select items.
+- **`[n]`**: Create a new folder or blank file directly in the current directory.
 - **`[/]`**: Instant search-as-you-type filter.
 - **`[p]`**: Quick Places menu (`🏠 Home`, `📥 Downloads`, `📄 Documents`, `🖥️ Desktop`, `🕒 Recent`, `⭐ Bookmarks`).
 - **`[h]`**: Toggle hidden files (dotfiles).
 - **`[s]`**: Cycle sort order (`Name`, `Size`, `Date`).
 - **`[i]`**: Toggle item info sidebar (file size, permissions, owner, timestamps).
 - **`[b]`**: Bookmark the current directory.
-- **`[c]`**: Confirm chosen directory and open the Action Menu.
+- **`[c]`**: Confirm chosen directory and open the Action Menu (including *"✨ Create new file or folder here"*).
 - **`[q]`**: Quit explorer.
 
 ### "Open Shell Here" & Parent Shells
@@ -231,6 +234,41 @@ ezcli redo
 
 ---
 
+## ✨ Creating Files & Folders (`create-folder`, `create-file`)
+
+EasyCLI provides clean, modern creation commands without needing to memorize legacy commands:
+
+### 1. Create a Folder Directly
+```bash
+ezcli create-folder my_project
+```
+Creates a new directory in your current location with an immediate summary card.
+
+### 2. Choose Where to Create Visually
+```bash
+ezcli create-folder my_project choose-directory
+# Or simply:
+ezcli create-folder choose-directory
+```
+Opens the mini file explorer so you can navigate and pick your desired parent directory visually.
+
+### 3. Create Blank Files
+```bash
+ezcli create-file notes.txt
+# Or choose directory visually:
+ezcli create-file notes.txt choose-directory
+```
+
+### 4. Create Directly Inside the File Explorer (`[n]`)
+While browsing files with `ezcli choose-directory`:
+- Press **`[n]`** (or press **`[c]`** to open the Action Menu and select *"✨ Create new file or folder here"*).
+- Choose between **Folder 📁** or **Blank File 📄**.
+- Enter your item name and press `[Enter]`.
+- If the current folder is protected (such as `/etc`), EasyCLI prompts for admin authorization automatically.
+- The directory view instantly refreshes with your newly created item.
+
+---
+
 ## 🔒 Safe Privilege Elevation (Why `sudo ezcli` is Never Needed)
 
 EasyCLI features a beginner-friendly, secure, and transparent privilege-elevation layer:
@@ -245,12 +283,12 @@ EasyCLI features a beginner-friendly, secure, and transparent privilege-elevatio
   ⚠️ Some locations were inaccessible. Retry with admin rights? [Y/n]
   ```
   On yes, only the blocked portion is elevated and updated.
-- **Full Permission Failure**: If the task cannot produce anything without admin rights (e.g. `ezcli big-files /root`), EasyCLI shows a clear explanation card:
+- **Full Permission Failure**: If the task cannot produce anything without admin rights (e.g. scanning a restricted directory like `/root`), EasyCLI shows a clear explanation card:
   ```text
   🔒 Admin rights are required for this task.
   ```
-  and offers to run it with admin rights now, mentioning the `--admin` flag.
-- **Explicit Mode (`--admin`)**: Every subcommand accepts an `--admin` flag (e.g. `ezcli logs --admin`, `ezcli big-files /root --admin`, `ezcli paste --admin`) to run elevated from the start.
+  and seamlessly offers to run it with admin rights now.
+- **Zero Flag Overhead (No `--admin` Needed)**: Users never need to remember or type special admin flags. Everything is handled automatically and transparently via interactive yes/no confirmations.
 
 ### 3. Authentication UX
 - **Visible Dot Feedback**: During password entry, EasyCLI provides visible bullet feedback (`••••••••`) instead of sudo's silent prompt, making it easy to know your typing is registered.
@@ -294,7 +332,7 @@ EZCLI/
 ├── setup.py               # Setup script
 ├── install.sh             # 1-step deployment script
 ├── README.md              # Documentation and guide
-├── tests/                 # Comprehensive unit test suite (53 tests)
+├── tests/                 # Comprehensive unit test suite (57 tests)
 │   ├── test_distro.py     # Distro parser and derivative detection tests
 │   ├── test_collectors.py # System inspection and installed package tests
 │   ├── test_file_ops.py   # Copy, move, cross-filesystem, and conflict tests
@@ -309,7 +347,7 @@ EZCLI/
     ├── collectors.py      # Subprocess execution and multi-platform queries
     ├── renderers.py       # Rich visual layout and box-drawing renderers
     ├── menu.py            # Interactive TUI menu and keyboard navigation
-    ├── main.py            # Subcommand parser, --admin flag handler, and dispatcher
+    ├── main.py            # Subcommand parser, visual choose-directory dispatcher
     ├── elevation.py       # Shared privilege-elevation layer & password UX
     ├── privileged_helper.py# Minimal privileged helper for elevated tasks
     ├── file_engine.py     # Safe file operations, SHA256 checks, conflict policies

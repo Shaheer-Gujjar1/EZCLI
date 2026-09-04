@@ -39,12 +39,56 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
             )
         )
 
-        # Dispatch renderer
+        # Dispatch feature
         renderer_fn = getattr(renderers, feature.renderer_name, None)
-        if renderer_fn or feature.id in ("choose_directory", "copy", "move", "paste", "undo", "redo"):
-            try:
+        try:
+            if feature.id == "choose_directory":
+                from .explorer.explorer_app import run_choose_directory
+                run_choose_directory("~")
+            elif feature.id == "copy":
+                from .file_cli import run_cli_stage
+                run_cli_stage("copy", console=console)
+            elif feature.id == "move":
+                from .file_cli import run_cli_stage
+                run_cli_stage("move", console=console)
+            elif feature.id == "paste":
+                from .file_cli import run_cli_paste
+                run_cli_paste(console=console)
+            elif feature.id == "undo":
+                from .file_cli import run_cli_undo
+                run_cli_undo(console=console)
+            elif feature.id == "redo":
+                from .file_cli import run_cli_redo
+                run_cli_redo(console=console)
+            elif feature.id == "create_folder":
+                from .create_cli import run_cli_create_folder
+                raw_name = args_values[0] if args_values else ""
+                if not raw_name or raw_name.lower() in ("choose-directory", "choose", "picker", "select", "c"):
+                    run_cli_create_folder(name=None, choose_dest=True, console=console)
+                else:
+                    run_cli_create_folder(name=raw_name, choose_dest=False, console=console)
+                return
+            elif feature.id == "create_file":
+                from .create_cli import run_cli_create_file
+                raw_name = args_values[0] if args_values else ""
+                if not raw_name or raw_name.lower() in ("choose-directory", "choose", "picker", "select", "c"):
+                    run_cli_create_file(name=None, choose_dest=True, console=console)
+                else:
+                    run_cli_create_file(name=raw_name, choose_dest=False, console=console)
+                return
+            elif renderer_fn is not None:
                 if feature.subcommand == "big_files" or feature.id == "big_files":
-                    folder = args_values[0] if args_values else "~"
+                    raw_folder = args_values[0] if args_values else "~"
+                    if raw_folder.lower() in ("choose-directory", "choose", "picker", "select", "c"):
+                        from .explorer.explorer_app import ExplorerApp
+                        app = ExplorerApp(mode="pick_dest", initial_dir="~")
+                        chosen_dir = app.run()
+                        if not chosen_dir or not isinstance(chosen_dir, str):
+                            console.print("[dim]Directory selection cancelled.[/dim]")
+                            return
+                        folder = chosen_dir
+                    else:
+                        folder = raw_folder
                     renderer_fn(console, folder)
                 elif feature.subcommand == "package_search" or feature.id == "package_search":
                     term = args_values[0] if args_values else ""
@@ -63,30 +107,12 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
                 elif feature.subcommand == "installed-package-search" or feature.id == "installed_package_search":
                     term = args_values[0] if args_values else ""
                     renderer_fn(console, term)
-                elif feature.id == "choose_directory":
-                    from .explorer.explorer_app import run_choose_directory
-                    run_choose_directory("~")
-                elif feature.id == "copy":
-                    from .file_cli import run_cli_stage
-                    run_cli_stage("copy", console=console)
-                elif feature.id == "move":
-                    from .file_cli import run_cli_stage
-                    run_cli_stage("move", console=console)
-                elif feature.id == "paste":
-                    from .file_cli import run_cli_paste
-                    run_cli_paste(console=console)
-                elif feature.id == "undo":
-                    from .file_cli import run_cli_undo
-                    run_cli_undo(console=console)
-                elif feature.id == "redo":
-                    from .file_cli import run_cli_redo
-                    run_cli_redo(console=console)
                 else:
                     renderer_fn(console)
-            except Exception as e:
-                console.print(f"[bold red]Unexpected error executing feature:[/bold red] {e}")
-        else:
-            console.print(f"[bold red]No renderer found for {feature.renderer_name}[/bold red]")
+            else:
+                console.print(f"[bold red]No renderer found for {feature.renderer_name}[/bold red]")
+        except Exception as e:
+            console.print(f"[bold red]Unexpected error executing feature:[/bold red] {e}")
 
         console.print()
         console.print("[dim]─[/dim]" * 60)

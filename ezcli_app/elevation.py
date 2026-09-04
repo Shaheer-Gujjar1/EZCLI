@@ -3,7 +3,7 @@
 Safety & UX guarantees:
 1. Every command always runs as normal user first.
 2. Partial failure: displays collected data + "Some locations were inaccessible. Retry with admin rights? [Y/n]".
-3. Full failure: displays "Admin rights are required for this task." and offers elevation with --admin tip.
+3. Full failure: displays "Admin rights are required for this task." and offers seamless elevation.
 4. Explains what will be done and why admin rights are needed before asking for password.
 5. Visible dot feedback (••••) during password entry.
 6. Friendly wrong password message: "Wrong password — no problem, try again." No raw sudo lectures.
@@ -407,6 +407,25 @@ def elevated_make_dir(
         params={"path": path},
         reason=reason,
         task_description=f"Create directory '{path}'",
+        risk_level="high",
+        skip_explanation=skip_explanation,
+        console=console,
+    )
+    return success, err
+
+
+def elevated_create_file(
+    path: str,
+    reason: str = "Create blank file in protected location",
+    skip_explanation: bool = False,
+    console: Optional[Console] = None,
+) -> Tuple[bool, str]:
+    """Create a blank file in a protected location."""
+    success, res, err = run_elevated_helper(
+        action="create_file",
+        params={"path": path},
+        reason=reason,
+        task_description=f"Create file '{path}'",
         risk_level="high",
         skip_explanation=skip_explanation,
         console=console,
