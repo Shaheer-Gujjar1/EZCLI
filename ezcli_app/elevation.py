@@ -378,16 +378,18 @@ def elevated_file_move(
 def elevated_file_delete(
     path: str,
     is_dir: bool = False,
-    reason: str = "Remove item from protected directory (for undo/cleanup)",
+    force: bool = False,
+    reason: str = "Remove item from protected directory",
     skip_explanation: bool = False,
     console: Optional[Console] = None,
 ) -> Tuple[bool, str]:
     """Delete an item in a protected location."""
+    task_desc = f"Remove '{path}'" + (" forcefully" if force else "")
     success, res, err = run_elevated_helper(
         action="file_delete",
-        params={"path": path, "is_dir": is_dir},
+        params={"path": path, "is_dir": is_dir, "force": force},
         reason=reason,
-        task_description=f"Remove '{path}'",
+        task_description=task_desc,
         risk_level="high",
         skip_explanation=skip_explanation,
         console=console,

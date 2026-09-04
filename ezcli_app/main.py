@@ -245,6 +245,9 @@ def main() -> None:
             clean_sub = [a for a in sub_args if a.lower() not in ("choose-directory", "choose", "picker", "select")]
             file_name = clean_sub[0] if clean_sub else None
             run_cli_create_file(file_name=file_name, choose_dest=choose_dest, console=console)
+        elif feature.id == "delete":
+            from .delete_cli import run_cli_delete
+            run_cli_delete(args=sub_args, console=console)
     except BrokenPipeError:
         try:
             devnull = os.open(os.devnull, os.O_WRONLY)

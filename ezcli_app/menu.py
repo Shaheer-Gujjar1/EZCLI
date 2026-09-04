@@ -76,6 +76,14 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
                 else:
                     run_cli_create_file(name=raw_name, choose_dest=False, console=console)
                 return
+            elif feature.id == "delete":
+                from .delete_cli import run_cli_delete
+                target = args_values[0] if args_values else "choose-directory"
+                if not target or target.strip().lower() in ("choose-directory", "choose", "picker", "c"):
+                    run_cli_delete(args=["choose-directory"], console=console)
+                else:
+                    run_cli_delete(args=[target.strip()], console=console)
+                return
             elif renderer_fn is not None:
                 if feature.subcommand == "big_files" or feature.id == "big_files":
                     raw_folder = args_values[0] if args_values else "~"

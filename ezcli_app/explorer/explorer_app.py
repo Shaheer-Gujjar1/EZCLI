@@ -185,6 +185,7 @@ class ActionMenuModal(ModalScreen[str]):
             yield Label("Choose what you would like to do:\n")
             yield OptionList(
                 Option("✨ Create new file or folder here", id="create"),
+                Option("🗑️ Delete selected item(s)", id="delete"),
                 Option("🐚 Open shell here (spawn $SHELL at this directory)", id="shell"),
                 Option("📋 Copy path to clipboard / view path", id="copy_path"),
                 Option("ℹ️ Show directory information & disk usage", id="info"),
@@ -332,6 +333,7 @@ class ExplorerApp(App[Optional[Any]]):
         Binding("c", "choose_current", "Choose Folder [c]", show=True),
         Binding("enter", "confirm_open", "Open", show=True),
         Binding("n", "create_item", "Create [n]", show=True),
+        Binding("d", "delete_item", "Delete [d]", show=True),
         Binding("space", "toggle_select", "Select", show=True),
         Binding("slash", "start_search", "Search", show=True),
         Binding("p", "open_places", "Places", show=True),
@@ -827,6 +829,8 @@ class ExplorerApp(App[Optional[Any]]):
                 self.exit({"action": "info", "dir": chosen_dir})
             elif action == "create":
                 self.action_create_item()
+            elif action == "delete":
+                self.action_delete_item()
 
         self.push_screen(ActionMenuModal(chosen_dir), handle_action)
 
@@ -885,6 +889,29 @@ class ExplorerApp(App[Optional[Any]]):
                 self.notify(f"Error creating {item_type}: {e}", severity="error")
 
         self.push_screen(CreateItemModal(self.current_dir), handle_created)
+
+    def action_delete_item(self) -> None:
+        """Delete selected item(s) or the item under cursor with confirmation."""
+        targets: List[str] = []
+        if self.selected_paths:
+            targets = list(self.selected_paths)
+        else:
+            table = self.query_one(DataTable)
+            if self.filtered_entries and table.cursor_row is not None:
+                item = self.filtered_entries[table.cursor_row]
+                if not item.get("is_parent"):
+                    targets = [item["path"]]
+
+        if not targets:
+            self.notify("No item selected to delete.", severity="warning")
+            return
+
+        with self.suspend():
+            from ..delete_cli import run_cli_delete
+            run_cli_delete(args=targets)
+
+        self.selected_paths.clear()
+        self.load_directory(self.current_dir)
 
 
 # ==============================================================================

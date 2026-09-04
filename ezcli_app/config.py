@@ -282,6 +282,23 @@ FEATURES: List[FeatureTemplate] = [
         ],
         renderer_name="run_cli_create_file",
     ),
+    FeatureTemplate(
+        id="delete",
+        subcommand="delete",
+        title="Delete Items",
+        icon="🗑️",
+        description="Permanently delete files or folders with safety consent (non-force first)",
+        wrapped_commands=["delete"],
+        arguments=[
+            ArgumentDef(
+                name="target",
+                help="Folder name (with /) or file in current directory, or 'choose-directory'",
+                required=False,
+                default="choose-directory",
+            )
+        ],
+        renderer_name="run_cli_delete",
+    ),
 ]
 
 # Lookup map by subcommand
@@ -295,3 +312,5 @@ FEATURES_BY_SUBCOMMAND["choose"] = FEATURES_BY_SUBCOMMAND["choose-directory"]
 FEATURES_BY_SUBCOMMAND["explorer"] = FEATURES_BY_SUBCOMMAND["choose-directory"]
 FEATURES_BY_SUBCOMMAND["new-folder"] = FEATURES_BY_SUBCOMMAND["create-folder"]
 FEATURES_BY_SUBCOMMAND["new-file"] = FEATURES_BY_SUBCOMMAND["create-file"]
+FEATURES_BY_SUBCOMMAND["del"] = FEATURES_BY_SUBCOMMAND["delete"]
+FEATURES_BY_SUBCOMMAND["remove"] = FEATURES_BY_SUBCOMMAND["delete"]

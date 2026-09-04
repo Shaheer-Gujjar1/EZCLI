@@ -140,6 +140,7 @@ ezcli help
 | 📁 | `ezcli choose-directory [path]` | `explorer` | Graphical terminal file explorer with mouse navigation, file-type emojis, bookmarks, and subshell launcher. |
 | 📁 | `ezcli create-folder <name> [choose-directory]` | `create-folder` | Create a new folder directly or choose parent directory visually with mini explorer. Handles admin rights automatically. |
 | 📄 | `ezcli create-file <name> [choose-directory]` | `create-file` | Create a new blank file directly or choose destination directory visually with mini explorer. Handles admin rights automatically. |
+| 🗑️ | `ezcli delete [target \| choose-directory]` | `delete` | Permanently delete file(s) or folder(s) with explicit consent, non-force-first safety, and auto-elevation. |
 | 📋 | `ezcli copy` | `cp` | Choose file(s) or folder(s) to copy using the mini file explorer and stage to clipboard. |
 | 🚚 | `ezcli move` | `mv` | Choose file(s) or folder(s) to move using the mini file explorer and stage to clipboard. |
 | 📥 | `ezcli paste` | `paste` | Choose destination folder using the mini explorer, preview summary, confirm with y/n, and paste. |
@@ -160,13 +161,14 @@ ezcli choose-directory
 - **`[Enter]`**: Open/enter directory.
 - **`[Space]`**: Multi-select items.
 - **`[n]`**: Create a new folder or blank file directly in the current directory.
+- **`[d]`**: Delete selected item(s) or highlighted item with confirmation and safety checks.
 - **`[/]`**: Instant search-as-you-type filter.
 - **`[p]`**: Quick Places menu (`🏠 Home`, `📥 Downloads`, `📄 Documents`, `🖥️ Desktop`, `🕒 Recent`, `⭐ Bookmarks`).
 - **`[h]`**: Toggle hidden files (dotfiles).
 - **`[s]`**: Cycle sort order (`Name`, `Size`, `Date`).
 - **`[i]`**: Toggle item info sidebar (file size, permissions, owner, timestamps).
 - **`[b]`**: Bookmark the current directory.
-- **`[c]`**: Confirm chosen directory and open the Action Menu (including *"✨ Create new file or folder here"*).
+- **`[c]`**: Confirm chosen directory and open the Action Menu (including *"✨ Create new file or folder here"* and *"🗑️ Delete selected item(s)"*).
 - **`[q]`**: Quit explorer.
 
 ### "Open Shell Here" & Parent Shells
@@ -266,6 +268,56 @@ While browsing files with `ezcli choose-directory`:
 - Enter your item name and press `[Enter]`.
 - If the current folder is protected (such as `/etc`), EasyCLI prompts for admin authorization automatically.
 - The directory view instantly refreshes with your newly created item.
+
+---
+
+## 🗑️ Safe File & Folder Deletion (`delete`)
+
+EasyCLI replaces dangerous and silent `rm` / `rm -rf` commands with a consent-first, error-guarded deletion engine:
+
+### 1. Visual Selection via Mini Explorer
+```bash
+ezcli delete choose-directory
+# Or simply:
+ezcli delete
+```
+Opens the mini file explorer in multi-select mode so you can visually choose file(s) and folder(s) anywhere on your system.
+
+### 2. Direct Deletion in Current Directory Only
+To prevent accidental destruction of files across unrelated paths, direct deletion is strictly scoped to the **current working directory**:
+- **Folder:** `ezcli delete my_folder/`
+- **File:** `ezcli delete document.pdf`
+
+> **Note:** Specifying subfolder paths (e.g. `folder/sub/` or `sub/file.txt`) directly is intentionally blocked. Use `ezcli delete choose-directory` to navigate and delete items in other directories safely.
+
+### 3. Always Runs Without Force First
+- When deleting folders, EasyCLI attempts standard safe removal first (`rmdir`).
+- If a folder is non-empty, EasyCLI will **never** delete it silently. It warns you and explicitly asks:
+  ```text
+  ⚠️ Folder 'my_project' is not empty and cannot be deleted without force.
+  Delete folder and all its contents forcefully? [y/N]
+  ```
+- If you answer `No` (the default), the folder is safely skipped without any changes.
+
+### 4. Dangerous Commands Require Explicit Consent
+Before any files or folders are deleted, EasyCLI displays a full preview card showing item names, types (📄 File vs 📁 Folder), sizes, locations, and total size:
+```text
+⚠️  DANGER: Permanent Deletion
+The following item(s) will be permanently deleted from your system.
+This action CANNOT be undone.
+
+Are you sure you want to permanently delete these items? [y/N]
+```
+The default answer is `No` (`default=False`), ensuring nothing is ever deleted by accident.
+
+### 5. 100% Automatic Elevation (No `--admin` Flag)
+If you delete an item in a write-protected location (or encounter a permission error), EasyCLI automatically explains the requirement and prompts for admin authorization (`[Y/n]`).
+
+### 6. Visual Deletion in File Explorer (`[d]`)
+While browsing files with `ezcli choose-directory`:
+- Select items with `[Space]` or highlight an item.
+- Press **`[d]`** (or select *"🗑️ Delete selected item(s)"* from the Action Menu `[c]`).
+- The interactive preview and confirmation prompts appear, and the file explorer reloads immediately after deletion.
 
 ---
 

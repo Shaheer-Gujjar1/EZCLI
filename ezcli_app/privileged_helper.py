@@ -9,6 +9,7 @@ import datetime
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 from typing import Any, Dict, List
@@ -140,16 +141,24 @@ def helper_file_move(src: str, dst: str) -> Dict[str, Any]:
         return {"success": False, "error": f"Elevated move error: {e}"}
 
 
-def helper_file_delete(path: str, is_dir: bool = False) -> Dict[str, Any]:
-    """Delete file or directory in protected location (for undo/cleanup)."""
+def helper_file_delete(path: str, is_dir: bool = False, force: bool = False) -> Dict[str, Any]:
+    """Delete file or directory in protected location (honoring non-force first)."""
     abs_path = os.path.abspath(os.path.expanduser(path))
-    if not os.path.exists(abs_path):
+    if not os.path.exists(abs_path) and not os.path.islink(abs_path):
         return {"success": True, "path": abs_path}
 
     try:
         if is_dir and os.path.isdir(abs_path):
-            shutil.rmtree(abs_path)
+            if not force:
+                os.rmdir(abs_path)
+            else:
+                shutil.rmtree(abs_path)
         else:
+            if force and not os.access(abs_path, os.W_OK):
+                try:
+                    os.chmod(abs_path, stat.S_IRWXU)
+                except Exception:
+                    pass
             os.remove(abs_path)
         return {"success": True, "path": abs_path}
     except Exception as e:
@@ -194,7 +203,11 @@ def dispatch_helper_request(request: Dict[str, Any]) -> Dict[str, Any]:
     elif action == "file_move":
         return helper_file_move(params.get("src", ""), params.get("dst", ""))
     elif action == "file_delete":
-        return helper_file_delete(params.get("path", ""), params.get("is_dir", False))
+        return helper_file_delete(
+            params.get("path", ""),
+            params.get("is_dir", False),
+            params.get("force", False),
+        )
     elif action == "make_dir":
         return helper_make_dir(params.get("path", ""))
     elif action == "create_file":
