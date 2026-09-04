@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ezcli"
-version = "0.2.0"
+version = "0.3.0"
 description = "Terminal frontend wrapper for common Linux commands on Debian-based systems"
 readme = "README.md"
 authors = [{ name = "EasyCLI Contributors" }]

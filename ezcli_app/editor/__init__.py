@@ -1,0 +1,1 @@
+"""EasyCLI Mini Editor module."""

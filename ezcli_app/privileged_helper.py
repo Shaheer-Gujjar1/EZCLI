@@ -189,6 +189,51 @@ def helper_create_file(path: str) -> Dict[str, Any]:
         return {"success": False, "error": f"Elevated file creation error: {e}"}
 
 
+def helper_file_write(path: str, content: str) -> Dict[str, Any]:
+    """Write text content to a protected file atomically, preserving existing mode."""
+    abs_path = os.path.abspath(os.path.expanduser(path))
+    parent_dir = os.path.dirname(abs_path)
+    try:
+        if parent_dir:
+            os.makedirs(parent_dir, exist_ok=True)
+        original_mode = None
+        if os.path.exists(abs_path):
+            try:
+                original_mode = stat.S_IMODE(os.stat(abs_path).st_mode)
+            except Exception:
+                pass
+
+        tmp_path = f"{abs_path}.ezcli_tmp_{os.getpid()}"
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            f.write(content)
+
+        if original_mode is not None:
+            try:
+                os.chmod(tmp_path, original_mode)
+            except Exception:
+                pass
+
+        os.replace(tmp_path, abs_path)
+        return {"success": True, "path": abs_path}
+    except Exception as e:
+        return {"success": False, "error": f"Elevated file write error: {e}"}
+
+
+def helper_file_read(path: str) -> Dict[str, Any]:
+    """Read text content from a protected file."""
+    abs_path = os.path.abspath(os.path.expanduser(path))
+    if not os.path.exists(abs_path):
+        return {"success": False, "error": f"File '{abs_path}' does not exist."}
+    if os.path.isdir(abs_path):
+        return {"success": False, "error": f"Path '{abs_path}' is a directory."}
+    try:
+        with open(abs_path, "r", encoding="utf-8", errors="replace") as f:
+            content = f.read()
+        return {"success": True, "path": abs_path, "content": content}
+    except Exception as e:
+        return {"success": False, "error": f"Elevated file read error: {e}"}
+
+
 def dispatch_helper_request(request: Dict[str, Any]) -> Dict[str, Any]:
     """Process a single privileged helper request."""
     action = request.get("action")
@@ -212,6 +257,10 @@ def dispatch_helper_request(request: Dict[str, Any]) -> Dict[str, Any]:
         return helper_make_dir(params.get("path", ""))
     elif action == "create_file":
         return helper_create_file(params.get("path", ""))
+    elif action == "file_write":
+        return helper_file_write(params.get("path", ""), params.get("content", ""))
+    elif action == "file_read":
+        return helper_file_read(params.get("path", ""))
     else:
         return {"success": False, "error": f"Unknown helper action '{action}'."}
 

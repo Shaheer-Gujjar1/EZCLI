@@ -40,9 +40,10 @@ class TestCLI(unittest.TestCase):
         self.assertIn("logs", res.stdout)
 
     def test_version_flag(self):
+        from ezcli_app import __version__
         res = self.run_ezcli("--version")
         self.assertEqual(res.returncode, 0)
-        self.assertIn("v0.1.0", res.stdout)
+        self.assertIn(f"v{__version__}", res.stdout)
 
     def test_unknown_subcommand(self):
         res = self.run_ezcli("foobar-unknown-command")

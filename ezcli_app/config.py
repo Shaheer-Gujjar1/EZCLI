@@ -25,7 +25,7 @@ class FeatureTemplate:
     renderer_name: str = ""
 
 
-# 10 Final v0.1 Feature Templates
+# Feature Templates (v0.1, v0.2, v0.3)
 FEATURES: List[FeatureTemplate] = [
     FeatureTemplate(
         id="system_info",
@@ -298,6 +298,23 @@ FEATURES: List[FeatureTemplate] = [
             )
         ],
         renderer_name="run_cli_delete",
+    ),
+    FeatureTemplate(
+        id="edit_file",
+        subcommand="edit-file",
+        title="Edit Text/Code File",
+        icon="📝",
+        description="Terminal text and code editor with syntax highlighting and auto-elevation",
+        wrapped_commands=["edit-file"],
+        arguments=[
+            ArgumentDef(
+                name="target",
+                help="File in current directory (name.ext) or 'choose-directory'",
+                required=False,
+                default="choose-directory",
+            )
+        ],
+        renderer_name="run_cli_edit_file",
     ),
 ]
 

@@ -248,6 +248,16 @@ def main() -> None:
         elif feature.id == "delete":
             from .delete_cli import run_cli_delete
             run_cli_delete(args=sub_args, console=console)
+        elif feature.id == "edit_file":
+            if not check_textual_installed(console):
+                sys.exit(1)
+            from .edit_cli import run_cli_edit_file
+            target_arg = sub_args[0] if sub_args else ""
+
+            class EditArgs:
+                target = target_arg
+
+            run_cli_edit_file(args=EditArgs(), console=console)
     except BrokenPipeError:
         try:
             devnull = os.open(os.devnull, os.O_WRONLY)

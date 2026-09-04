@@ -433,3 +433,44 @@ def elevated_create_file(
         console=console,
     )
     return success, err
+
+
+def elevated_file_write(
+    path: str,
+    content: str,
+    reason: str = "Save changes to protected file",
+    skip_explanation: bool = False,
+    console: Optional[Console] = None,
+) -> Tuple[bool, str]:
+    """Write content to a protected file with administrator rights."""
+    success, res, err = run_elevated_helper(
+        action="file_write",
+        params={"path": path, "content": content},
+        reason=reason,
+        task_description=f"Save changes to '{path}'",
+        risk_level="high",
+        skip_explanation=skip_explanation,
+        console=console,
+    )
+    return success, err
+
+
+def elevated_file_read(
+    path: str,
+    reason: str = "Read protected system file",
+    skip_explanation: bool = False,
+    console: Optional[Console] = None,
+) -> Tuple[bool, Optional[str], str]:
+    """Read content from a protected file with administrator rights."""
+    success, res, err = run_elevated_helper(
+        action="file_read",
+        params={"path": path},
+        reason=reason,
+        task_description=f"Read file '{path}'",
+        risk_level="low",
+        skip_explanation=skip_explanation,
+        console=console,
+    )
+    if success and res and isinstance(res, dict):
+        return True, res.get("content", ""), ""
+    return False, None, err

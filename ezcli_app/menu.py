@@ -8,9 +8,9 @@ from rich.panel import Panel
 from rich.prompt import Prompt
 from rich.table import Table
 
+from . import __version__, renderers
 from .config import FEATURES, FeatureTemplate
 from .distro import detect_distro
-from . import renderers
 
 
 def run_feature(console: Console, feature: FeatureTemplate) -> None:
@@ -84,6 +84,17 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
                 else:
                     run_cli_delete(args=[target.strip()], console=console)
                 return
+            elif feature.id == "edit_file":
+                from .edit_cli import run_cli_edit_file
+                edit_target = args_values[0].strip() if args_values and args_values[0] else "choose-directory"
+
+                class MenuEditArgs:
+                    target = ""
+
+                menu_args = MenuEditArgs()
+                menu_args.target = edit_target
+                run_cli_edit_file(args=menu_args, console=console)
+                return
             elif renderer_fn is not None:
                 if feature.subcommand == "big_files" or feature.id == "big_files":
                     raw_folder = args_values[0] if args_values else "~"
@@ -153,8 +164,8 @@ def interactive_menu(console: Console) -> None:
         if distro.is_debian_based:
             distro_badge += " (Debian-based)"
         header_text = (
-            f"[bold cyan]EasyCLI (ezcli) v0.1[/bold cyan] [dim]─ Read-Only Terminal Frontend[/dim]\n"
-            f"[dim]Detected Distribution:[/dim] [bold green]{distro_badge}[/bold green] | [dim]Mode:[/dim] [bold yellow]100% Read-Only[/bold yellow]"
+            f"[bold cyan]EasyCLI (ezcli) v{__version__}[/bold cyan] [dim]─ Friendly Linux Terminal Frontend[/dim]\n"
+            f"[dim]Detected Distribution:[/dim] [bold green]{distro_badge}[/bold green] | [dim]Mode:[/dim] [bold yellow]Safe & Elevated[/bold yellow]"
         )
         console.print(Panel(header_text, box=box.ROUNDED, border_style="cyan"))
 

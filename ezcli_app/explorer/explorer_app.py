@@ -419,6 +419,8 @@ class ExplorerApp(App[Optional[Any]]):
             "choose_dir": "Mode: Choose Directory",
             "pick_source": "Mode: Select Files/Folders to Copy or Move",
             "pick_dest": "Mode: Select Destination Directory",
+            "pick_delete": "Mode: Select Items to Delete",
+            "pick_file": "Mode: Select File to Edit",
         }.get(self.mode, "")
         return f"{sel_text}{mode_text} (Sort: {self.sort_mode.capitalize()} | Hidden: {'On' if self.show_hidden else 'Off'})"
 
@@ -678,6 +680,12 @@ class ExplorerApp(App[Optional[Any]]):
             self.exit(list(self.selected_paths))
             return
 
+        # 3. In pick_file mode: picking a file exits with that file's path
+        if self.mode == "pick_file":
+            if not item["is_dir"] and not item.get("is_parent"):
+                self.exit(item["path"])
+            return
+
     def prompt_and_elevate_directory(self, target_path: str, auto: bool = False) -> None:
         """Prompt user for elevation and load locked directory using helper."""
         from ..elevation import elevated_read_dir
@@ -801,6 +809,17 @@ class ExplorerApp(App[Optional[Any]]):
                     if not item.get("is_parent"):
                         self.selected_paths.add(item["path"])
             self.exit(list(self.selected_paths))
+        elif self.mode == "pick_file":
+            table = self.query_one(DataTable)
+            if self.filtered_entries and table.cursor_row is not None:
+                item = self.filtered_entries[table.cursor_row]
+                if item.get("is_dir"):
+                    if item.get("is_locked"):
+                        self.prompt_and_elevate_directory(item["path"])
+                    else:
+                        self.load_directory(item["path"])
+                elif not item.get("is_parent"):
+                    self.exit(item["path"])
 
     def confirm_chosen_directory(self) -> None:
         """Show action menu when directory is chosen."""
@@ -977,3 +996,25 @@ def run_delete_picker(initial_dir: str = "~", is_admin: bool = False) -> List[st
     setattr(ExplorerApp, "action_confirm_delete_selection", action_confirm_delete_selection)
     result = app.run()
     return result if isinstance(result, list) else []
+
+
+def run_file_picker(initial_dir: str = ".", is_admin: bool = False) -> Optional[str]:
+    """Launch explorer specifically for picking a single text/code file to edit."""
+    app = ExplorerApp(mode="pick_file", initial_dir=initial_dir, is_admin=is_admin)
+    app.BINDINGS.append(Binding("c", "confirm_file_selection", "Edit File [c]", show=True))
+
+    def action_confirm_file_selection(self: ExplorerApp) -> None:
+        table = self.query_one(DataTable)
+        if self.filtered_entries and table.cursor_row is not None:
+            item = self.filtered_entries[table.cursor_row]
+            if item.get("is_dir"):
+                if item.get("is_locked"):
+                    self.prompt_and_elevate_directory(item["path"])
+                else:
+                    self.load_directory(item["path"])
+            elif not item.get("is_parent"):
+                self.exit(item["path"])
+
+    setattr(ExplorerApp, "action_confirm_file_selection", action_confirm_file_selection)
+    result = app.run()
+    return result if isinstance(result, str) else None

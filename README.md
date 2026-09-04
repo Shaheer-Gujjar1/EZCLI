@@ -1,6 +1,6 @@
-# EasyCLI (`ezcli`) v0.2
+# EasyCLI (`ezcli`) v0.3
 
-**EasyCLI** is a beginner-friendly terminal frontend wrapper for Linux commands built specifically for Debian-based systems. It simplifies complex and verbose Linux tasks into beautiful, color-coded terminal cards, interactive menus, a modern graphical file explorer, and safety-first file operations with undo.
+**EasyCLI** is a beginner-friendly terminal frontend wrapper for Linux commands built specifically for Debian-based systems. It simplifies complex and verbose Linux tasks into beautiful, color-coded terminal cards, interactive menus, a modern graphical file explorer, safety-first file operations with reversible undo, modern file creation/deletion, and seamless automatic privilege elevation.
 
 ---
 
@@ -21,9 +21,11 @@ Distributions are automatically detected via `/etc/os-release` and verified for 
 
 ## 🛡️ Safety & Reliability Philosophy
 
-- **System Inspection Commands:** 100% read-only. Never modifies services, network, packages, or files. Never requires root privileges or invokes `sudo`.
-- **File Operations (`copy`, `move`):** Always preview before write. Never silently overwrites existing files. Offers conflict policies (`ask`, `skip`, `overwrite`, `rename`). Cross-filesystem moves verify file sizes and SHA256 checksums before removing source items.
-- **Reversible Undo (`ezcli undo`):** Reverts the most recent copy or move. For copies, deletes only newly created destination files (pre-existing files are never touched).
+- **System Inspection Commands (v0.1):** 100% read-only. Never modifies services, network, packages, or files. Never requires root privileges or invokes `sudo`.
+- **File Operations (v0.2 - `copy`, `move`):** Always preview before write. Never silently overwrites existing files. Offers conflict policies (`ask`, `skip`, `overwrite`, `rename`). Cross-filesystem moves verify file sizes and SHA256 checksums before removing source items.
+- **Reversible Undo (v0.2 - `ezcli undo`):** Reverts the most recent copy or move. For copies, deletes only newly created destination files (pre-existing files are never touched).
+- **Creation & Deletion Commands (v0.3 - `create-folder`, `create-file`, `delete`):** Replaces legacy `mkdir`, `touch`, and `rm`. Direct commands are strictly scoped to the current directory to prevent accidents. `delete` always runs without force first and demands explicit consent before touching any files.
+- **Shared Privilege Elevation (v0.3):** 100% automatic elevation without `--admin` flags. Never runs the application under sudo (`sudo ezcli`). Only specific privileged tasks are elevated through a lightweight helper with dot password feedback (`••••`).
 - **Graceful Fault Tolerance:** Missing tools, empty outputs, or permission limits are handled with friendly diagnostic panels rather than crashes or Python tracebacks.
 
 ---
@@ -70,7 +72,7 @@ To test EasyCLI on another Debian or Ubuntu machine:
 1. Push your changes to your Git repository:
    ```bash
    git add .
-   git commit -m "feat: EasyCLI v0.1 release"
+   git commit -m "feat: EasyCLI v0.3 release"
    git push
    ```
 2. On your other PC, clone and install:
@@ -96,10 +98,10 @@ ezcli
 ### Option 3: Copying via USB Drive / Archive
 Create a compressed archive to move via USB or cloud drive:
 ```bash
-tar -czvf ezcli-v0.1.tar.gz -C /home/shaheer/Documents/GitHub EZCLI
+tar -czvf ezcli-v0.3.tar.gz -C /home/shaheer/Documents/GitHub EZCLI
 
 # On the other PC, extract and run:
-tar -xzvf ezcli-v0.1.tar.gz
+tar -xzvf ezcli-v0.3.tar.gz
 cd EZCLI
 ./install.sh
 ezcli
@@ -123,29 +125,30 @@ ezcli help
 
 ## 📋 Available Subcommands
 
-| Icon | Subcommand & Syntax | Wrapped Tools | Description |
-| :---: | :--- | :--- | :--- |
-| 💻 | `ezcli system-info` | `hostnamectl`, `uptime -p`, `/etc/os-release` | Key-value card with OS name/version, hostname, kernel, architecture, and uptime. |
-| ⚡ | `ezcli stats` | `free -h`, `uptime`, `nproc` | CPU load averages and RAM/Swap usage with colored inline progress bars. |
-| 💽 | `ezcli disk-info` | `df -h` | Table of storage mounts, sizes, used/available space, and inline usage bars (filters out pseudo-filesystems). |
-| 📁 | `ezcli big-files [path \| choose-directory]` | `du -h --max-depth=1`, `find` | Table of largest files and folders. Provide a path or use `choose-directory` to pick visually via the mini explorer. Defaults to `~`. |
-| 🔍 | `ezcli package-search <term>` | `apt search`, `flathub`, `snapcraft` | Universal search across **APT 📦**, **Flatpak 🟣**, and **Snap 🟢** with interactive platform selection & installation commands. |
-| 📦 | `ezcli package <name>` | `apt show`, `dpkg -s` | Card showing package version, size, homepage, description, and installed status. |
-| 🔄 | `ezcli available-updates` | `apt list --upgradable` | Table of upgradable packages and versions using existing lists only (never runs `apt update`). |
-| ⚙️ | `ezcli service-status <name>` | `systemctl is-active`, `systemctl is-enabled` | Status card with running state and boot enablement indicators. |
-| 🌐 | `ezcli network-info` | `ip addr`, `ip route`, `/etc/resolv.conf` | Overview card and table of network interfaces, IP addresses, gateway, DNS, and online status. |
-| 📄 | `ezcli logs [N]` | `journalctl -n N --no-pager` | Color-coded system logs by severity (errors red, warnings yellow, ok green). Defaults to 50 lines. |
-| 📋 | `ezcli installed-packages` | `apt list --installed`, `dpkg-query`, `flatpak list`, `snap list` | List all installed packages across system and desktop platforms (wraps `apt list --installed`). |
-| 🔎 | `ezcli installed-package-search <name>` | `apt list --installed \| grep -i <name>`, `dpkg-query` | Search installed packages and applications by name (wraps `apt list --installed \| grep -i <name>`). |
-| 📁 | `ezcli choose-directory [path]` | `explorer` | Graphical terminal file explorer with mouse navigation, file-type emojis, bookmarks, and subshell launcher. |
-| 📁 | `ezcli create-folder <name> [choose-directory]` | `create-folder` | Create a new folder directly or choose parent directory visually with mini explorer. Handles admin rights automatically. |
-| 📄 | `ezcli create-file <name> [choose-directory]` | `create-file` | Create a new blank file directly or choose destination directory visually with mini explorer. Handles admin rights automatically. |
-| 🗑️ | `ezcli delete [target \| choose-directory]` | `delete` | Permanently delete file(s) or folder(s) with explicit consent, non-force-first safety, and auto-elevation. |
-| 📋 | `ezcli copy` | `cp` | Choose file(s) or folder(s) to copy using the mini file explorer and stage to clipboard. |
-| 🚚 | `ezcli move` | `mv` | Choose file(s) or folder(s) to move using the mini file explorer and stage to clipboard. |
-| 📥 | `ezcli paste` | `paste` | Choose destination folder using the mini explorer, preview summary, confirm with y/n, and paste. |
-| ⏪ | `ezcli undo` | `undo` | Revert the most recent paste operation with preview and confirmation. |
-| ⏩ | `ezcli redo` | `redo` | Re-apply the most recently undone operation with preview and confirmation. |
+| Icon | Subcommand & Syntax | Version | Wrapped Tools | Description |
+| :---: | :--- | :---: | :--- | :--- |
+| 💻 | `ezcli system-info` | **v0.1** | `hostnamectl`, `uptime -p`, `/etc/os-release` | Key-value card with OS name/version, hostname, kernel, architecture, and uptime. |
+| ⚡ | `ezcli stats` | **v0.1** | `free -h`, `uptime`, `nproc` | CPU load averages and RAM/Swap usage with colored inline progress bars. |
+| 💽 | `ezcli disk-info` | **v0.1** | `df -h` | Table of storage mounts, sizes, used/available space, and inline usage bars (filters out pseudo-filesystems). |
+| 📁 | `ezcli big-files [path \| choose-directory]` | **v0.1** | `du -h --max-depth=1`, `find` | Table of largest files and folders. Provide a path or use `choose-directory` to pick visually via the mini explorer. Defaults to `~`. |
+| 🔍 | `ezcli package-search <term>` | **v0.1** | `apt search`, `flathub`, `snapcraft` | Universal search across **APT 📦**, **Flatpak 🟣**, and **Snap 🟢** with interactive platform selection & installation commands. |
+| 📦 | `ezcli package <name>` | **v0.1** | `apt show`, `dpkg -s` | Card showing package version, size, homepage, description, and installed status. |
+| 🔄 | `ezcli available-updates` | **v0.1** | `apt list --upgradable` | Table of upgradable packages and versions using existing lists only (never runs `apt update`). |
+| ⚙️ | `ezcli service-status <name>` | **v0.1** | `systemctl is-active`, `systemctl is-enabled` | Status card with running state and boot enablement indicators. |
+| 🌐 | `ezcli network-info` | **v0.1** | `ip addr`, `ip route`, `/etc/resolv.conf` | Overview card and table of network interfaces, IP addresses, gateway, DNS, and online status. |
+| 📄 | `ezcli logs [N]` | **v0.1** | `journalctl -n N --no-pager` | Color-coded system logs by severity (errors red, warnings yellow, ok green). Defaults to 50 lines. |
+| 📋 | `ezcli installed-packages` | **v0.1** | `apt list --installed`, `dpkg-query`, `flatpak list`, `snap list` | List all installed packages across system and desktop platforms (wraps `apt list --installed`). |
+| 🔎 | `ezcli installed-package-search <name>` | **v0.1** | `apt list --installed \| grep -i <name>`, `dpkg-query` | Search installed packages and applications by name (wraps `apt list --installed \| grep -i <name>`). |
+| 📁 | `ezcli choose-directory [path]` | **v0.2** | `explorer` | Graphical terminal file explorer with mouse navigation, file-type emojis, bookmarks, and subshell launcher. |
+| 📋 | `ezcli copy` | **v0.2** | `cp` | Choose file(s) or folder(s) to copy using the mini file explorer and stage to clipboard. |
+| 🚚 | `ezcli move` | **v0.2** | `mv` | Choose file(s) or folder(s) to move using the mini file explorer and stage to clipboard. |
+| 📥 | `ezcli paste` | **v0.2** | `paste` | Choose destination folder using the mini explorer, preview summary, confirm with y/n, and paste. |
+| ⏪ | `ezcli undo` | **v0.2** | `undo` | Revert the most recent paste operation with preview and confirmation. |
+| ⏩ | `ezcli redo` | **v0.2** | `redo` | Re-apply the most recently undone operation with preview and confirmation. |
+| 📁 | `ezcli create-folder <name> [choose-directory]` | **v0.3** | `create-folder` | Create a new folder directly or choose parent directory visually with mini explorer. Automatic privilege elevation. |
+| 📄 | `ezcli create-file <name> [choose-directory]` | **v0.3** | `create-file` | Create a new blank file directly or choose destination directory visually with mini explorer. Automatic privilege elevation. |
+| 🗑️ | `ezcli delete [target \| choose-directory]` | **v0.3** | `delete` | Permanently delete file(s) or folder(s) with explicit consent, non-force-first safety, and automatic elevation. |
+| 📝 | `ezcli edit-file [target \| choose-directory]` | **v0.3** | `edit-file` | Modern terminal text and code editor with syntax highlighting, line numbers, visual search, and auto-elevation. |
 
 ---
 
@@ -187,7 +190,7 @@ Reload with `source ~/.bashrc`. Now running `ezcd` opens the visual file manager
 
 ---
 
-## 📋 Visual Copy, Move, Paste, Undo & Redo
+## 📋 Visual Copy, Move, Paste, Undo & Redo (v0.2)
 
 EasyCLI v0.2 makes terminal file operations as simple as a graphical file manager:
 
@@ -235,9 +238,9 @@ ezcli redo
 
 ---
 
-## ✨ Creating Files & Folders (`create-folder`, `create-file`)
+## ✨ Creating Files & Folders (v0.3: `create-folder`, `create-file`)
 
-EasyCLI provides clean, modern creation commands without needing to memorize legacy commands:
+EasyCLI v0.3 introduces pure, modern creation commands without needing to memorize legacy commands:
 
 ### 1. Create a Folder Directly
 ```bash
@@ -270,9 +273,9 @@ While browsing files with `ezcli choose-directory`:
 
 ---
 
-## 🗑️ Safe File & Folder Deletion (`delete`)
+## 🗑️ Safe File & Folder Deletion (v0.3: `delete`)
 
-EasyCLI replaces dangerous and silent `rm` / `rm -rf` commands with a consent-first, error-guarded deletion engine:
+EasyCLI v0.3 replaces dangerous and silent `rm` / `rm -rf` commands with a consent-first, error-guarded deletion engine:
 
 ### 1. Visual Selection via Mini Explorer
 ```bash
@@ -321,7 +324,52 @@ When you run `ezcli delete choose-directory` (or simply `ezcli delete`):
 
 ---
 
-## 🔒 Safe Privilege Elevation (Why `sudo ezcli` is Never Needed)
+## 📝 Mini Text & Code Editor (v0.3: `edit-file`)
+
+EasyCLI v0.3 introduces a beginner-friendly terminal text and code editor to replace cumbersome and unintuitive editors like `nano` and `vi`:
+
+```bash
+# Edit a file in current directory
+ezcli edit-file config.py
+
+# Or choose any file visually via the file picker
+ezcli edit-file choose-directory
+```
+
+### 1. Direct Editing Scoped to Current Directory
+To prevent accidental modifications of files in unintended paths, direct editing is strictly scoped to the **current working directory**:
+- **Allowed:** `ezcli edit-file notes.txt`, `ezcli edit-file script.py`
+- **Protected:** Passing subfolder paths (e.g. `ezcli edit-file sub/script.py`) is safely rejected with clear instructions to run `ezcli edit-file choose-directory`.
+- **New Files:** If the specified filename does not exist, EasyCLI opens a blank editor buffer and creates the file cleanly upon saving.
+
+### 2. Visual File Picker (`choose-directory`)
+When you run `ezcli edit-file choose-directory` (or `ezcli edit-file` with no arguments):
+- Opens a dedicated file picker for selecting text and code files.
+- Navigate directories using arrow keys or mouse; press **`[Enter]`** or **`[c]`** on any file to open it directly in the editor.
+- Regular `ezcli choose-directory` browsing remains 100% clean and isolated.
+
+### 3. Editor Features & Ergonomics
+- **Rich Syntax Highlighting:** Automatic syntax highlighting powered by Tree-sitter for Python, JavaScript, TypeScript, HTML, CSS, Markdown, JSON, YAML, TOML, Bash, C/C++, Rust, Go, SQL, and Java.
+- **Line Numbers & Coordinate Status:** Line numbers displayed by default; live cursor coordinates (`Ln 12, Col 5`), line count, file size, encoding, and syntax language indicators.
+- **Keyboard Shortcuts:**
+  - **`Ctrl + S`**: Save file (prompts for auto-elevation if write-protected).
+  - **`Ctrl + Q` / `Esc`**: Exit editor. If you have unsaved changes, displays a safe prompt with `[Save & Exit]`, `[Discard & Exit]`, and `[Cancel]`.
+  - **`Ctrl + F`**: Search / Find text in the file with live match counting.
+  - **`Ctrl + W`**: Toggle soft word wrapping.
+  - **`Ctrl + Z` / `Ctrl + Y`**: Undo / Redo edits.
+  - **`F2` / `Ctrl + H`**: Open shortcut help cheat sheet.
+
+### 4. Automatic Privilege Elevation with Consent
+- If you edit a write-protected system file (such as `/etc/hosts` or system service configurations), EasyCLI will never lose your work or crash with a permission error.
+- Upon saving (`Ctrl + S`), EasyCLI explains that admin rights are required and asks for your consent (`[Y/n]`).
+- Upon confirmation, EasyCLI saves the file safely via the internal privileged helper without ever requiring you to run `sudo ezcli`.
+
+### 5. Binary File Protection
+EasyCLI detects binary file formats (e.g. `.png`, `.bin`, `.iso`, `.zip`, `.exe`, or files with null bytes) and refuses to open them in text mode, protecting your binary data from accidental corruption.
+
+---
+
+## 🔒 Safe Automatic Privilege Elevation (v0.3)
 
 EasyCLI features a beginner-friendly, secure, and transparent privilege-elevation layer:
 
@@ -380,19 +428,22 @@ EasyCLI is designed with a layered, decoupled architecture:
 ```
 EZCLI/
 ├── ezcli                  # Executable entrypoint script
-├── pyproject.toml         # Packaging configuration (v0.2.0)
-├── setup.py               # Setup script
+├── pyproject.toml         # Packaging configuration (v0.3.0)
+├── setup.py               # Setup script (v0.3.0)
 ├── install.sh             # 1-step deployment script
 ├── README.md              # Documentation and guide
-├── tests/                 # Comprehensive unit test suite (57 tests)
+├── tests/                 # Comprehensive unit test suite (98 tests)
 │   ├── test_distro.py     # Distro parser and derivative detection tests
 │   ├── test_collectors.py # System inspection and installed package tests
 │   ├── test_file_ops.py   # Copy, move, cross-filesystem, and conflict tests
 │   ├── test_undo.py       # Reversible undo engine verification
+│   ├── test_create.py     # File & folder creation validation tests (v0.3)
+│   ├── test_delete.py     # Safe deletion, non-force, and consent tests (v0.3)
+│   ├── test_editor.py     # Mini text & code editor validation tests (v0.3)
 │   ├── test_cli.py        # CLI dispatch, flags, and end-to-end flow tests
 │   └── test_elevation.py  # Privilege elevation & permission-denied simulation tests
 └── ezcli_app/
-    ├── __init__.py        # Package version (__version__ = "0.2.0")
+    ├── __init__.py        # Package version (__version__ = "0.3.0")
     ├── config.py          # Declarative FeatureTemplate definitions & aliases
     ├── distro.py          # /etc/os-release parsing and Debian validation
     ├── emoji.py           # Font capability and UTF-8 detection
@@ -400,16 +451,43 @@ EZCLI/
     ├── renderers.py       # Rich visual layout and box-drawing renderers
     ├── menu.py            # Interactive TUI menu and keyboard navigation
     ├── main.py            # Subcommand parser, visual choose-directory dispatcher
-    ├── elevation.py       # Shared privilege-elevation layer & password UX
+    ├── elevation.py       # Shared privilege-elevation layer & password UX (v0.3)
     ├── privileged_helper.py# Minimal privileged helper for elevated tasks
     ├── file_engine.py     # Safe file operations, SHA256 checks, conflict policies
     ├── file_cli.py        # Interactive copy, move, paste, and undo CLI handlers
+    ├── create_cli.py      # Interactive create-folder and create-file handlers (v0.3)
+    ├── delete_cli.py      # Safe consent-first delete CLI handlers (v0.3)
+    ├── edit_cli.py        # Modern text & code editor CLI handlers (v0.3)
     ├── undo.py            # Reversible undo history engine (~/.local/share/ezcli)
+    ├── editor/            # Textual TUI Mini Text & Code Editor (v0.3)
+    │   ├── __init__.py    # Editor package exports
+    │   └── editor_app.py  # Syntax highlighting, line numbers, modals & auto-elevation
     └── explorer/          # Textual TUI File Explorer with lock-emoji integration
         ├── file_icons.py  # Emoji mapping per file extension and MIME type
         ├── places.py      # Bookmarks and standard quick places
         └── explorer_app.py# Reusable file manager, pickers, and elevation reload
 ```
+
+---
+
+## 📜 Version Milestones & History
+
+- **v0.1 — Read-Only System Diagnostics & Universal Package Search**:
+  - 12 read-only system diagnostic subcommands (`system-info`, `stats`, `disk-info`, `big-files`, `network-info`, `logs`, etc.).
+  - Cross-platform package management queries for **APT 📦**, **Flatpak 🟣**, and **Snap 🟢**.
+  - Interactive Rich terminal menu with full keyboard and mouse support.
+- **v0.2 — Modern File Management & Reversible Undo**:
+  - Graphical terminal file explorer (`ezcli choose-directory`) with search, places, bookmarks, and subshell launcher.
+  - Multi-select visual `copy` and `move` operations.
+  - Previewed `paste` with conflict resolution (`ask`, `skip`, `overwrite`, `rename`) and progress bars.
+  - Reversible `undo` and `redo` transaction engine.
+- **v0.3 — Safe Creation, Deletion, Mini Editor & Automatic Elevation**:
+  - Pure modern creation commands (`ezcli create-folder`, `ezcli create-file`) replacing legacy commands (`mkdir`, `touch`), directly or visually via mini explorer (`[n]`).
+  - Consent-first deletion (`ezcli delete`, `ezcli delete choose-directory`) replacing dangerous `rm` / `rm -rf`.
+  - Modern terminal text and code editor (`ezcli edit-file`) replacing `nano`/`vi` with Tree-sitter syntax highlighting, line numbers, find search, and unsaved changes guard.
+  - Non-force-first safety: non-empty folders always prompt before any force removal. Direct commands restricted to current directory.
+  - Dedicated deletion and file editing picker modes so regular directory browsing remains 100% clean and isolated.
+  - 100% automatic privilege elevation with consent and visible dot password feedback (`••••`), without `--admin` flags or root contamination.
 
 ---
 
@@ -420,4 +498,4 @@ To run the automated unit test suite:
 python3 -m unittest discover tests/
 ```
 
-All 53 unit tests validate distro detection, collector safety, file operations, conflict policies, cross-filesystem moves, undo engine, command parsing, CLI flags, permission-denied simulations, and the privilege elevation layer.
+All 98 unit tests validate distro detection, collector safety, file operations, conflict policies, cross-filesystem moves, undo engine, command parsing, file/folder creation, safe deletion with force prompts, mini text editor validation, binary file protection, permission-denied simulations, and the privilege elevation layer.
