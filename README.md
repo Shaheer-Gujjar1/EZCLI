@@ -168,7 +168,7 @@ ezcli choose-directory
 - **`[s]`**: Cycle sort order (`Name`, `Size`, `Date`).
 - **`[i]`**: Toggle item info sidebar (file size, permissions, owner, timestamps).
 - **`[b]`**: Bookmark the current directory.
-- **`[c]`**: Confirm chosen directory and open the Action Menu (including *"✨ Create new file or folder here"* and *"🗑️ Delete selected item(s)"*).
+- **`[c]`**: Confirm chosen directory and open the Action Menu (including *"🗑️ Delete selected item(s)"*, shell launcher, and path options).
 - **`[q]`**: Quit explorer.
 
 ### "Open Shell Here" & Parent Shells
@@ -263,7 +263,7 @@ ezcli create-file notes.txt choose-directory
 
 ### 4. Create Directly Inside the File Explorer (`[n]`)
 While browsing files with `ezcli choose-directory`:
-- Press **`[n]`** (or press **`[c]`** to open the Action Menu and select *"✨ Create new file or folder here"*).
+- Press **`[n]`** at any time to create a new folder or file.
 - Choose between **Folder 📁** or **Blank File 📄**.
 - Enter your item name and press `[Enter]`.
 - If the current folder is protected (such as `/etc`), EasyCLI prompts for admin authorization automatically.

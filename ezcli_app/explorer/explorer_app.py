@@ -184,7 +184,6 @@ class ActionMenuModal(ModalScreen[str]):
             yield Label(f"📁 Selected Directory: [bold cyan]{self.directory_path}[/bold cyan]")
             yield Label("Choose what you would like to do:\n")
             yield OptionList(
-                Option("✨ Create new file or folder here", id="create"),
                 Option("🗑️ Delete selected item(s)", id="delete"),
                 Option("🐚 Open shell here (spawn $SHELL at this directory)", id="shell"),
                 Option("📋 Copy path to clipboard / view path", id="copy_path"),
@@ -827,8 +826,6 @@ class ExplorerApp(App[Optional[Any]]):
                 self.exit({"action": "copy_path", "dir": chosen_dir})
             elif action == "info":
                 self.exit({"action": "info", "dir": chosen_dir})
-            elif action == "create":
-                self.action_create_item()
             elif action == "delete":
                 self.action_delete_item()
 
