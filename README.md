@@ -161,14 +161,13 @@ ezcli choose-directory
 - **`[Enter]`**: Open/enter directory.
 - **`[Space]`**: Multi-select items.
 - **`[n]`**: Create a new folder or blank file directly in the current directory.
-- **`[d]`**: Delete selected item(s) or highlighted item with confirmation and safety checks.
 - **`[/]`**: Instant search-as-you-type filter.
 - **`[p]`**: Quick Places menu (`🏠 Home`, `📥 Downloads`, `📄 Documents`, `🖥️ Desktop`, `🕒 Recent`, `⭐ Bookmarks`).
 - **`[h]`**: Toggle hidden files (dotfiles).
 - **`[s]`**: Cycle sort order (`Name`, `Size`, `Date`).
 - **`[i]`**: Toggle item info sidebar (file size, permissions, owner, timestamps).
 - **`[b]`**: Bookmark the current directory.
-- **`[c]`**: Confirm chosen directory and open the Action Menu (including *"🗑️ Delete selected item(s)"*, shell launcher, and path options).
+- **`[c]`**: Confirm chosen directory and open the Action Menu (`Open shell here`, `Copy path to clipboard`, `Directory information`).
 - **`[q]`**: Quit explorer.
 
 ### "Open Shell Here" & Parent Shells
@@ -313,11 +312,12 @@ The default answer is `No` (`default=False`), ensuring nothing is ever deleted b
 ### 5. 100% Automatic Elevation (No `--admin` Flag)
 If you delete an item in a write-protected location (or encounter a permission error), EasyCLI automatically explains the requirement and prompts for admin authorization (`[Y/n]`).
 
-### 6. Visual Deletion in File Explorer (`[d]`)
-While browsing files with `ezcli choose-directory`:
-- Select items with `[Space]` or highlight an item.
-- Press **`[d]`** (or select *"🗑️ Delete selected item(s)"* from the Action Menu `[c]`).
-- The interactive preview and confirmation prompts appear, and the file explorer reloads immediately after deletion.
+### 6. Interactive Visual Picker (`choose-directory`)
+When you run `ezcli delete choose-directory` (or simply `ezcli delete`):
+- The mini file explorer opens in dedicated deletion selection mode.
+- Navigate to any folder, select one or multiple items using `[Space]` (or highlight an item).
+- Press **`[c]`** to confirm your selection for deletion.
+- The interactive preview and confirmation prompts appear safely in the terminal before any deletion is executed.
 
 ---
 

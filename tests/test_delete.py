@@ -142,7 +142,7 @@ class TestDeleteCLI(unittest.TestCase):
         output = self.console.export_text()
         self.assertIn("Deleted 1 of 1 Item(s)", output)
 
-    @patch("ezcli_app.explorer.explorer_app.run_source_picker")
+    @patch("ezcli_app.explorer.explorer_app.run_delete_picker")
     def test_run_cli_delete_choose_directory_dispatch(self, mock_picker):
         """Test that choose-directory launches the mini explorer picker."""
         test_file = os.path.join(self.temp_dir, "picked.csv")

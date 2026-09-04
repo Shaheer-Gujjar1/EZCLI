@@ -184,7 +184,6 @@ class ActionMenuModal(ModalScreen[str]):
             yield Label(f"📁 Selected Directory: [bold cyan]{self.directory_path}[/bold cyan]")
             yield Label("Choose what you would like to do:\n")
             yield OptionList(
-                Option("🗑️ Delete selected item(s)", id="delete"),
                 Option("🐚 Open shell here (spawn $SHELL at this directory)", id="shell"),
                 Option("📋 Copy path to clipboard / view path", id="copy_path"),
                 Option("ℹ️ Show directory information & disk usage", id="info"),
@@ -332,7 +331,6 @@ class ExplorerApp(App[Optional[Any]]):
         Binding("c", "choose_current", "Choose Folder [c]", show=True),
         Binding("enter", "confirm_open", "Open", show=True),
         Binding("n", "create_item", "Create [n]", show=True),
-        Binding("d", "delete_item", "Delete [d]", show=True),
         Binding("space", "toggle_select", "Select", show=True),
         Binding("slash", "start_search", "Search", show=True),
         Binding("p", "open_places", "Places", show=True),
@@ -795,7 +793,7 @@ class ExplorerApp(App[Optional[Any]]):
             self.confirm_chosen_directory()
         elif self.mode == "pick_dest":
             self.exit(self.current_dir)
-        elif self.mode == "pick_source":
+        elif self.mode in ("pick_source", "pick_delete"):
             if not self.selected_paths:
                 table = self.query_one(DataTable)
                 if self.filtered_entries and table.cursor_row is not None:
@@ -826,8 +824,6 @@ class ExplorerApp(App[Optional[Any]]):
                 self.exit({"action": "copy_path", "dir": chosen_dir})
             elif action == "info":
                 self.exit({"action": "info", "dir": chosen_dir})
-            elif action == "delete":
-                self.action_delete_item()
 
         self.push_screen(ActionMenuModal(chosen_dir), handle_action)
 
@@ -886,29 +882,6 @@ class ExplorerApp(App[Optional[Any]]):
                 self.notify(f"Error creating {item_type}: {e}", severity="error")
 
         self.push_screen(CreateItemModal(self.current_dir), handle_created)
-
-    def action_delete_item(self) -> None:
-        """Delete selected item(s) or the item under cursor with confirmation."""
-        targets: List[str] = []
-        if self.selected_paths:
-            targets = list(self.selected_paths)
-        else:
-            table = self.query_one(DataTable)
-            if self.filtered_entries and table.cursor_row is not None:
-                item = self.filtered_entries[table.cursor_row]
-                if not item.get("is_parent"):
-                    targets = [item["path"]]
-
-        if not targets:
-            self.notify("No item selected to delete.", severity="warning")
-            return
-
-        with self.suspend():
-            from ..delete_cli import run_cli_delete
-            run_cli_delete(args=targets)
-
-        self.selected_paths.clear()
-        self.load_directory(self.current_dir)
 
 
 # ==============================================================================
@@ -986,3 +959,21 @@ def run_destination_picker(initial_dir: str = "~", is_admin: bool = False) -> Op
     setattr(ExplorerApp, "action_confirm_dest", action_confirm_dest)
     result = app.run()
     return result if isinstance(result, str) else None
+
+
+def run_delete_picker(initial_dir: str = "~", is_admin: bool = False) -> List[str]:
+    """Launch explorer specifically for picking file(s) or folder(s) to delete."""
+    app = ExplorerApp(mode="pick_delete", initial_dir=initial_dir, is_admin=is_admin)
+    app.BINDINGS.append(Binding("c", "confirm_delete_selection", "Select for Delete [c]", show=True))
+
+    def action_confirm_delete_selection(self: ExplorerApp) -> None:
+        table = self.query_one(DataTable)
+        if not self.selected_paths and self.filtered_entries and table.cursor_row is not None:
+            item = self.filtered_entries[table.cursor_row]
+            if not item.get("is_parent"):
+                self.selected_paths.add(item["path"])
+        self.exit(list(self.selected_paths))
+
+    setattr(ExplorerApp, "action_confirm_delete_selection", action_confirm_delete_selection)
+    result = app.run()
+    return result if isinstance(result, list) else []

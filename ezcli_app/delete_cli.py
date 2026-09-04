@@ -217,9 +217,9 @@ def run_cli_delete(
     target_items: List[Tuple[str, bool]] = []  # List of (abs_path, is_dir)
 
     if not args or args == ["choose-directory"]:
-        from .explorer.explorer_app import run_source_picker
+        from .explorer.explorer_app import run_delete_picker
         console.print("[bold cyan]Opening mini explorer to choose file(s) or folder(s) to delete...[/bold cyan]")
-        chosen_paths = run_source_picker(initial_dir=".")
+        chosen_paths = run_delete_picker(initial_dir=".")
         if not chosen_paths:
             console.print("[dim]Deletion cancelled (no items selected).[/dim]")
             return
