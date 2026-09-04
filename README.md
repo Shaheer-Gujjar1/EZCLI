@@ -348,13 +348,29 @@ When you run `ezcli edit-file choose-directory` (or `ezcli edit-file` with no ar
 - Navigate directories using arrow keys or mouse; press **`[Enter]`** or **`[c]`** on any file to open it directly in the editor.
 - Regular `ezcli choose-directory` browsing remains 100% clean and isolated.
 
-### 3. Editor Features & Ergonomics
-- **Rich Syntax Highlighting:** Automatic syntax highlighting powered by Tree-sitter for Python, JavaScript, TypeScript, HTML, CSS, Markdown, JSON, YAML, TOML, Bash, C/C++, Rust, Go, SQL, and Java.
+### 3. Advanced Features & Interactive Mouse Controls
+- **Dual Mouse Interactive Toolbars:** Full mouse support with one-click buttons accessible from both top and bottom bars:
+  - `[💾 Save]`: Save buffer immediately (auto-prompts elevation if write-protected).
+  - `[💾 Save & Exit]`: Clickable button to save buffer and immediately exit in a single click.
+  - `[❌ Exit]`: Exits editor cleanly (prompts to save or discard if unsaved changes exist).
+  - `[🔍 Find & Replace]`: Toggles interactive find & replace panel.
+  - `[↩️ Undo]` / `[↪️ Redo]`: Instantly revert or re-apply text edits.
+  - `[🚀 Go to Line]`: Opens interactive line jump dialog (`GotoLineModal`).
+  - `[🔄 Wrap: On/Off]`: Toggles word wrapping on the fly.
+  - `[🎨 Theme]`: Opens visual theme picker (`VS Code Dark`, `Dracula`, `Monokai`, `GitHub Light`).
+  - `[🔤 Syntax]`: Opens visual language picker (Python, Bash, JS, TS, HTML, CSS, Markdown, Rust, Go, SQL, etc.).
+  - `[❓ Help]`: Opens mouse-friendly shortcut cheat sheet.
+- **Interactive Bottom Action Bar:** Large, persistent clickable buttons at the bottom of the screen:
+  `[💾 Save [Ctrl+S]]`  `[💾 Save & Exit [Ctrl+X]]`  `[❌ Exit [Ctrl+Q]]`  `[🔍 Find [Ctrl+F]]`  `[🚀 Jump [Ctrl+G]]`  `[❓ Help [F2]]`
+- **Interactive Find & Replace:** Find query, Replace query, Next/Prev navigation, single-match replace, and whole-file Replace All with match counts.
+- **Clickable Status Bar:** Status badges are interactive buttons—click line/col to jump to line, click syntax to switch language, click theme to change theme, or click wrap to toggle soft wrap.
 - **Line Numbers & Coordinate Status:** Line numbers displayed by default; live cursor coordinates (`Ln 12, Col 5`), line count, file size, encoding, and syntax language indicators.
 - **Keyboard Shortcuts:**
   - **`Ctrl + S`**: Save file (prompts for auto-elevation if write-protected).
+  - **`Ctrl + X`**: Save and Exit editor immediately (nano-style shortcut).
   - **`Ctrl + Q` / `Esc`**: Exit editor. If you have unsaved changes, displays a safe prompt with `[Save & Exit]`, `[Discard & Exit]`, and `[Cancel]`.
   - **`Ctrl + F`**: Search / Find text in the file with live match counting.
+  - **`Ctrl + G` / `Ctrl + L`**: Jump to line number.
   - **`Ctrl + W`**: Toggle soft word wrapping.
   - **`Ctrl + Z` / `Ctrl + Y`**: Undo / Redo edits.
   - **`F2` / `Ctrl + H`**: Open shortcut help cheat sheet.
@@ -432,7 +448,7 @@ EZCLI/
 ├── setup.py               # Setup script (v0.3.0)
 ├── install.sh             # 1-step deployment script
 ├── README.md              # Documentation and guide
-├── tests/                 # Comprehensive unit test suite (98 tests)
+├── tests/                 # Comprehensive unit test suite (100 tests)
 │   ├── test_distro.py     # Distro parser and derivative detection tests
 │   ├── test_collectors.py # System inspection and installed package tests
 │   ├── test_file_ops.py   # Copy, move, cross-filesystem, and conflict tests
@@ -498,4 +514,4 @@ To run the automated unit test suite:
 python3 -m unittest discover tests/
 ```
 
-All 98 unit tests validate distro detection, collector safety, file operations, conflict policies, cross-filesystem moves, undo engine, command parsing, file/folder creation, safe deletion with force prompts, mini text editor validation, binary file protection, permission-denied simulations, and the privilege elevation layer.
+All 100 unit tests validate distro detection, collector safety, file operations, conflict policies, cross-filesystem moves, undo engine, command parsing, file/folder creation, safe deletion with force prompts, mini text editor validation, binary file protection, permission-denied simulations, and the privilege elevation layer.

@@ -292,5 +292,94 @@ class TestEditorAppLogic(unittest.TestCase):
         self.assertEqual(mock_ta.soft_wrap, not initial)
 
 
+    def test_goto_line_modal_logic(self) -> None:
+        from ezcli_app.editor.editor_app import GotoLineModal
+
+        modal = GotoLineModal(current_line=1, max_lines=100)
+        mock_dismiss = MagicMock()
+        modal.dismiss = mock_dismiss
+
+        # Valid input
+        modal.submit_line("42")
+        mock_dismiss.assert_called_with(42)
+
+        # Empty input
+        modal.submit_line("")
+        mock_dismiss.assert_called_with(None)
+
+    def test_replace_all_logic(self) -> None:
+        from ezcli_app.editor.editor_app import EditorApp
+
+        app = EditorApp("file.txt", initial_content="foo bar foo baz")
+        mock_find_input = MagicMock()
+        mock_find_input.value = "foo"
+        mock_replace_input = MagicMock()
+        mock_replace_input.value = "qux"
+        mock_ta = MagicMock()
+        mock_ta.text = "foo bar foo baz"
+        mock_status_label = MagicMock()
+
+        def mock_query(selector: str, *args, **kwargs):
+            if selector == "#find-input":
+                return mock_find_input
+            elif selector == "#replace-input":
+                return mock_replace_input
+            elif selector == "#main-text-area":
+                return mock_ta
+            elif selector == "#find-status-label":
+                return mock_status_label
+            return MagicMock()
+
+        setattr(app, "query_one", mock_query)
+        setattr(app, "notify", MagicMock())
+        app.action_replace_all()
+        mock_ta.load_text.assert_called_once_with("qux bar qux baz")
+
+    def test_save_and_exit_success(self) -> None:
+        from ezcli_app.editor.editor_app import EditorApp
+
+        app = EditorApp("file.txt")
+        mock_save = MagicMock(return_value=True)
+        mock_exit = MagicMock()
+        setattr(app, "action_save_file", mock_save)
+        setattr(app, "exit", mock_exit)
+
+        app.action_save_and_exit()
+        mock_save.assert_called_once()
+        mock_exit.assert_called_once_with(True)
+
+    def test_save_and_exit_failure_does_not_exit(self) -> None:
+        from ezcli_app.editor.editor_app import EditorApp
+
+        app = EditorApp("file.txt")
+        mock_save = MagicMock(return_value=False)
+        mock_exit = MagicMock()
+        setattr(app, "action_save_file", mock_save)
+        setattr(app, "exit", mock_exit)
+
+        app.action_save_and_exit()
+        mock_save.assert_called_once()
+        mock_exit.assert_not_called()
+
+    def test_button_pressed_routes(self) -> None:
+        from ezcli_app.editor.editor_app import EditorApp
+
+        app = EditorApp("file.txt")
+        mock_save_and_exit = MagicMock()
+        setattr(app, "action_save_and_exit", mock_save_and_exit)
+
+        event_tb = MagicMock()
+        event_tb.button.id = "tb-save-exit"
+        app.on_button_pressed(event_tb)
+        mock_save_and_exit.assert_called_once()
+
+        mock_save_and_exit.reset_mock()
+        event_bot = MagicMock()
+        event_bot.button.id = "bot-save-exit"
+        app.on_button_pressed(event_bot)
+        mock_save_and_exit.assert_called_once()
+
+
 if __name__ == "__main__":
     unittest.main()
+
