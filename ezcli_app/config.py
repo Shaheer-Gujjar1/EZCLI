@@ -41,8 +41,8 @@ FEATURES: List[FeatureTemplate] = [
         subcommand="stats",
         title="Resource Statistics",
         icon="⚡",
-        description="Show CPU load averages and RAM usage with progress bars",
-        wrapped_commands=["free -h", "uptime", "nproc"],
+        description="Live-updating system & process monitor (per-core CPU, RAM/Swap, process manager)",
+        wrapped_commands=["free -h", "uptime", "nproc", "ps"],
         renderer_name="render_stats",
     ),
     FeatureTemplate(

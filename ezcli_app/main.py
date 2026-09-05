@@ -16,6 +16,14 @@ from . import renderers
 
 def check_textual_installed(console: Console) -> bool:
     """Check if modern textual (>=0.2.0) is installed, showing a friendly setup panel if missing or outdated."""
+    import glob
+    venv_site = (
+        glob.glob(os.path.expanduser("~/.local/share/ez/venv/lib/python*/site-packages"))
+        + glob.glob(os.path.expanduser("~/.local/share/ezcli/venv/lib/python*/site-packages"))
+    )
+    if venv_site and venv_site[0] not in sys.path:
+        sys.path.insert(0, venv_site[0])
+
     try:
         importlib.import_module("textual.containers")
         importlib.import_module("textual.widgets")
@@ -154,7 +162,14 @@ def main() -> None:
         if feature.id == "system_info":
             renderers.render_system_info(console)
         elif feature.id == "stats":
-            renderers.render_stats(console)
+            if not sys.stdout.isatty():
+                renderers.render_stats(console)
+            else:
+                if not check_textual_installed(console):
+                    renderers.render_stats(console)
+                else:
+                    from .stats import run_live_stats
+                    run_live_stats()
         elif feature.id == "disk_info":
             renderers.render_disk_info(console)
         elif feature.id == "big_files":

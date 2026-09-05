@@ -126,6 +126,16 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
                 elif feature.subcommand == "installed-package-search" or feature.id == "installed_package_search":
                     term = args_values[0] if args_values else ""
                     renderer_fn(console, term)
+                elif feature.subcommand == "stats" or feature.id == "stats":
+                    try:
+                        from .main import check_textual_installed
+                        if check_textual_installed(console):
+                            from .stats import run_live_stats
+                            run_live_stats()
+                        else:
+                            renderer_fn(console)
+                    except Exception:
+                        renderer_fn(console)
                 else:
                     renderer_fn(console)
             else:

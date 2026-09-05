@@ -72,7 +72,7 @@ def helper_read_dir(path: str, show_hidden: bool = False) -> Dict[str, Any]:
 def helper_run_command(cmd: List[str], timeout: int = 15) -> Dict[str, Any]:
     """Run an elevated read command safely (e.g. journalctl, du)."""
     # Defensive validation: whitelist allowed commands
-    allowed_binaries = {"journalctl", "du", "systemctl", "ip", "find", "cat"}
+    allowed_binaries = {"journalctl", "du", "systemctl", "ip", "find", "cat", "kill"}
     if not cmd or os.path.basename(cmd[0]) not in allowed_binaries:
         return {
             "success": False,

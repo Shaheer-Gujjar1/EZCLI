@@ -128,7 +128,7 @@ ez help
 | Icon | Subcommand & Syntax | Version | Wrapped Tools | Description |
 | :---: | :--- | :---: | :--- | :--- |
 | 💻 | `ez system-info` | **v0.1** | `hostnamectl`, `uptime -p`, `/etc/os-release` | Key-value card with OS name/version, hostname, kernel, architecture, and uptime. |
-| ⚡ | `ez stats` | **v0.1** | `free -h`, `uptime`, `nproc` | CPU load averages and RAM/Swap usage with colored inline progress bars. |
+| ⚡ | `ez stats` | **v0.3** | `/proc`, `ps`, `free`, `uptime` | Live-updating system & process monitor (modern `htop` alternative with per-core CPU bars, RAM/Swap gauges, search filtering, and safe process termination). |
 | 💽 | `ez disk-info` | **v0.1** | `df -h` | Table of storage mounts, sizes, used/available space, and inline usage bars (filters out pseudo-filesystems). |
 | 📁 | `ez big-files [path \| choose-directory]` | **v0.1** | `du -h --max-depth=1`, `find` | Table of largest files and folders. Provide a path or use `choose-directory` to pick visually via the mini explorer. Defaults to `~`. |
 | 🔍 | `ez package-search <term>` | **v0.1** | `apt search`, `flathub`, `snapcraft` | Universal search across **APT 📦**, **Flatpak 🟣**, and **Snap 🟢** with interactive platform selection & installation commands. |
