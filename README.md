@@ -140,9 +140,9 @@ ez help
 | 📋 | `ez installed-packages` | **v0.1** | `apt list --installed`, `dpkg-query`, `flatpak list`, `snap list` | List all installed packages across system and desktop platforms (wraps `apt list --installed`). |
 | 🔎 | `ez installed-package-search <name>` | **v0.1** | `apt list --installed \| grep -i <name>`, `dpkg-query` | Search installed packages and applications by name (wraps `apt list --installed \| grep -i <name>`). |
 | 📁 | `ez choose-directory [path]` | **v0.2** | `explorer` | Graphical terminal file explorer with mouse navigation, file-type emojis, bookmarks, and subshell launcher. |
-| 📋 | `ez copy` | **v0.2** | `cp` | Choose file(s) or folder(s) to copy using the mini file explorer and stage to clipboard. |
-| 🚚 | `ez move` | **v0.2** | `mv` | Choose file(s) or folder(s) to move using the mini file explorer and stage to clipboard. |
-| 📥 | `ez paste` | **v0.2** | `paste` | Choose destination folder using the mini explorer, preview summary, confirm with y/n, and paste. |
+| 📋 | `ez copy [target \| choose-directory]` | **v0.2** | `cp` | Copy file/folder in current directory directly or choose visually with `choose-directory`. |
+| 🚚 | `ez move [target \| choose-directory]` | **v0.2** | `mv` | Move file/folder in current directory directly or choose visually with `choose-directory`. |
+| 📥 | `ez paste [choose-directory]` | **v0.2** | `paste` | Paste staged items into current directory, or choose destination with `choose-directory`. |
 | ⏪ | `ez undo` | **v0.2** | `undo` | Revert the most recent paste operation with preview and confirmation. |
 | ⏩ | `ez redo` | **v0.2** | `redo` | Re-apply the most recently undone operation with preview and confirmation. |
 | 📁 | `ez create-folder <name> [choose-directory]` | **v0.3** | `create-folder` | Create a new folder directly or choose parent directory visually with mini explorer. Automatic privilege elevation. |
@@ -190,34 +190,60 @@ Reload with `source ~/.bashrc`. Now running `ezcd` opens the visual file manager
 
 ---
 
-## 📋 Visual Copy, Move, Paste, Undo & Redo (v0.2)
+## 📋 Safe Copy, Move, Paste, Undo & Redo (v0.2)
 
-EasyCLI v0.2 makes terminal file operations as simple as a graphical file manager:
+EasyCLI provides modern, visual, and direct file operations with reversible undo:
 
-### 1. Copy Files or Folders
-```bash
-ez copy
-```
-- Launches the mini file explorer in multi-select mode.
-- Highlight items, press `[Space]` to select, then press `[c]` or `[Enter]` to confirm.
-- Selected items are staged onto your EasyCLI clipboard with a confirmation card.
+### 1. Copy Files or Folders (`ez copy`)
+- **Direct file in current directory:**
+  ```bash
+  ez copy notes.txt
+  ```
+- **Direct folder in current directory:**
+  ```bash
+  ez copy my_project/
+  ```
+  *(Direct copy is strictly scoped to the current directory. Subfolder paths like `sub/file.txt` are safely rejected with advice to use `choose-directory`)*
+- **Choose file(s) or folder(s) visually anywhere:**
+  ```bash
+  ez copy choose-directory
+  # Or simply:
+  ez copy
+  ```
+  Launches the mini file explorer in multi-select mode. Highlight items, press `[Space]` to select, then press `[c]` or `[Enter]` to confirm. Selected items are staged onto your EasyCLI clipboard with an immediate summary card.
 
-### 2. Move / Cut Files or Folders
-```bash
-ez move
-```
-- Launches the mini file explorer to select files/folders to move.
-- Selected items are staged for moving.
+### 2. Move / Cut Files or Folders (`ez move`)
+- **Direct file in current directory:**
+  ```bash
+  ez move notes.txt
+  ```
+- **Direct folder in current directory:**
+  ```bash
+  ez move my_project/
+  ```
+- **Choose file(s) or folder(s) visually anywhere:**
+  ```bash
+  ez move choose-directory
+  # Or simply:
+  ez move
+  ```
 
-### 3. Paste to Destination
-```bash
-ez paste
-```
-- Launches the mini explorer to choose your destination directory.
-- After selecting, displays a **Beautiful Summary Card** showing total items, combined size, destination, and any existing file conflicts.
-- Prompts for conflict policy if items exist (`ask`, `skip`, `overwrite`, `rename`).
-- Asks for `[y/N]` confirmation before touching any files.
-- Executes with a live per-file progress bar.
+### 3. Paste to Destination (`ez paste`)
+- **Paste into current directory:**
+  ```bash
+  ez paste
+  ```
+  Pastes staged items directly into your current working directory without launching the mini explorer!
+- **Choose destination folder visually anywhere:**
+  ```bash
+  ez paste choose-directory
+  ```
+  Launches the mini explorer to navigate and choose your destination directory.
+- **Safety & Preview:**
+  - Displays a **Beautiful Summary Card** showing total items, combined size, destination, and any existing file conflicts.
+  - Prompts for conflict policy if items exist (`ask`, `skip`, `overwrite`, `rename`).
+  - Asks for `[y/N]` confirmation before touching any files.
+  - Executes with a live per-file progress bar.
 
 ### 4. Undo (`ez undo`)
 To safely revert your most recent paste operation:

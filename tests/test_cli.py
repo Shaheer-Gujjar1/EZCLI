@@ -105,6 +105,19 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(res_redo.returncode, 0)
         self.assertIn("no undone", res_redo.stdout.lower())
 
+    def test_copy_direct_file(self):
+        res = self.run_ez("copy", "README.md")
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("EasyCLI Clipboard", res.stdout)
+        self.assertIn("COPY", res.stdout)
+        self.assertIn("README.md", res.stdout)
+
+    def test_copy_subfolder_rejected(self):
+        res = self.run_ez("copy", "tests/test_cli.py")
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("Direct Targeting Restricted", res.stdout)
+        self.assertIn("ez copy choose-directory", res.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

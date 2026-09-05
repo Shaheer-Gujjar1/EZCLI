@@ -203,9 +203,15 @@ FEATURES: List[FeatureTemplate] = [
         subcommand="copy",
         title="Copy Items",
         icon="📋",
-        description="Choose file(s) or folder(s) to copy using the mini file explorer",
+        description="Copy file/folder in current directory or choose visually with choose-directory",
         wrapped_commands=["cp"],
-        arguments=[],
+        arguments=[
+            ArgumentDef(
+                name="target",
+                help="File, folder/, or 'choose-directory'",
+                required=False,
+            )
+        ],
         renderer_name="run_cli_copy",
     ),
     FeatureTemplate(
@@ -213,9 +219,15 @@ FEATURES: List[FeatureTemplate] = [
         subcommand="move",
         title="Move / Cut Items",
         icon="🚚",
-        description="Choose file(s) or folder(s) to move using the mini file explorer",
+        description="Move file/folder in current directory or choose visually with choose-directory",
         wrapped_commands=["mv"],
-        arguments=[],
+        arguments=[
+            ArgumentDef(
+                name="target",
+                help="File, folder/, or 'choose-directory'",
+                required=False,
+            )
+        ],
         renderer_name="run_cli_move",
     ),
     FeatureTemplate(
@@ -223,9 +235,15 @@ FEATURES: List[FeatureTemplate] = [
         subcommand="paste",
         title="Paste Items",
         icon="📥",
-        description="Choose destination folder using the mini explorer to paste staged items",
+        description="Paste staged items into current directory, or choose destination with choose-directory",
         wrapped_commands=["paste"],
-        arguments=[],
+        arguments=[
+            ArgumentDef(
+                name="destination",
+                help="'choose-directory' or omit for current directory",
+                required=False,
+            )
+        ],
         renderer_name="run_cli_paste",
     ),
     FeatureTemplate(

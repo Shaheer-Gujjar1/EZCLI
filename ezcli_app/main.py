@@ -213,20 +213,34 @@ def main() -> None:
             initial_dir = clean_sub[0] if clean_sub else "~"
             run_choose_directory(initial_dir, print_path_only=print_only)
         elif feature.id == "copy":
-            if not check_textual_installed(console):
-                sys.exit(1)
             from .file_cli import run_cli_stage
-            run_cli_stage("copy", console=console)
+            choose_dir = any(a.lower() in ("choose-directory", "choose", "picker", "select") for a in sub_args)
+            clean_sub = [a for a in sub_args if a.lower() not in ("choose-directory", "choose", "picker", "select")]
+            if choose_dir or not sub_args:
+                if not check_textual_installed(console):
+                    sys.exit(1)
+                run_cli_stage("copy", targets=None, console=console)
+            else:
+                run_cli_stage("copy", targets=clean_sub, console=console)
         elif feature.id == "move":
-            if not check_textual_installed(console):
-                sys.exit(1)
             from .file_cli import run_cli_stage
-            run_cli_stage("move", console=console)
+            choose_dir = any(a.lower() in ("choose-directory", "choose", "picker", "select") for a in sub_args)
+            clean_sub = [a for a in sub_args if a.lower() not in ("choose-directory", "choose", "picker", "select")]
+            if choose_dir or not sub_args:
+                if not check_textual_installed(console):
+                    sys.exit(1)
+                run_cli_stage("move", targets=None, console=console)
+            else:
+                run_cli_stage("move", targets=clean_sub, console=console)
         elif feature.id == "paste":
-            if not check_textual_installed(console):
-                sys.exit(1)
             from .file_cli import run_cli_paste
-            run_cli_paste(console=console)
+            choose_dir = any(a.lower() in ("choose-directory", "choose", "picker", "select") for a in sub_args)
+            if choose_dir:
+                if not check_textual_installed(console):
+                    sys.exit(1)
+                run_cli_paste(choose_dest=True, console=console)
+            else:
+                run_cli_paste(choose_dest=False, console=console)
         elif feature.id == "undo":
             from .file_cli import run_cli_undo
             run_cli_undo(console=console)
