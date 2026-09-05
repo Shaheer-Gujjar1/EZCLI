@@ -125,6 +125,8 @@ ez help
 
 ## 📋 Available Subcommands
 
+> 💡 **Looking for a comprehensive comparison?** See the full [EasyCLI Commands Guide & Linux Replacement Matrix](COMMANDS_GUIDE.md) for in-depth command breakdowns, interactive hotkeys, and traditional Linux command mappings.
+
 | Icon | Subcommand & Syntax | Version | Wrapped Tools | Description |
 | :---: | :--- | :---: | :--- | :--- |
 | 💻 | `ez system-info` | **v0.1** | `hostnamectl`, `uptime -p`, `/etc/os-release` | Key-value card with OS name/version, hostname, kernel, architecture, and uptime. |
