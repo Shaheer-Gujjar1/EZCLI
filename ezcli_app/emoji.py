@@ -101,7 +101,7 @@ def ensure_emoji_capability(interactive: bool = True) -> bool:
         print(
             "To install the recommended emoji font, run:\n"
             "    sudo apt install -y fonts-noto-color-emoji\n\n"
-            "Then restart your terminal and launch ezcli again.\n"
+            "Then restart your terminal and launch ez again.\n"
         )
         sys.exit(1)
 
@@ -118,7 +118,7 @@ def ensure_emoji_capability(interactive: bool = True) -> bool:
             if ret.returncode == 0:
                 print(
                     "\n✅ Emoji font installed successfully!\n"
-                    "Please restart your terminal to reload the font cache, then run 'ezcli'.\n"
+                    "Please restart your terminal to reload the font cache, then run 'ez'.\n"
                 )
                 sys.exit(0)
             else:
@@ -132,6 +132,6 @@ def ensure_emoji_capability(interactive: bool = True) -> bool:
             "\nEasyCLI requires an emoji font to display properly.\n"
             "You can install it manually at any time with:\n"
             "    sudo apt install fonts-noto-color-emoji\n\n"
-            "Then restart your terminal and run ezcli.\n"
+            "Then restart your terminal and run ez.\n"
         )
         sys.exit(1)

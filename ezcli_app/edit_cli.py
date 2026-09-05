@@ -1,4 +1,4 @@
-"""CLI handler and direct argument validation for 'ezcli edit-file'."""
+"""CLI handler and direct argument validation for 'ez edit-file'."""
 
 import os
 import sys
@@ -69,7 +69,7 @@ def validate_direct_edit_target(raw_target: str, cwd: Optional[str] = None) -> T
             f"Direct file editing is restricted to files in your current directory.\n\n"
             f"You provided: [bold cyan]{raw_target}[/bold cyan]\n"
             f"To navigate folders and edit files anywhere, please run:\n"
-            f"  [bold green]ezcli edit-file choose-directory[/bold green]"
+            f"  [bold green]ez edit-file choose-directory[/bold green]"
         )
         return False, "", msg
 
@@ -80,7 +80,7 @@ def validate_direct_edit_target(raw_target: str, cwd: Optional[str] = None) -> T
     if os.path.isdir(full_path):
         msg = (
             f"Cannot edit '[bold cyan]{filename}[/bold cyan]': it is a directory.\n"
-            f"Please specify a text or code file, or run [bold green]ezcli edit-file choose-directory[/bold green]."
+            f"Please specify a text or code file, or run [bold green]ez edit-file choose-directory[/bold green]."
         )
         return False, "", msg
 
@@ -96,7 +96,7 @@ def validate_direct_edit_target(raw_target: str, cwd: Optional[str] = None) -> T
 
 
 def run_cli_edit_file(args: Any, console: Optional[Console] = None) -> None:
-    """Execute 'ezcli edit-file' subcommand."""
+    """Execute 'ez edit-file' subcommand."""
     c = console or Console()
 
     # Determine target parameter

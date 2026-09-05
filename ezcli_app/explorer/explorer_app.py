@@ -10,7 +10,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
 # Ensure local user venv is accessible if system python lacks textual
-venv_site = glob.glob(os.path.expanduser("~/.local/share/ezcli/venv/lib/python*/site-packages"))
+venv_site = (
+    glob.glob(os.path.expanduser("~/.local/share/ez/venv/lib/python*/site-packages"))
+    + glob.glob(os.path.expanduser("~/.local/share/ezcli/venv/lib/python*/site-packages"))
+)
 if venv_site and venv_site[0] not in sys.path:
     sys.path.insert(0, venv_site[0])
 
@@ -40,7 +43,8 @@ from .places import (
 )
 
 
-FIRST_RUN_FLAG = os.path.expanduser("~/.local/share/ezcli/first_run_seen")
+FIRST_RUN_FLAG = os.path.expanduser("~/.local/share/ez/first_run_seen")
+LEGACY_FIRST_RUN_FLAG = os.path.expanduser("~/.local/share/ezcli/first_run_seen")
 
 
 # ==============================================================================
@@ -389,7 +393,7 @@ class ExplorerApp(App[Optional[Any]]):
         self.load_directory(self.current_dir)
 
         # Check first-run tutorial overlay
-        if not os.path.isfile(FIRST_RUN_FLAG):
+        if not os.path.isfile(FIRST_RUN_FLAG) and not os.path.isfile(LEGACY_FIRST_RUN_FLAG):
             try:
                 os.makedirs(os.path.dirname(FIRST_RUN_FLAG), exist_ok=True)
                 with open(FIRST_RUN_FLAG, "w") as f:

@@ -2,7 +2,7 @@
 
 import os
 import sys
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from rich import box
 from rich.console import Console
@@ -62,20 +62,114 @@ def prompt_conflict_resolution(console: Console, filename: str) -> str:
     return mapping.get(choice.lower(), "skip")
 
 
+def validate_direct_stage_target(
+    raw_target: str,
+    cwd: Optional[str] = None,
+) -> Tuple[bool, str, str, bool]:
+    """
+    Validate a target path for direct copy or move commands.
+
+    Rules:
+    - Direct copy/move is restricted to items in current directory only.
+    - Subfolder paths (e.g. 'sub/file.txt', 'folder/sub/') or parent traversals ('../file') are rejected with guidance.
+    - Trailing slash (e.g. 'my_folder/') indicates folder intent and must be a directory.
+    - Non-existent files/folders are reported cleanly.
+
+    Returns:
+        (is_valid, error_msg, resolved_abs_path, is_dir)
+    """
+    cleaned = (raw_target or "").strip()
+    if not cleaned:
+        return False, "Target name cannot be empty.", "", False
+
+    if cleaned.lower() in ("choose-directory", "choose", "picker", "select"):
+        return True, "", "choose-directory", False
+
+    effective_cwd = os.path.abspath(cwd or os.getcwd())
+
+    # Check for subfolder paths or parent traversal
+    # e.g., 'sub/file.txt', 'folder/sub/', '../file', '/tmp/file'
+    has_internal_slash = ("/" in cleaned.rstrip("/")) or ("\\" in cleaned.rstrip("\\"))
+    if has_internal_slash or cleaned in (".", ".."):
+        msg = (
+            "Direct copy and move are restricted to items in your current directory.\n\n"
+            f"You provided: [bold cyan]{raw_target}[/bold cyan]\n"
+            "To select items in subfolders or other locations, please run:\n"
+            "  [bold green]ez copy choose-directory[/bold green] (or [bold green]ez move choose-directory[/bold green])"
+        )
+        return False, msg, "", False
+
+    expects_dir = cleaned.endswith("/") or cleaned.endswith("\\")
+    name = cleaned.rstrip("/\\")
+
+    target_path = os.path.join(effective_cwd, name)
+
+    if not os.path.exists(target_path) and not os.path.islink(target_path):
+        return (
+            False,
+            f"Cannot find '[bold cyan]{raw_target}[/bold cyan]': No such file or directory in current directory.",
+            "",
+            False,
+        )
+
+    is_dir = os.path.isdir(target_path) and not os.path.islink(target_path)
+    if expects_dir and not is_dir:
+        return (
+            False,
+            f"'[bold cyan]{raw_target}[/bold cyan]' has a trailing slash indicating a folder, but it is a regular file.",
+            "",
+            False,
+        )
+
+    return True, "", target_path, is_dir
+
+
 # ==============================================================================
 # Copy & Move Staging
 # ==============================================================================
-def run_cli_stage(action: str, console: Optional[Console] = None, is_admin: bool = False) -> None:
-    """Launch the mini explorer to choose files/folders to copy or move."""
+def run_cli_stage(
+    action: str,
+    targets: Optional[List[str]] = None,
+    console: Optional[Console] = None,
+    is_admin: bool = False,
+) -> None:
+    """Stage files/folders to copy or move, either directly from current directory or via mini explorer."""
     console = console or Console()
     icon = "📋" if action == "copy" else "🚚"
     border_color = "cyan" if action == "copy" else "yellow"
 
-    # Launch mini explorer picker
-    selected_items = run_source_picker()
-    if not selected_items:
-        console.print("[dim]No items selected. Nothing added to clipboard.[/dim]")
-        return
+    selected_items: List[str] = []
+
+    # If targets are provided, validate each item in the current directory
+    if targets:
+        # Check if user requested visual picker
+        if any(t.lower() in ("choose-directory", "choose", "picker", "select") for t in targets):
+            selected_items = run_source_picker()
+            if not selected_items:
+                console.print("[dim]No items selected. Nothing added to clipboard.[/dim]")
+                return
+        else:
+            resolved_targets: List[str] = []
+            for t in targets:
+                valid, err_msg, abs_p, _ = validate_direct_stage_target(t)
+                if not valid:
+                    console.print(
+                        Panel(
+                            err_msg,
+                            title="[bold red]Direct Targeting Restricted[/bold red]",
+                            border_style="red",
+                            box=box.ROUNDED,
+                        )
+                    )
+                    return
+                resolved_targets.append(abs_p)
+            selected_items = resolved_targets
+    else:
+        # Launch mini explorer picker
+        selected_items = run_source_picker()
+        if not selected_items:
+            console.print("[dim]No items selected. Nothing added to clipboard.[/dim]")
+            return
 
     # Stage to clipboard
     set_clipboard(action, selected_items)
@@ -104,7 +198,7 @@ def run_cli_stage(action: str, console: Optional[Console] = None, is_admin: bool
 
     hint_box = (
         f"\n[bold green]👉 Next Step:[/bold green]\n"
-        f"   Run [bold cyan]ezcli paste[/bold cyan] to choose your destination directory and paste!"
+        f"   Run [bold cyan]ez paste[/bold cyan] to paste here, or [bold cyan]ez paste choose-directory[/bold cyan] to pick another location!"
     )
 
     console.print(
@@ -122,8 +216,12 @@ def run_cli_stage(action: str, console: Optional[Console] = None, is_admin: bool
 # ==============================================================================
 # Paste Flow
 # ==============================================================================
-def run_cli_paste(console: Optional[Console] = None, is_admin: bool = False) -> None:
-    """Launch destination explorer to choose destination and execute paste."""
+def run_cli_paste(
+    choose_dest: bool = False,
+    console: Optional[Console] = None,
+    is_admin: bool = False,
+) -> None:
+    """Paste staged items: directly in current directory, or via mini explorer if choose_dest is True."""
     console = console or Console()
 
     # Check clipboard
@@ -133,8 +231,8 @@ def run_cli_paste(console: Optional[Console] = None, is_admin: bool = False) -> 
             Panel(
                 "📋 [bold yellow]Your clipboard is currently empty![/bold yellow]\n\n"
                 "💡 [bold]How to use EasyCLI Copy & Paste:[/bold]\n"
-                "  1. Run [bold cyan]ezcli copy[/bold cyan] or [bold cyan]ezcli move[/bold cyan] to choose files/folders with the mini explorer.\n"
-                "  2. Run [bold cyan]ezcli paste[/bold cyan] to choose the destination folder!",
+                "  1. Run [bold cyan]ez copy <file>[/bold cyan] or [bold cyan]ez copy choose-directory[/bold cyan] to stage items.\n"
+                "  2. Run [bold cyan]ez paste[/bold cyan] to paste in current directory, or [bold cyan]ez paste choose-directory[/bold cyan] to pick a destination folder!",
                 title="[bold yellow]Clipboard Empty[/bold yellow]",
                 border_style="yellow",
                 box=box.ROUNDED,
@@ -146,11 +244,16 @@ def run_cli_paste(console: Optional[Console] = None, is_admin: bool = False) -> 
     sources = clip.get("items", [])
     icon = "📋" if action == "copy" else "🚚"
 
-    # Launch mini explorer to choose destination directory
-    destination = run_destination_picker()
-    if not destination:
-        console.print("[dim]Paste cancelled. Staged items remain safely on your clipboard.[/dim]")
-        return
+    # Determine destination directory
+    if choose_dest:
+        # Launch mini explorer to choose destination directory
+        destination = run_destination_picker()
+        if not destination:
+            console.print("[dim]Paste cancelled. Staged items remain safely on your clipboard.[/dim]")
+            return
+    else:
+        # Default: Paste directly into current working directory
+        destination = os.path.abspath(os.getcwd())
 
     is_protected = is_admin or is_destination_protected(destination)
 
@@ -280,7 +383,7 @@ def run_cli_paste(console: Optional[Console] = None, is_admin: bool = False) -> 
             Panel(
                 f"[bold green]✔ {msg}[/bold green]\n\n"
                 f"💡 [bold]Need to undo?[/bold]\n"
-                f"   Run [bold cyan]ezcli undo[/bold cyan] to safely revert this paste operation at any time.",
+                f"   Run [bold cyan]ez undo[/bold cyan] to safely revert this paste operation at any time.",
                 title="[bold green]🎉 Paste Complete[/bold green]",
                 border_style="green",
                 box=box.ROUNDED,
@@ -378,7 +481,7 @@ def run_cli_undo(console: Optional[Console] = None, is_admin: bool = False) -> N
                 f"[bold green]✔ Undo Successful![/bold green]\n\n"
                 f"{msg}\n\n"
                 f"💡 [bold]Changed your mind?[/bold]\n"
-                f"   Run [bold cyan]ezcli redo[/bold cyan] to re-apply this operation.",
+                f"   Run [bold cyan]ez redo[/bold cyan] to re-apply this operation.",
                 title="[bold green]Reverted[/bold green]",
                 border_style="green",
                 box=box.ROUNDED,
@@ -473,7 +576,7 @@ def run_cli_redo(console: Optional[Console] = None, is_admin: bool = False) -> N
                 f"[bold green]✔ Redo Successful![/bold green]\n\n"
                 f"{msg}\n\n"
                 f"💡 [bold]Need to revert again?[/bold]\n"
-                f"   Run [bold cyan]ezcli undo[/bold cyan] to undo this operation.",
+                f"   Run [bold cyan]ez undo[/bold cyan] to undo this operation.",
                 title="[bold green]Re-applied[/bold green]",
                 border_style="green",
                 box=box.ROUNDED,

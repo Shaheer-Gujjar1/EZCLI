@@ -1,4 +1,4 @@
-"""Interactive CLI handlers for ezcli delete command."""
+"""Interactive CLI handlers for ez delete command."""
 
 import errno
 import os
@@ -45,7 +45,7 @@ def validate_direct_delete_target(
         return (
             False,
             "Direct deletion is only supported for items in the current directory.\n"
-            "To delete items in subfolders or other locations, use 'ezcli delete choose-directory' "
+            "To delete items in subfolders or other locations, use 'ez delete choose-directory' "
             "to navigate and select items visually.",
             "",
             False,
@@ -203,12 +203,12 @@ def run_cli_delete(
     console: Optional[Console] = None,
 ) -> None:
     """
-    Main CLI entrypoint for 'ezcli delete'.
+    Main CLI entrypoint for 'ez delete'.
     
     Supports:
-    - ezcli delete choose-directory -> opens visual picker in mini explorer
-    - ezcli delete <folder/> -> deletes folder in current directory only
-    - ezcli delete <file.ext> -> deletes file in current directory only
+    - ez delete choose-directory -> opens visual picker in mini explorer
+    - ez delete <folder/> -> deletes folder in current directory only
+    - ez delete <file.ext> -> deletes file in current directory only
     """
     console = console or Console()
     args = args or []

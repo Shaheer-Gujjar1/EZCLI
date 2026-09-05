@@ -248,10 +248,10 @@ class TestAutomaticElevationCLI(unittest.TestCase):
         )
         self.assertEqual(proc.returncode, 0)
         self.assertNotIn("--admin", proc.stdout)
-        self.assertIn("Never run 'sudo ezcli'", proc.stdout)
+        self.assertIn("Never run 'sudo ez'", proc.stdout)
 
     def test_big_files_choose_directory_dispatch(self):
-        """Verify that 'ezcli big-files choose-directory' launches the explorer picker."""
+        """Verify that 'ez big-files choose-directory' launches the explorer picker."""
         with tempfile.TemporaryDirectory() as tmpdir:
             test_file = os.path.join(tmpdir, "big_test.dat")
             with open(test_file, "wb") as f:
@@ -263,7 +263,7 @@ class TestAutomaticElevationCLI(unittest.TestCase):
                 from rich.console import Console
                 import ezcli_app.main as m
 
-                with patch.object(sys, "argv", ["ezcli", "big-files", "choose-directory"]):
+                with patch.object(sys, "argv", ["ez", "big-files", "choose-directory"]):
                     # Running main should call the picker and scan
                     with patch("ezcli_app.renderers.render_big_files") as mock_render:
                         m.main()

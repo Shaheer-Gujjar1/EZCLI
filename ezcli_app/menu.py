@@ -33,7 +33,7 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
         console.clear()
         console.print(
             Panel(
-                f"[bold cyan]{feature.icon} {feature.title}[/bold cyan] [dim](ezcli {feature.subcommand})[/dim]",
+                f"[bold cyan]{feature.icon} {feature.title}[/bold cyan] [dim](ez {feature.subcommand})[/dim]",
                 box=box.ROUNDED,
                 border_style="cyan",
             )
@@ -164,7 +164,7 @@ def interactive_menu(console: Console) -> None:
         if distro.is_debian_based:
             distro_badge += " (Debian-based)"
         header_text = (
-            f"[bold cyan]EasyCLI (ezcli) v{__version__}[/bold cyan] [dim]─ Friendly Linux Terminal Frontend[/dim]\n"
+            f"[bold cyan]EasyCLI (ez) v{__version__}[/bold cyan] [dim]─ Friendly Linux Terminal Frontend[/dim]\n"
             f"[dim]Detected Distribution:[/dim] [bold green]{distro_badge}[/bold green] | [dim]Mode:[/dim] [bold yellow]Safe & Elevated[/bold yellow]"
         )
         console.print(Panel(header_text, box=box.ROUNDED, border_style="cyan"))

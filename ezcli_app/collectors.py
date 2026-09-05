@@ -463,7 +463,7 @@ def query_flathub(term: str, limit: int = 5) -> List[Dict[str, Any]]:
         req = urllib.request.Request(
             "https://flathub.org/api/v2/search",
             data=payload,
-            headers={"User-Agent": "ezcli/0.1", "Content-Type": "application/json"},
+            headers={"User-Agent": "ez/0.1", "Content-Type": "application/json"},
         )
         with urllib.request.urlopen(req, timeout=2.5) as resp:
             data = json.loads(resp.read().decode())
@@ -493,7 +493,7 @@ def query_snapcraft(term: str, limit: int = 5) -> List[Dict[str, Any]]:
         import urllib.request
         req = urllib.request.Request(
             f"https://api.snapcraft.io/v2/snaps/find?q={term}&fields=title,summary,version",
-            headers={"User-Agent": "ezcli/0.1", "Snap-Device-Series": "16"},
+            headers={"User-Agent": "ez/0.1", "Snap-Device-Series": "16"},
         )
         with urllib.request.urlopen(req, timeout=2.5) as resp:
             data = json.loads(resp.read().decode())

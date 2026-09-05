@@ -6,13 +6,25 @@ from pathlib import Path
 from typing import Dict, List, Tuple
 
 
-DATA_DIR = os.path.expanduser("~/.local/share/ezcli")
+PRIMARY_DATA_DIR = os.path.expanduser("~/.local/share/ez")
+LEGACY_DATA_DIR = os.path.expanduser("~/.local/share/ezcli")
+DATA_DIR = PRIMARY_DATA_DIR
 BOOKMARKS_FILE = os.path.join(DATA_DIR, "bookmarks.json")
 RECENT_FILE = os.path.join(DATA_DIR, "recent.json")
 
 
 def ensure_data_dir() -> None:
     os.makedirs(DATA_DIR, exist_ok=True)
+    if os.path.exists(LEGACY_DATA_DIR):
+        for fname in ("bookmarks.json", "recent.json"):
+            old_f = os.path.join(LEGACY_DATA_DIR, fname)
+            new_f = os.path.join(DATA_DIR, fname)
+            if os.path.exists(old_f) and not os.path.exists(new_f):
+                try:
+                    import shutil
+                    shutil.copy2(old_f, new_f)
+                except Exception:
+                    pass
 
 
 def get_standard_places() -> List[Tuple[str, str, str]]:

@@ -46,15 +46,15 @@ def print_custom_help(console: Console) -> None:
     """Print formatted help listing all subcommands, icons, and descriptions."""
     distro = detect_distro()
     header_text = (
-        f"[bold cyan]EasyCLI (ezcli) v{__version__}[/bold cyan] ─ Friendly Linux Command Frontend\n"
+        f"[bold cyan]EasyCLI (ez) v{__version__}[/bold cyan] ─ Friendly Linux Command Frontend\n"
         f"[dim]Platform:[/dim] [green]{distro.pretty_name}[/green] | [dim]Admin Mode:[/dim] [bold yellow]Automatic & Safe[/bold yellow]"
     )
     console.print(Panel(header_text, box=box.ROUNDED, border_style="cyan"))
 
     console.print("[bold]Usage:[/bold]")
-    console.print("  [cyan]ezcli[/cyan]                      [dim]Open interactive TUI menu[/dim]")
-    console.print("  [cyan]ezcli <subcommand> [args][/cyan]  [dim]Run subcommand directly and print output[/dim]")
-    console.print("  [cyan]ezcli help[/cyan]                 [dim]Show this help message[/dim]\n")
+    console.print("  [cyan]ez[/cyan]                         [dim]Open interactive TUI menu[/dim]")
+    console.print("  [cyan]ez <subcommand> [args][/cyan]     [dim]Run subcommand directly and print output[/dim]")
+    console.print("  [cyan]ez help[/cyan]                    [dim]Show this help message[/dim]\n")
 
     console.print("[bold]Options:[/bold]")
     console.print("  [green]-h, --help[/green]                 [dim]Show this help message[/dim]")
@@ -90,7 +90,7 @@ def print_custom_help(console: Console) -> None:
         )
 
     console.print(table)
-    console.print("[dim]💡 Tip: Never run 'sudo ezcli'. EasyCLI always runs safely as your normal user\n   and elevates only the specific underlying action through a small privileged helper.[/dim]\n")
+    console.print("[dim]💡 Tip: Never run 'sudo ez'. EasyCLI always runs safely as your normal user\n   and elevates only the specific underlying action through a small privileged helper.[/dim]\n")
 
 
 def main() -> None:
@@ -101,10 +101,10 @@ def main() -> None:
     console = Console()
     args = sys.argv[1:]
 
-    # Check if user invoked 'sudo ezcli' directly
+    # Check if user invoked 'sudo ez' directly
     if os.geteuid() == 0 and "SUDO_USER" in os.environ:
         console.print(
-            "[bold yellow]Notice:[/bold yellow] You started EasyCLI with 'sudo ezcli'.\n"
+            "[bold yellow]Notice:[/bold yellow] You started EasyCLI with 'sudo ez'.\n"
             "Running the entire app as root is not needed or recommended.\n"
             "EasyCLI automatically and safely elevates only specific tasks when required.\n"
         )
@@ -127,13 +127,13 @@ def main() -> None:
 
     # 3. Version flag
     if first_arg in ("--version", "-v", "version"):
-        console.print(f"EasyCLI (ezcli) v{__version__} [dim](Safe Automatic Elevation)[/dim]")
+        console.print(f"EasyCLI (ez) v{__version__} [dim](Safe Automatic Elevation)[/dim]")
         sys.exit(0)
 
     # 4. Check if subcommand matches a registered feature
     if first_arg not in FEATURES_BY_SUBCOMMAND:
         console.print(f"[bold red]Unknown subcommand:[/bold red] '{first_arg}'\n")
-        console.print("Run [cyan]ezcli help[/cyan] to view available subcommands, or launch [cyan]ezcli[/cyan] for the menu.")
+        console.print("Run [cyan]ez help[/cyan] to view available subcommands, or launch [cyan]ez[/cyan] for the menu.")
         sys.exit(1)
 
     feature = FEATURES_BY_SUBCOMMAND[first_arg]

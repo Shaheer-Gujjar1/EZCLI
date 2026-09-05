@@ -1,4 +1,4 @@
-"""Unit tests for EasyCLI Mini Editor ('ezcli edit-file')."""
+"""Unit tests for EasyCLI Mini Editor ('ez edit-file')."""
 
 import os
 import shutil
@@ -17,7 +17,7 @@ from ezcli_app.privileged_helper import helper_file_write, helper_file_read
 
 
 class TestMiniEditorValidation(unittest.TestCase):
-    """Test validation rules for 'ezcli edit-file'."""
+    """Test validation rules for 'ez edit-file'."""
 
     def setUp(self) -> None:
         self.test_dir = tempfile.mkdtemp()

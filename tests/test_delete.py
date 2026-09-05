@@ -1,4 +1,4 @@
-"""Unit tests for ezcli delete subcommand, safety consent, non-force-first logic, and auto-elevation."""
+"""Unit tests for ez delete subcommand, safety consent, non-force-first logic, and auto-elevation."""
 
 import os
 import shutil

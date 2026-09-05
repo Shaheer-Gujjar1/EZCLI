@@ -8,7 +8,10 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 # Ensure local user venv is accessible if system python lacks textual
-venv_site = glob.glob(os.path.expanduser("~/.local/share/ezcli/venv/lib/python*/site-packages"))
+venv_site = (
+    glob.glob(os.path.expanduser("~/.local/share/ez/venv/lib/python*/site-packages"))
+    + glob.glob(os.path.expanduser("~/.local/share/ezcli/venv/lib/python*/site-packages"))
+)
 if venv_site and venv_site[0] not in sys.path:
     sys.path.insert(0, venv_site[0])
 

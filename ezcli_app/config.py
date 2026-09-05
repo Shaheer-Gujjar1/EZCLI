@@ -1,4 +1,4 @@
-"""Declarative feature templates and configuration for EasyCLI (ezcli)."""
+"""Declarative feature templates and configuration for EasyCLI (ez)."""
 
 from dataclasses import dataclass, field
 from typing import List, Optional, Dict, Any

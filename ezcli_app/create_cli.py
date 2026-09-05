@@ -1,4 +1,4 @@
-"""Direct CLI handlers for ezcli create-folder and ezcli create-file."""
+"""Direct CLI handlers for ez create-folder and ez create-file."""
 
 import os
 import stat

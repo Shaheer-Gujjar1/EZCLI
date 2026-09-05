@@ -10,7 +10,7 @@ setup(
     ],
     entry_points={
         "console_scripts": [
-            "ezcli=ezcli_app.main:main",
+            "ez=ezcli_app.main:main",
         ],
     },
 )

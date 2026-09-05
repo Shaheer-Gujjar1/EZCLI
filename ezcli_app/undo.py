@@ -8,7 +8,9 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 
-DATA_DIR = os.path.expanduser("~/.local/share/ezcli")
+PRIMARY_DATA_DIR = os.path.expanduser("~/.local/share/ez")
+LEGACY_DATA_DIR = os.path.expanduser("~/.local/share/ezcli")
+DATA_DIR = PRIMARY_DATA_DIR
 CLIPBOARD_FILE = os.path.join(DATA_DIR, "clipboard.json")
 UNDO_FILE = os.path.join(DATA_DIR, "undo.json")
 REDO_FILE = os.path.join(DATA_DIR, "redo.json")
@@ -16,6 +18,15 @@ REDO_FILE = os.path.join(DATA_DIR, "redo.json")
 
 def ensure_data_dir() -> None:
     os.makedirs(DATA_DIR, exist_ok=True)
+    if os.path.exists(LEGACY_DATA_DIR):
+        for fname in ("clipboard.json", "undo.json", "redo.json"):
+            old_f = os.path.join(LEGACY_DATA_DIR, fname)
+            new_f = os.path.join(DATA_DIR, fname)
+            if os.path.exists(old_f) and not os.path.exists(new_f):
+                try:
+                    shutil.copy2(old_f, new_f)
+                except Exception:
+                    pass
 
 
 # ==============================================================================

@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
-ezcli = "ezcli_app.main:main"
+ez = "ezcli_app.main:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

@@ -1,5 +1,6 @@
 {
   "extraPaths": [
+    "/home/shaheer/.local/share/ez/venv/lib/python3.12/site-packages",
     "/home/shaheer/.local/share/ezcli/venv/lib/python3.12/site-packages"
   ]
 }

@@ -1,4 +1,4 @@
-"""Lightweight privileged helper for EasyCLI (ezcli).
+"""Lightweight privileged helper for EasyCLI (ez).
 
 This script is invoked via sudo/polkit ONLY to perform specific underlying
 privileged operations. The main EasyCLI application never runs under sudo.
@@ -203,7 +203,7 @@ def helper_file_write(path: str, content: str) -> Dict[str, Any]:
             except Exception:
                 pass
 
-        tmp_path = f"{abs_path}.ezcli_tmp_{os.getpid()}"
+        tmp_path = f"{abs_path}.ez_tmp_{os.getpid()}"
         with open(tmp_path, "w", encoding="utf-8") as f:
             f.write(content)
 

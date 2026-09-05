@@ -1,4 +1,4 @@
-"""Shared privilege-elevation layer for EasyCLI (ezcli).
+"""Shared privilege-elevation layer for EasyCLI (ez).
 
 Safety & UX guarantees:
 1. Every command always runs as normal user first.

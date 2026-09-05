@@ -276,7 +276,7 @@ def render_package_search(console: Console, term: str, interactive: bool = True,
         tips_table.add_column("Guidance", style="white")
         tips_table.add_row("🔄", "Refresh Index: Debian systems read from a local package cache. Run [bold green]sudo apt update[/bold green] to fetch the latest index.")
         tips_table.add_row("🔍", "Broader Search: Try searching with a broader keyword (e.g. 'player', 'codec', or 'video').")
-        tips_table.add_row("📦", f"Direct Lookup: If you know the package name, run [bold cyan]ezcli package {term}[/bold cyan] directly.")
+        tips_table.add_row("📦", f"Direct Lookup: If you know the package name, run [bold cyan]ez package {term}[/bold cyan] directly.")
         tips_table.add_row("🌐", "Repositories: Some packages require 'contrib' or 'non-free' in /etc/apt/sources.list.")
 
         console.print(
@@ -636,7 +636,7 @@ def render_installed_packages(console: Console, filter_term: str = "", is_admin:
     summary_table.add_row("Ecosystem Breakdown", breakdown)
 
     if not filter_term:
-        summary_table.add_row("Search Tip", "Search installed apps with [cyan]ezcli installed-package-search <app_name>[/cyan]")
+        summary_table.add_row("Search Tip", "Search installed apps with [cyan]ez installed-package-search <app_name>[/cyan]")
     else:
         summary_table.add_row("Active Search", f"[bold yellow]'{filter_term}'[/bold yellow] ({len(data['matches'])} matching)")
 
@@ -657,7 +657,7 @@ def render_installed_packages(console: Console, filter_term: str = "", is_admin:
                 Panel(
                     f"[bold yellow]No installed packages matching '{filter_term}' were found.[/bold yellow]\n\n"
                     f"💡 [dim]To search repositories for available packages to install, run:[/dim]\n"
-                    f"   [bold cyan]ezcli package-search {filter_term}[/bold cyan]",
+                    f"   [bold cyan]ez package-search {filter_term}[/bold cyan]",
                     border_style="yellow",
                     box=box.ROUNDED,
                     title="[bold yellow]No Matches[/bold yellow]",
@@ -703,7 +703,7 @@ def render_installed_packages(console: Console, filter_term: str = "", is_admin:
     if not filter_term and len(matches) > len(display_items):
         console.print(
             f"[dim]Showing {len(display_items)} of {data['total_count']:,} installed packages. "
-            f"Run [bold cyan]ezcli installed-package-search <app_name>[/bold cyan] to search for specific packages.[/dim]\n"
+            f"Run [bold cyan]ez installed-package-search <app_name>[/bold cyan] to search for specific packages.[/dim]\n"
         )
 
 
