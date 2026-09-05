@@ -149,6 +149,123 @@ def explain_elevation(
     return Confirm.ask("Do you want to proceed with admin rights?", default=True)
 
 
+_ACTIVE_SESSION_PASSWORD: Optional[str] = None
+
+
+class ElevationSession:
+    """A context manager for a scoped elevation session.
+
+    Holds the validated admin password in memory strictly for the duration
+    of an authorized multi-step operation, and securely wipes it on exit.
+    """
+
+    def __init__(self, password: str = "") -> None:
+        self.password = password
+
+    def __enter__(self) -> "ElevationSession":
+        global _ACTIVE_SESSION_PASSWORD
+        _ACTIVE_SESSION_PASSWORD = self.password
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        global _ACTIVE_SESSION_PASSWORD
+        _ACTIVE_SESSION_PASSWORD = None
+        if self.password:
+            wipe_password(self.password)
+            self.password = ""
+
+
+def authenticate_elevation_session(
+    reason: str = "",
+    task_description: str = "",
+    risk_level: str = "low",
+    skip_explanation: bool = False,
+    console: Optional[Console] = None,
+) -> Optional[ElevationSession]:
+    """Present the elevation explanation card, obtain consent, and verify admin password upfront.
+
+    Returns an active ElevationSession if authenticated, or None if cancelled or declined.
+    """
+    console = console or Console()
+
+    if is_root():
+        return ElevationSession(password="")
+
+    # 1. Show explanation card & get consent if not skipped
+    if not skip_explanation:
+        approved = explain_elevation(reason, task_description, risk_level, console=console)
+        if not approved:
+            console.print("[yellow]Update cancelled. No repository lists were changed.[/yellow]")
+            return None
+
+    # 2. Check if passwordless sudo is already active (e.g. valid timestamp or NOPASSWD)
+    try:
+        check = subprocess.run(
+            ["sudo", "-n", "true"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=5,
+        )
+        if check.returncode == 0:
+            return ElevationSession(password="")
+    except Exception:
+        pass
+
+    # 3. Prompt for password and verify it immediately before any task work begins
+    max_attempts = 3
+    attempt = 0
+
+    while attempt < max_attempts:
+        attempt += 1
+        password = prompt_password_dots("🔑 Admin password: ")
+
+        if password is None:
+            console.print("[yellow]Password entry cancelled.[/yellow]")
+            return None
+
+        # Verify password via sudo
+        try:
+            test_proc = subprocess.run(
+                ["sudo", "-S", "-p", "", "true"],
+                input=password + "\n",
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=15,
+            )
+            if test_proc.returncode == 0:
+                # Successfully authenticated!
+                return ElevationSession(password=password)
+
+            err_lower = (test_proc.stderr or "").lower()
+            if (
+                "not in the sudoers file" in err_lower
+                or "not in sudoers" in err_lower
+                or "is not allowed to run sudo" in err_lower
+            ):
+                wipe_password(password)
+                console.print("[bold red]Your account does not have admin rights on this machine.[/bold red]")
+                return None
+
+            wipe_password(password)
+            if attempt < max_attempts:
+                console.print("[yellow]Wrong password — no problem, try again.[/yellow]")
+            else:
+                console.print("[bold red]Incorrect password entered 3 times. Elevation cancelled.[/bold red]")
+                return None
+
+        except subprocess.TimeoutExpired:
+            wipe_password(password)
+            console.print("[bold red]Authentication timed out.[/bold red]")
+            return None
+        except Exception as e:
+            wipe_password(password)
+            console.print(f"[bold red]Authentication error: {e.__class__.__name__}[/bold red]")
+            return None
+
+    return None
+
+
 def run_elevated_helper(
     action: str,
     params: Dict[str, Any],
@@ -157,6 +274,7 @@ def run_elevated_helper(
     risk_level: str = "low",
     skip_explanation: bool = False,
     console: Optional[Console] = None,
+    timeout: int = 30,
 ) -> Tuple[bool, Optional[Any], str]:
     """
     Execute a privileged action via the helper.
@@ -173,8 +291,8 @@ def run_elevated_helper(
             return True, res, ""
         return False, None, res.get("error", "Helper operation failed.")
 
-    # 2. Explain to the user in plain English what & why
-    if not skip_explanation:
+    # 2. Explain to the user in plain English what & why if not in active session
+    if not skip_explanation and _ACTIVE_SESSION_PASSWORD is None:
         approved = explain_elevation(reason, task_description, risk_level, console=console)
         if not approved:
             return False, None, "Elevation was declined by user."
@@ -198,6 +316,48 @@ def run_elevated_helper(
         json_payload,
     ]
 
+    # If an active session password exists, use it directly without re-prompting
+    if _ACTIVE_SESSION_PASSWORD is not None:
+        proc = None
+        try:
+            proc = subprocess.Popen(
+                sudo_cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            pwd_input = (_ACTIVE_SESSION_PASSWORD + "\n") if _ACTIVE_SESSION_PASSWORD else ""
+            stdout_data, stderr_data = proc.communicate(input=pwd_input, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            if proc is not None:
+                try:
+                    proc.kill()
+                    proc.communicate()
+                except Exception:
+                    pass
+            return False, None, "Elevation helper operation timed out."
+        except Exception as e:
+            return False, None, f"Elevation execution encountered an error ({e.__class__.__name__})."
+
+        rc = proc.returncode
+        if rc != 0 and not stdout_data:
+            clean_err = stderr_data.strip()
+            return False, None, clean_err or f"Elevation failed (exit code {rc})."
+
+        try:
+            for line in stdout_data.splitlines():
+                line_clean = line.strip()
+                if line_clean.startswith("{") and line_clean.endswith("}"):
+                    resp = json.loads(line_clean)
+                    if resp.get("success"):
+                        return True, resp, ""
+                    else:
+                        return False, None, resp.get("error", "Operation failed in helper.")
+            return False, None, "Invalid response from privileged helper."
+        except json.JSONDecodeError:
+            return False, None, "Could not parse response from privileged helper."
+
     max_attempts = 3
     attempt = 0
 
@@ -218,7 +378,7 @@ def run_elevated_helper(
                     stderr=subprocess.PIPE,
                     text=True,
                 )
-                stdout_data, stderr_data = proc.communicate(input=password + "\n", timeout=30)
+                stdout_data, stderr_data = proc.communicate(input=password + "\n", timeout=timeout)
             except subprocess.TimeoutExpired:
                 if proc is not None:
                     try:
@@ -492,6 +652,7 @@ def elevated_apt_update(
         risk_level=risk_level,
         skip_explanation=skip_explanation,
         console=console,
+        timeout=180,
     )
     if success and isinstance(res, dict):
         return True, res, ""
@@ -511,6 +672,7 @@ def elevated_apt_simulate_upgrade(
         risk_level="low",
         skip_explanation=skip_explanation,
         console=console,
+        timeout=60,
     )
     if success and isinstance(res, dict):
         return True, res, ""
@@ -530,6 +692,7 @@ def elevated_apt_upgrade(
         risk_level="high",
         skip_explanation=skip_explanation,
         console=console,
+        timeout=600,
     )
     if success and isinstance(res, dict):
         return True, res, ""
@@ -549,6 +712,7 @@ def elevated_snap_refresh(
         risk_level="high",
         skip_explanation=skip_explanation,
         console=console,
+        timeout=300,
     )
     if success and isinstance(res, dict):
         return True, res, ""
@@ -568,6 +732,7 @@ def elevated_flatpak_update(
         risk_level="high",
         skip_explanation=skip_explanation,
         console=console,
+        timeout=300,
     )
     if success and isinstance(res, dict):
         return True, res, ""
@@ -588,6 +753,7 @@ def elevated_timeshift_snapshot(
         risk_level="high",
         skip_explanation=skip_explanation,
         console=console,
+        timeout=300,
     )
     if success and isinstance(res, dict):
         return True, res, ""

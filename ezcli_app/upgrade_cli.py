@@ -16,6 +16,8 @@ from rich.table import Table
 
 from .collectors import collect_available_updates, format_bytes
 from .elevation import (
+    ElevationSession,
+    authenticate_elevation_session,
     elevated_apt_simulate_upgrade,
     elevated_apt_update,
     elevated_apt_upgrade,
@@ -133,7 +135,7 @@ def run_cli_update(console: Optional[Console] = None) -> None:
         )
     )
 
-    # 1. Elevation Flow
+    # 1. Elevation Flow: Upfront consent & password authentication
     reason = "Refresh software repository package lists in /var/lib/apt/lists/"
     task_desc = "Fetch updated catalog of available software from package repositories"
 
@@ -143,15 +145,28 @@ def run_cli_update(console: Optional[Console] = None) -> None:
             console.print("[yellow]Update cancelled. No repository lists were changed.[/yellow]")
             return
 
-    # 2. Execution with status
-    with console.status("[bold cyan]Connecting to repositories and updating catalog...[/bold cyan]", spinner="dots"):
-        success, res, err = elevated_apt_update(
+        session = authenticate_elevation_session(
             reason=reason,
             task_description=task_desc,
             risk_level="low",
             skip_explanation=True,
             console=console,
         )
+        if not session:
+            return
+    else:
+        session = ElevationSession(password="")
+
+    # 2. Execution with status: Password was ALREADY verified, so spinner runs only during real work!
+    with session:
+        with console.status("[bold cyan]Connecting to repositories and updating catalog...[/bold cyan]", spinner="dots"):
+            success, res, err = elevated_apt_update(
+                reason=reason,
+                task_description=task_desc,
+                risk_level="low",
+                skip_explanation=True,
+                console=console,
+            )
 
     if not success or not res:
         console.print(
@@ -243,7 +258,7 @@ def run_cli_upgrade(console: Optional[Console] = None) -> None:
         )
     )
 
-    # 1. Single Elevation Consent
+    # 1. Single Elevation Consent & Upfront Authentication
     reason = "Install system package upgrades and refresh desktop application runtimes"
     task_desc = "Perform a multi-source system upgrade (APT, Flatpak, Snap) with safety preview"
 
@@ -253,211 +268,224 @@ def run_cli_upgrade(console: Optional[Console] = None) -> None:
             console.print("[yellow]Upgrade cancelled. No packages were modified.[/yellow]")
             return
 
-    # 2. Step 1: Refresh Lists
-    with console.status("[bold cyan]Step 1/5: Checking for latest updates across all sources...[/bold cyan]", spinner="dots"):
-        elevated_apt_update(skip_explanation=True, console=console)
+        session = authenticate_elevation_session(
+            reason=reason,
+            task_description=task_desc,
+            risk_level="medium",
+            skip_explanation=True,
+            console=console,
+        )
+        if not session:
+            return
+    else:
+        session = ElevationSession(password="")
 
-    # 3. Step 2: Impact Preview (Simulation)
-    with console.status("[bold cyan]Step 2/5: Calculating upgrade impact preview...[/bold cyan]", spinner="dots"):
-        sim_success, sim_data, sim_err = elevated_apt_simulate_upgrade(skip_explanation=True, console=console)
-        flatpak_updates = check_flatpak_updates()
-        snap_updates = check_snap_updates()
+    with session:
+        # 2. Step 1: Refresh Lists
+        with console.status("[bold cyan]Step 1/5: Checking for latest updates across all sources...[/bold cyan]", spinner="dots"):
+            elevated_apt_update(skip_explanation=True, console=console)
 
-    if not sim_success or not sim_data:
+        # 3. Step 2: Impact Preview (Simulation)
+        with console.status("[bold cyan]Step 2/5: Calculating upgrade impact preview...[/bold cyan]", spinner="dots"):
+            sim_success, sim_data, sim_err = elevated_apt_simulate_upgrade(skip_explanation=True, console=console)
+            flatpak_updates = check_flatpak_updates()
+            snap_updates = check_snap_updates()
+
+        if not sim_success or not sim_data:
+            console.print(
+                Panel(
+                    f"[bold red]Unable to calculate upgrade simulation:[/bold red]\n\n{sim_err or 'Simulation failed.'}",
+                    title="[bold red]Simulation Error[/bold red]",
+                    border_style="red",
+                    box=box.ROUNDED,
+                )
+            )
+            return
+
+        apt_upgrades = sim_data.get("upgraded_packages", [])
+        apt_new = sim_data.get("new_packages", [])
+        apt_kept = sim_data.get("kept_back_packages", [])
+        download_size = sim_data.get("download_size", "")
+        disk_delta = sim_data.get("disk_delta", "")
+
+        total_update_count = len(apt_upgrades) + len(flatpak_updates) + len(snap_updates)
+
+        # If completely up to date
+        if total_update_count == 0:
+            console.print(
+                Panel(
+                    "✨ [bold green]Your system is completely up to date![/bold green]\n\n"
+                    "All APT packages, Flatpaks, and Snaps are at their latest versions.\n\n"
+                    "[dim]Done. Run this only when you choose to — there is no daily obligation.[/dim]",
+                    title="[bold green]No Upgrades Pending[/bold green]",
+                    border_style="green",
+                    box=box.ROUNDED,
+                    padding=(1, 2),
+                )
+            )
+            return
+
+        # Determine Risk Badge
+        risk_level, risk_reason = assess_upgrade_risk(apt_upgrades, download_size, apt_new)
+        if risk_level == "high":
+            risk_badge = f"[bold red]⚠️ RISK LEVEL: HIGH[/bold red] ({risk_reason})"
+            badge_border = "red"
+        else:
+            risk_badge = f"[bold yellow]ℹ️ RISK LEVEL: MEDIUM[/bold yellow] ({risk_reason})"
+            badge_border = "yellow"
+
+        # Render Impact Preview Table
+        preview_table = Table(box=box.ROUNDED, border_style="cyan", padding=(0, 1))
+        preview_table.add_column("Software Source", style="bold cyan", width=18)
+        preview_table.add_column("Packages Pending", justify="right", style="bold green", width=18)
+        preview_table.add_column("Details", style="white")
+
+        # APT Row
+        apt_detail = f"Download: {download_size or 'Unknown'}"
+        if disk_delta:
+            apt_detail += f" ({disk_delta})"
+        preview_table.add_row("📦 APT (System)", f"{len(apt_upgrades)} upgradable", apt_detail)
+
+        # Flatpak Row
+        if shutil.which("flatpak"):
+            fp_str = f"{len(flatpak_updates)} upgradable" if flatpak_updates else "Up to date"
+            fp_detail = ", ".join(flatpak_updates[:3]) + ("..." if len(flatpak_updates) > 3 else "") if flatpak_updates else "No updates pending"
+            preview_table.add_row("🟣 Flatpak", fp_str, fp_detail)
+
+        # Snap Row
+        if shutil.which("snap"):
+            sn_str = f"{len(snap_updates)} upgradable" if snap_updates else "Up to date"
+            sn_detail = ", ".join(snap_updates[:3]) + ("..." if len(snap_updates) > 3 else "") if snap_updates else "No updates pending"
+            preview_table.add_row("🟢 Snap", sn_str, sn_detail)
+
         console.print(
             Panel(
-                f"[bold red]Unable to calculate upgrade simulation:[/bold red]\n\n{sim_err or 'Simulation failed.'}",
-                title="[bold red]Simulation Error[/bold red]",
-                border_style="red",
+                f"{risk_badge}\n\n"
+                f"[bold]Total Software Items to Upgrade:[/bold] [cyan]{total_update_count}[/cyan]\n\n"
+                f"[bold]Breakdown by Source:[/bold]",
+                title="[bold cyan]Step 2/5: Upgrade Impact Preview[/bold cyan]",
+                border_style=badge_border,
                 box=box.ROUNDED,
+                padding=(1, 2),
             )
         )
-        return
+        console.print(preview_table)
 
-    apt_upgrades = sim_data.get("upgraded_packages", [])
-    apt_new = sim_data.get("new_packages", [])
-    apt_kept = sim_data.get("kept_back_packages", [])
-    download_size = sim_data.get("download_size", "")
-    disk_delta = sim_data.get("disk_delta", "")
+        # Show kept back packages if any
+        if apt_kept:
+            kept_sample = ", ".join(apt_kept[:6])
+            if len(apt_kept) > 6:
+                kept_sample += f" [dim](+{len(apt_kept) - 6} more)[/dim]"
+            console.print(
+                Panel(
+                    f"⏸️ [bold yellow]{len(apt_kept)} package(s) were kept back:[/bold yellow]\n\n"
+                    f"  {kept_sample}\n\n"
+                    "[dim]Why? These packages require new dependencies or conflict with existing configurations.\n"
+                    "EasyCLI preserves system stability by not forcing removals. They will be handled in a future update.[/dim]",
+                    title="[bold yellow]Held-Back Packages (Preserved)[/bold yellow]",
+                    border_style="yellow",
+                    box=box.ROUNDED,
+                )
+            )
 
-    total_update_count = len(apt_upgrades) + len(flatpak_updates) + len(snap_updates)
+        # Timeshift Snapshot Recommendation
+        if shutil.which("timeshift"):
+            console.print(
+                Panel(
+                    "🛡️ [bold cyan]Timeshift System Restore Available[/bold cyan]\n\n"
+                    "Timeshift is installed on your computer. It is recommended to create a\n"
+                    "system snapshot before applying updates so you can easily roll back if needed.",
+                    title="[bold cyan]System Restore Point[/bold cyan]",
+                    border_style="cyan",
+                    box=box.ROUNDED,
+                )
+            )
+            do_snapshot = Confirm.ask("Would you like to create a Timeshift snapshot now?", default=True)
+            if do_snapshot:
+                with console.status("[bold cyan]Creating Timeshift snapshot...[/bold cyan]", spinner="dots"):
+                    ts_ok, ts_res, ts_err = elevated_timeshift_snapshot(
+                        comment="Pre-ez-upgrade snapshot",
+                        skip_explanation=True,
+                        console=console,
+                    )
+                if ts_ok:
+                    console.print("[green]✔ Timeshift snapshot created successfully.[/green]\n")
+                else:
+                    console.print(f"[yellow]Warning: Could not create Timeshift snapshot ({ts_err}). Proceeding anyway.[/yellow]\n")
 
-    # If completely up to date
-    if total_update_count == 0:
+        # 4. Step 3: User Confirmation
+        console.print()
+        proceed = Confirm.ask(f"[bold cyan]Proceed with upgrading {total_update_count} package(s)?[/bold cyan]", default=True)
+        if not proceed:
+            console.print("[yellow]Upgrade cancelled by user. No packages were modified.[/yellow]")
+            return
+
+        # 5. Step 4: Per-Source Progress Execution
+        upgraded_sources: List[str] = []
+
+        # Execute APT Upgrade
+        if apt_upgrades:
+            with console.status(f"[bold cyan]Step 4/5: Installing {len(apt_upgrades)} APT package upgrade(s)...[/bold cyan]", spinner="dots"):
+                apt_ok, apt_res, apt_err = elevated_apt_upgrade(skip_explanation=True, console=console)
+            if apt_ok:
+                upgraded_sources.append(f"✔ APT: {len(apt_upgrades)} package(s) upgraded successfully")
+            else:
+                console.print(f"[bold red]APT Upgrade Warning:[/bold red] {apt_err or 'Some packages could not be installed.'}")
+
+        # Execute Flatpak Update
+        if flatpak_updates:
+            with console.status(f"[bold cyan]Updating {len(flatpak_updates)} Flatpak application(s)...[/bold cyan]", spinner="dots"):
+                fp_ok, fp_res, fp_err = elevated_flatpak_update(skip_explanation=True, console=console)
+            if fp_ok:
+                upgraded_sources.append(f"✔ Flatpak: {len(flatpak_updates)} update(s) applied")
+            else:
+                console.print(f"[bold red]Flatpak Update Warning:[/bold red] {fp_err}")
+
+        # Execute Snap Refresh
+        if snap_updates:
+            with console.status(f"[bold cyan]Refreshing {len(snap_updates)} Snap package(s)...[/bold cyan]", spinner="dots"):
+                sn_ok, sn_res, sn_err = elevated_snap_refresh(skip_explanation=True, console=console)
+            if sn_ok:
+                upgraded_sources.append(f"✔ Snap: {len(snap_updates)} package(s) refreshed")
+            else:
+                console.print(f"[bold red]Snap Refresh Warning:[/bold red] {sn_err}")
+
+        # 6. Step 5: Success Summary & Reboot Check
+        reboot_needed = os.path.exists("/var/run/reboot-required")
+        reboot_pkgs = ""
+        if reboot_needed and os.path.exists("/var/run/reboot-required.pkgs"):
+            try:
+                with open("/var/run/reboot-required.pkgs", "r") as f:
+                    reboot_pkgs = ", ".join([l.strip() for l in f.readlines() if l.strip()])
+            except Exception:
+                pass
+
+        reboot_notice = ""
+        if reboot_needed:
+            reboot_notice = (
+                "\n\n[bold yellow]🔄 System Restart Recommended:[/bold yellow]\n"
+                "Some updated components (such as the Linux kernel or system libraries)\n"
+                "require a system restart to take full effect.\n"
+            )
+            if reboot_pkgs:
+                reboot_notice += f"[dim]Affected packages: {reboot_pkgs}[/dim]\n"
+
+        sources_summary = "\n".join(f"  {s}" for s in upgraded_sources) if upgraded_sources else "  ✔ System packages updated"
+
+        reassurance_note = (
+            "\n[bold white]✨ Done.[/bold white] [dim]Run this only when you choose to — there is no daily obligation.[/dim]"
+        )
+
         console.print(
             Panel(
-                "✨ [bold green]Your system is completely up to date![/bold green]\n\n"
-                "All APT packages, Flatpaks, and Snaps are at their latest versions.\n\n"
-                "[dim]Done. Run this only when you choose to — there is no daily obligation.[/dim]",
-                title="[bold green]No Upgrades Pending[/bold green]",
+                f"[bold green]System upgrade completed successfully![/bold green]\n\n"
+                f"[bold]Summary of Operations:[/bold]\n"
+                f"{sources_summary}"
+                f"{reboot_notice}"
+                f"{reassurance_note}",
+                title="[bold green]🎉 Upgrade Complete[/bold green]",
                 border_style="green",
                 box=box.ROUNDED,
                 padding=(1, 2),
             )
         )
-        return
-
-    # Determine Risk Badge
-    risk_level, risk_reason = assess_upgrade_risk(apt_upgrades, download_size, apt_new)
-    if risk_level == "high":
-        risk_badge = f"[bold red]⚠️ RISK LEVEL: HIGH[/bold red] ({risk_reason})"
-        badge_border = "red"
-    else:
-        risk_badge = f"[bold yellow]ℹ️ RISK LEVEL: MEDIUM[/bold yellow] ({risk_reason})"
-        badge_border = "yellow"
-
-    # Render Impact Preview Table
-    preview_table = Table(box=box.ROUNDED, border_style="cyan", padding=(0, 1))
-    preview_table.add_column("Software Source", style="bold cyan", width=18)
-    preview_table.add_column("Packages Pending", justify="right", style="bold green", width=18)
-    preview_table.add_column("Details", style="white")
-
-    # APT Row
-    apt_detail = f"Download: {download_size or 'Unknown'}"
-    if disk_delta:
-        apt_detail += f" ({disk_delta})"
-    preview_table.add_row("📦 APT (System)", f"{len(apt_upgrades)} upgradable", apt_detail)
-
-    # Flatpak Row
-    if shutil.which("flatpak"):
-        fp_str = f"{len(flatpak_updates)} upgradable" if flatpak_updates else "Up to date"
-        fp_detail = ", ".join(flatpak_updates[:3]) + ("..." if len(flatpak_updates) > 3 else "") if flatpak_updates else "No updates pending"
-        preview_table.add_row("🟣 Flatpak", fp_str, fp_detail)
-
-    # Snap Row
-    if shutil.which("snap"):
-        sn_str = f"{len(snap_updates)} upgradable" if snap_updates else "Up to date"
-        sn_detail = ", ".join(snap_updates[:3]) + ("..." if len(snap_updates) > 3 else "") if snap_updates else "No updates pending"
-        preview_table.add_row("🟢 Snap", sn_str, sn_detail)
-
-    console.print(
-        Panel(
-            f"{risk_badge}\n\n"
-            f"[bold]Total Software Items to Upgrade:[/bold] [cyan]{total_update_count}[/cyan]\n\n"
-            f"[bold]Breakdown by Source:[/bold]",
-            title="[bold cyan]Step 2/5: Upgrade Impact Preview[/bold cyan]",
-            border_style=badge_border,
-            box=box.ROUNDED,
-            padding=(1, 2),
-        )
-    )
-    console.print(preview_table)
-
-    # Show kept back packages if any
-    if apt_kept:
-        kept_sample = ", ".join(apt_kept[:6])
-        if len(apt_kept) > 6:
-            kept_sample += f" [dim](+{len(apt_kept) - 6} more)[/dim]"
-        console.print(
-            Panel(
-                f"⏸️ [bold yellow]{len(apt_kept)} package(s) were kept back:[/bold yellow]\n\n"
-                f"  {kept_sample}\n\n"
-                "[dim]Why? These packages require new dependencies or conflict with existing configurations.\n"
-                "EasyCLI preserves system stability by not forcing removals. They will be handled in a future update.[/dim]",
-                title="[bold yellow]Held-Back Packages (Preserved)[/bold yellow]",
-                border_style="yellow",
-                box=box.ROUNDED,
-            )
-        )
-
-    # Timeshift Snapshot Recommendation
-    if shutil.which("timeshift"):
-        console.print(
-            Panel(
-                "🛡️ [bold cyan]Timeshift System Restore Available[/bold cyan]\n\n"
-                "Timeshift is installed on your computer. It is recommended to create a\n"
-                "system snapshot before applying updates so you can easily roll back if needed.",
-                title="[bold cyan]System Restore Point[/bold cyan]",
-                border_style="cyan",
-                box=box.ROUNDED,
-            )
-        )
-        do_snapshot = Confirm.ask("Would you like to create a Timeshift snapshot now?", default=True)
-        if do_snapshot:
-            with console.status("[bold cyan]Creating Timeshift snapshot...[/bold cyan]", spinner="dots"):
-                ts_ok, ts_res, ts_err = elevated_timeshift_snapshot(
-                    comment="Pre-ez-upgrade snapshot",
-                    skip_explanation=True,
-                    console=console,
-                )
-            if ts_ok:
-                console.print("[green]✔ Timeshift snapshot created successfully.[/green]\n")
-            else:
-                console.print(f"[yellow]Warning: Could not create Timeshift snapshot ({ts_err}). Proceeding anyway.[/yellow]\n")
-
-    # 4. Step 3: User Confirmation
-    console.print()
-    proceed = Confirm.ask(f"[bold cyan]Proceed with upgrading {total_update_count} package(s)?[/bold cyan]", default=True)
-    if not proceed:
-        console.print("[yellow]Upgrade cancelled by user. No packages were modified.[/yellow]")
-        return
-
-    # 5. Step 4: Per-Source Progress Execution
-    upgraded_sources: List[str] = []
-
-    # Execute APT Upgrade
-    if apt_upgrades:
-        with console.status(f"[bold cyan]Step 4/5: Installing {len(apt_upgrades)} APT package upgrade(s)...[/bold cyan]", spinner="dots"):
-            apt_ok, apt_res, apt_err = elevated_apt_upgrade(skip_explanation=True, console=console)
-        if apt_ok:
-            upgraded_sources.append(f"✔ APT: {len(apt_upgrades)} package(s) upgraded successfully")
-        else:
-            console.print(f"[bold red]APT Upgrade Warning:[/bold red] {apt_err or 'Some packages could not be installed.'}")
-
-    # Execute Flatpak Update
-    if flatpak_updates:
-        with console.status(f"[bold cyan]Updating {len(flatpak_updates)} Flatpak application(s)...[/bold cyan]", spinner="dots"):
-            fp_ok, fp_res, fp_err = elevated_flatpak_update(skip_explanation=True, console=console)
-        if fp_ok:
-            upgraded_sources.append(f"✔ Flatpak: {len(flatpak_updates)} update(s) applied")
-        else:
-            console.print(f"[bold red]Flatpak Update Warning:[/bold red] {fp_err}")
-
-    # Execute Snap Refresh
-    if snap_updates:
-        with console.status(f"[bold cyan]Refreshing {len(snap_updates)} Snap package(s)...[/bold cyan]", spinner="dots"):
-            sn_ok, sn_res, sn_err = elevated_snap_refresh(skip_explanation=True, console=console)
-        if sn_ok:
-            upgraded_sources.append(f"✔ Snap: {len(snap_updates)} package(s) refreshed")
-        else:
-            console.print(f"[bold red]Snap Refresh Warning:[/bold red] {sn_err}")
-
-    # 6. Step 5: Success Summary & Reboot Check
-    reboot_needed = os.path.exists("/var/run/reboot-required")
-    reboot_pkgs = ""
-    if reboot_needed and os.path.exists("/var/run/reboot-required.pkgs"):
-        try:
-            with open("/var/run/reboot-required.pkgs", "r") as f:
-                reboot_pkgs = ", ".join([l.strip() for l in f.readlines() if l.strip()])
-        except Exception:
-            pass
-
-    reboot_notice = ""
-    if reboot_needed:
-        reboot_notice = (
-            "\n\n[bold yellow]🔄 System Restart Recommended:[/bold yellow]\n"
-            "Some updated components (such as the Linux kernel or system libraries)\n"
-            "require a system restart to take full effect.\n"
-        )
-        if reboot_pkgs:
-            reboot_notice += f"[dim]Affected packages: {reboot_pkgs}[/dim]\n"
-
-    sources_summary = "\n".join(f"  {s}" for s in upgraded_sources) if upgraded_sources else "  ✔ System packages updated"
-
-    reassurance_note = (
-        "\n[bold white]✨ Done.[/bold white] [dim]Run this only when you choose to — there is no daily obligation.[/dim]"
-    )
-
-    console.print(
-        Panel(
-            f"[bold green]System upgrade completed successfully![/bold green]\n\n"
-            f"[bold]Summary of Operations:[/bold]\n"
-            f"{sources_summary}"
-            f"{reboot_notice}"
-            f"{reassurance_note}",
-            title="[bold green]🎉 Upgrade Complete[/bold green]",
-            border_style="green",
-            box=box.ROUNDED,
-            padding=(1, 2),
-        )
-    )

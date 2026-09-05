@@ -319,6 +319,48 @@ class TestAutomaticElevationCLI(unittest.TestCase):
             # Ensure wipe_password was called
             mock_wipe.assert_called()
 
+    def test_elevation_session_context(self):
+        """Verify ElevationSession sets and cleans up active session password."""
+        from ezcli_app.elevation import ElevationSession, _ACTIVE_SESSION_PASSWORD
+        import ezcli_app.elevation as elev
+
+        session = ElevationSession("temp_pass")
+        self.assertIsNone(elev._ACTIVE_SESSION_PASSWORD)
+        with session:
+            self.assertEqual(elev._ACTIVE_SESSION_PASSWORD, "temp_pass")
+        self.assertIsNone(elev._ACTIVE_SESSION_PASSWORD)
+
+    @patch("ezcli_app.elevation.is_root", return_value=False)
+    @patch("ezcli_app.elevation.prompt_password_dots", return_value="correct_pass")
+    @patch("subprocess.run")
+    def test_authenticate_elevation_session_success(self, mock_sub, mock_prompt, mock_root):
+        from ezcli_app.elevation import authenticate_elevation_session
+        proc_sudo_n = MagicMock(returncode=1)
+        proc_sudo_s = MagicMock(returncode=0)
+        mock_sub.side_effect = [proc_sudo_n, proc_sudo_s]
+
+        session = authenticate_elevation_session(skip_explanation=True)
+        self.assertIsNotNone(session)
+        self.assertEqual(session.password, "correct_pass")
+
+    @patch("ezcli_app.elevation.is_root", return_value=False)
+    @patch("subprocess.run")
+    def test_authenticate_elevation_session_passwordless(self, mock_sub, mock_root):
+        from ezcli_app.elevation import authenticate_elevation_session
+        proc_sudo_n = MagicMock(returncode=0)
+        mock_sub.return_value = proc_sudo_n
+
+        session = authenticate_elevation_session(skip_explanation=True)
+        self.assertIsNotNone(session)
+        self.assertEqual(session.password, "")
+
+    @patch("ezcli_app.elevation.is_root", return_value=False)
+    @patch("ezcli_app.elevation.prompt_password_dots", return_value=None)
+    def test_authenticate_elevation_session_cancelled(self, mock_prompt, mock_root):
+        from ezcli_app.elevation import authenticate_elevation_session
+        session = authenticate_elevation_session(skip_explanation=True)
+        self.assertIsNone(session)
+
     def test_lock_freshness_check(self):
         """Verify is_directory_locked reports true on restricted folders and false on accessible ones."""
         from ezcli_app.explorer.explorer_app import is_directory_locked
