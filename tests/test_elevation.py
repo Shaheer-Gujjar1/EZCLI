@@ -396,6 +396,34 @@ class TestAutomaticElevationCLI(unittest.TestCase):
             finally:
                 os.chmod(restricted_dir, 0o755)
 
+    def test_run_helper_process_progress_streaming(self):
+        """Verify _run_helper_process calls on_progress for progress events."""
+        from ezcli_app.elevation import _run_helper_process
+
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0
+        mock_proc.communicate = None  # Ensure it uses streaming thread
+        mock_proc.stdout.readline.side_effect = [
+            '{"event": "progress", "percent": 50, "message": "Unpacking...", "phase": "unpack"}\n',
+            '{"event": "progress", "percent": 100, "message": "Done", "phase": "done"}\n',
+            '{"success": true, "result": "ok"}\n',
+            "",
+        ]
+        mock_proc.stderr.read.return_value = ""
+
+        events = []
+        with patch("subprocess.Popen", return_value=mock_proc):
+            rc, stdout, stderr, final_resp = _run_helper_process(
+                ["sudo"], "pwd\n", 10, on_progress=events.append
+            )
+
+        self.assertEqual(rc, 0)
+        self.assertEqual(len(events), 2)
+        self.assertEqual(events[0]["percent"], 50)
+        self.assertEqual(events[1]["percent"], 100)
+        self.assertIsNotNone(final_resp)
+        self.assertTrue(final_resp.get("success"))
+
 
 if __name__ == "__main__":
     unittest.main()

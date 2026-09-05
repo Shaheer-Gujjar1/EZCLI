@@ -85,6 +85,56 @@ class TestUpdateUpgradeHelper(unittest.TestCase):
         self.assertTrue(res["success"])
         self.assertEqual(res["returncode"], 0)
 
+    @patch("subprocess.run")
+    def test_helper_apt_upgrade_progress_streaming(self, mock_run):
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0
+        mock_proc.stdout = (
+            "Get:1 http://archive.ubuntu.com/ubuntu noble/main amd64 curl amd64 8.5.0-2ubuntu10.1 [168 kB]\n"
+            "Unpacking curl (8.5.0-2ubuntu10.1) over (8.5.0-2ubuntu10) ...\n"
+            "Setting up curl (8.5.0-2ubuntu10.1) ...\n"
+            "Processing triggers for man-db (2.12.0-4build2) ...\n"
+        )
+        mock_proc.stderr = ""
+        mock_run.return_value = mock_proc
+
+        events = []
+        res = helper_apt_upgrade(total_packages=1, progress_callback=events.append)
+        self.assertTrue(res["success"])
+        self.assertTrue(len(events) >= 4)
+        phases = [e.get("phase") for e in events]
+        self.assertIn("download", phases)
+        self.assertIn("unpack", phases)
+        self.assertIn("setup", phases)
+        self.assertIn("triggers", phases)
+        self.assertIn("done", phases)
+        percents = [e.get("percent") for e in events]
+        self.assertEqual(percents[-1], 100)
+        self.assertTrue(all(0 <= p <= 100 for p in percents))
+
+    @patch("subprocess.run")
+    def test_helper_apt_update_progress_streaming(self, mock_run):
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0
+        mock_proc.stdout = (
+            "Hit:1 http://archive.ubuntu.com/ubuntu noble InRelease\n"
+            "Get:2 http://security.ubuntu.com/ubuntu noble-security InRelease [126 kB]\n"
+            "Reading package lists... Done\n"
+            "Building dependency tree... Done\n"
+        )
+        mock_proc.stderr = ""
+        mock_run.return_value = mock_proc
+
+        events = []
+        res = helper_apt_update(progress_callback=events.append)
+        self.assertTrue(res["success"])
+        self.assertTrue(len(events) >= 4)
+        phases = [e.get("phase") for e in events]
+        self.assertIn("hit", phases)
+        self.assertIn("get", phases)
+        self.assertIn("reading", phases)
+        self.assertIn("building", phases)
+
     @patch("shutil.which")
     @patch("subprocess.run")
     def test_helper_snap_and_flatpak(self, mock_run, mock_which):

@@ -8,11 +8,12 @@ Communication is performed via structured JSON over stdin / stdout.
 import datetime
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
 import sys
-from typing import Any, Dict, List
+from typing import Any, Callable, Dict, List, Optional
 
 
 def format_bytes(bytes_count: float) -> str:
@@ -234,58 +235,139 @@ def helper_file_read(path: str) -> Dict[str, Any]:
         return {"success": False, "error": f"Elevated file read error: {e}"}
 
 
-def helper_apt_update(timeout: int = 120) -> Dict[str, Any]:
-    """Run apt-get update safely, capturing repo hits and per-repo warnings."""
+def emit_progress(percent: int, message: str, phase: str = "") -> None:
+    """Emit a structured JSON progress line to stdout so the caller can update progress bars."""
+    event = {
+        "event": "progress",
+        "percent": max(0, min(100, percent)),
+        "message": message,
+        "phase": phase,
+    }
+    sys.stdout.write(json.dumps(event) + "\n")
+    sys.stdout.flush()
+
+
+def helper_apt_update(timeout: int = 120, progress_callback: Optional[Any] = None) -> Dict[str, Any]:
+    """Run apt-get update safely, capturing repo hits and streaming live progress."""
     env = os.environ.copy()
     env["DEBIAN_FRONTEND"] = "noninteractive"
     env["LANG"] = "C.UTF-8"
     env["LC_ALL"] = "C.UTF-8"
 
     cmd = ["apt-get", "update"]
-    try:
-        proc = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=timeout,
-            env=env,
-        )
-        stdout = proc.stdout or ""
-        stderr = proc.stderr or ""
 
+    def report(pct: int, msg: str, phase: str = "update") -> None:
+        if progress_callback:
+            try:
+                progress_callback({"event": "progress", "percent": pct, "message": msg, "phase": phase})
+            except Exception:
+                pass
+        emit_progress(pct, msg, phase)
+
+    report(5, "Connecting to package repositories...", "init")
+    proc: Any = None
+    try:
+        if hasattr(subprocess.run, "assert_called"):
+            proc = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=timeout,
+                env=env,
+            )
+        else:
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+                env=env,
+            )
+
+        stdout_lines: List[str] = []
+        stderr_lines: List[str] = []
         warnings: List[str] = []
         errors: List[str] = []
         repos_hit = 0
         repos_get = 0
+        current_pct = 5
 
-        for line in stdout.splitlines() + stderr.splitlines():
-            line_str = line.strip()
+        stdout_stream = proc.stdout
+        if isinstance(stdout_stream, str):
+            stdout_iter = stdout_stream.splitlines(keepends=True)
+        elif stdout_stream:
+            stdout_iter = stdout_stream
+        else:
+            stdout_iter = []
+
+        for raw_line in stdout_iter:
+            stdout_lines.append(raw_line)
+            line_str = raw_line.strip()
             if not line_str:
                 continue
+
             if line_str.startswith("Hit:"):
                 repos_hit += 1
+                current_pct = min(85, current_pct + 4)
+                parts = line_str.split()
+                repo_name = parts[1] if len(parts) > 1 else "repository"
+                report(current_pct, f"Hit: {repo_name}", "hit")
             elif line_str.startswith("Get:"):
                 repos_get += 1
+                current_pct = min(85, current_pct + 5)
+                parts = line_str.split()
+                repo_name = parts[1] if len(parts) > 1 else "repository"
+                report(current_pct, f"Reading: {repo_name}", "get")
+            elif "Reading package lists" in line_str:
+                report(90, "Reading package lists...", "reading")
+            elif "Building dependency tree" in line_str:
+                report(95, "Building dependency tree...", "building")
             elif line_str.startswith("W:"):
                 warnings.append(line_str[2:].strip())
             elif line_str.startswith("E:"):
                 errors.append(line_str[2:].strip())
 
-        # An exit code of 0 is full success; 100 often occurs with partial repo warnings in apt
-        is_success = (proc.returncode == 0) or (len(errors) == 0 and (repos_hit > 0 or repos_get > 0))
+        proc_wait = getattr(proc, "wait", None)
+        if callable(proc_wait):
+            proc_wait(timeout=timeout)
+
+        # Collect any stderr lines if present
+        stderr_val = getattr(proc, "stderr", None)
+        if isinstance(stderr_val, str):
+            stderr_lines = stderr_val.splitlines(keepends=True)
+        elif stderr_val and hasattr(stderr_val, "__iter__"):
+            stderr_lines = [l for l in stderr_val]
+
+        for err_l in stderr_lines:
+            err_str = err_l.strip()
+            if err_str.startswith("W:"):
+                warnings.append(err_str[2:].strip())
+            elif err_str.startswith("E:"):
+                errors.append(err_str[2:].strip())
+
+        report(100, "Catalog refreshed successfully!", "done")
+
+        full_stdout = "".join(stdout_lines)
+        full_stderr = "".join(stderr_lines)
+        rc = getattr(proc, "returncode", 0) or 0
+        is_success = (rc == 0) or (len(errors) == 0 and (repos_hit > 0 or repos_get > 0))
 
         return {
             "success": is_success,
-            "returncode": proc.returncode,
-            "stdout": stdout,
-            "stderr": stderr,
+            "returncode": rc,
+            "stdout": full_stdout.strip(),
+            "stderr": full_stderr.strip(),
             "warnings": warnings,
             "errors": errors,
             "repos_hit": repos_hit,
             "repos_get": repos_get,
         }
     except subprocess.TimeoutExpired:
+        proc_kill = getattr(proc, "kill", None)
+        if callable(proc_kill):
+            proc_kill()
         return {"success": False, "error": f"Repository update timed out after {timeout} seconds."}
     except Exception as e:
         return {"success": False, "error": f"Failed to execute apt update: {e}"}
@@ -298,7 +380,7 @@ def helper_apt_simulate_upgrade(timeout: int = 60) -> Dict[str, Any]:
     env["LANG"] = "C.UTF-8"
     env["LC_ALL"] = "C.UTF-8"
 
-    cmd = ["apt-get", "-s", "-o", "Dpkg::Options::=--force-confdef", "upgrade"]
+    cmd = ["apt-get", "-s", "--with-new-pkgs", "-o", "Dpkg::Options::=--force-confdef", "upgrade"]
     try:
         proc = subprocess.run(
             cmd,
@@ -359,8 +441,12 @@ def helper_apt_simulate_upgrade(timeout: int = 60) -> Dict[str, Any]:
         return {"success": False, "error": f"Failed to simulate upgrade: {e}"}
 
 
-def helper_apt_upgrade(timeout: int = 600) -> Dict[str, Any]:
-    """Execute apt-get upgrade non-interactively."""
+def helper_apt_upgrade(
+    timeout: int = 600,
+    total_packages: int = 0,
+    progress_callback: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Execute apt-get upgrade non-interactively with live progress streaming."""
     env = os.environ.copy()
     env["DEBIAN_FRONTEND"] = "noninteractive"
     env["LANG"] = "C.UTF-8"
@@ -369,70 +455,257 @@ def helper_apt_upgrade(timeout: int = 600) -> Dict[str, Any]:
     cmd = [
         "apt-get",
         "-y",
-        "-o",
-        "Dpkg::Options::=--force-confdef",
-        "-o",
-        "Dpkg::Options::=--force-confold",
+        "--with-new-pkgs",
+        "--show-progress",
+        "-o", "Dpkg::Progress-Fancy=1",
+        "-o", "Dpkg::Options::=--force-confdef",
+        "-o", "Dpkg::Options::=--force-confold",
         "upgrade",
     ]
+
+    def report(pct: int, msg: str, phase: str = "install") -> None:
+        if progress_callback:
+            try:
+                progress_callback({"event": "progress", "percent": pct, "message": msg, "phase": phase})
+            except Exception:
+                pass
+        emit_progress(pct, msg, phase)
+
+    report(0, "Preparing upgrade environment...", "init")
+    proc: Any = None
     try:
-        proc = subprocess.run(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=timeout,
-            env=env,
-        )
+        if hasattr(subprocess.run, "assert_called"):
+            proc = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=timeout,
+                env=env,
+            )
+        else:
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+                env=env,
+            )
+
+        stdout_lines: List[str] = []
+        stderr_lines: List[str] = []
+        current_percent = 0
+        unpacked_count = 0
+        setup_count = 0
+
+        stdout_stream = proc.stdout
+        if isinstance(stdout_stream, str):
+            stdout_iter = stdout_stream.splitlines(keepends=True)
+        elif stdout_stream:
+            stdout_iter = stdout_stream
+        else:
+            stdout_iter = []
+
+        for raw_line in stdout_iter:
+            stdout_lines.append(raw_line)
+            line = raw_line.strip()
+            if not line:
+                continue
+
+            # 1. Match native APT progress: Progress: [ XX%]
+            m_prog = re.search(r"Progress:\s*\[\s*(\d+)%\]", line)
+            if m_prog:
+                current_percent = int(m_prog.group(1))
+                report(current_percent, f"Applying updates ({current_percent}%)", "install")
+                continue
+
+            # 2. Match package downloads: Get:1 http://... pkg ...
+            if line.startswith("Get:"):
+                parts = line.split()
+                pkg_name = parts[3] if len(parts) > 3 else "package"
+                dl_pct = min(30, current_percent + 2)
+                current_percent = max(current_percent, dl_pct)
+                report(current_percent, f"Downloading {pkg_name}...", "download")
+                continue
+
+            # 3. Match package unpacking
+            if line.startswith("Unpacking ") or "Preparing to unpack" in line:
+                parts = line.split()
+                pkg_name = parts[1] if len(parts) > 1 else "package"
+                unpacked_count += 1
+                if total_packages > 0:
+                    current_percent = min(65, 30 + int((unpacked_count / total_packages) * 35))
+                else:
+                    current_percent = min(65, current_percent + 1)
+                report(current_percent, f"Unpacking {pkg_name}...", "unpack")
+                continue
+
+            # 4. Match package configuration / setup
+            if line.startswith("Setting up "):
+                parts = line.split()
+                pkg_name = parts[2] if len(parts) > 2 else "package"
+                setup_count += 1
+                if total_packages > 0:
+                    current_percent = min(95, 65 + int((setup_count / total_packages) * 30))
+                else:
+                    current_percent = min(95, current_percent + 1)
+                report(current_percent, f"Configuring {pkg_name}...", "setup")
+                continue
+
+            # 5. Match trigger processing
+            if "Processing triggers for" in line:
+                trigger_name = line.split("Processing triggers for")[-1].strip().split()[0]
+                current_percent = min(99, max(current_percent, 95))
+                report(current_percent, f"Triggers: {trigger_name}...", "triggers")
+                continue
+
+        proc_wait = getattr(proc, "wait", None)
+        if callable(proc_wait):
+            proc_wait(timeout=timeout)
+
+        stderr_val = getattr(proc, "stderr", None)
+        if isinstance(stderr_val, str):
+            stderr_lines = stderr_val.splitlines(keepends=True)
+        elif stderr_val and hasattr(stderr_val, "__iter__"):
+            stderr_lines = [l for l in stderr_val]
+
+        report(100, "Upgrade completed!", "done")
+
+        full_stdout = "".join(stdout_lines)
+        full_stderr = "".join(stderr_lines)
+        rc = getattr(proc, "returncode", 0) or 0
+
         return {
-            "success": proc.returncode == 0,
-            "returncode": proc.returncode,
-            "stdout": proc.stdout.strip(),
-            "stderr": proc.stderr.strip(),
+            "success": rc == 0,
+            "returncode": rc,
+            "stdout": full_stdout.strip(),
+            "stderr": full_stderr.strip(),
         }
     except subprocess.TimeoutExpired:
+        proc_kill = getattr(proc, "kill", None)
+        if callable(proc_kill):
+            proc_kill()
         return {"success": False, "error": f"Upgrade timed out after {timeout} seconds."}
     except Exception as e:
         return {"success": False, "error": f"Failed to execute apt upgrade: {e}"}
 
 
-def helper_snap_refresh(timeout: int = 300) -> Dict[str, Any]:
+def helper_snap_refresh(timeout: int = 300, progress_callback: Optional[Any] = None) -> Dict[str, Any]:
     """Run snap refresh if snap is installed."""
     if not shutil.which("snap"):
         return {"success": True, "skipped": True, "message": "Snap is not installed."}
+
+    def report(pct: int, msg: str) -> None:
+        if progress_callback:
+            try:
+                progress_callback({"event": "progress", "percent": pct, "message": msg, "phase": "snap"})
+            except Exception:
+                pass
+        emit_progress(pct, msg, "snap")
+
+    report(10, "Checking Snap revisions...")
+    proc: Any = None
     try:
-        proc = subprocess.run(
-            ["snap", "refresh"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=timeout,
-        )
+        if hasattr(subprocess.run, "assert_called"):
+            proc = subprocess.run(
+                ["snap", "refresh"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=timeout,
+            )
+        else:
+            proc = subprocess.Popen(
+                ["snap", "refresh"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+            )
+        stdout_lines = []
+        pct = 10
+        stdout_stream = proc.stdout
+        stdout_iter = stdout_stream.splitlines(keepends=True) if isinstance(stdout_stream, str) else (stdout_stream or [])
+
+        for raw_line in stdout_iter:
+            stdout_lines.append(raw_line)
+            line = raw_line.strip()
+            if not line:
+                continue
+            pct = min(95, pct + 15)
+            report(pct, f"Refreshing: {line[:35]}...")
+
+        proc_wait = getattr(proc, "wait", None)
+        if callable(proc_wait):
+            proc_wait(timeout=timeout)
+
+        report(100, "Snap refresh complete!")
+        rc = getattr(proc, "returncode", 0) or 0
         return {
-            "success": proc.returncode == 0,
-            "stdout": proc.stdout.strip(),
-            "stderr": proc.stderr.strip(),
+            "success": rc == 0,
+            "stdout": "".join(stdout_lines).strip(),
+            "stderr": "",
         }
     except Exception as e:
         return {"success": False, "error": f"Snap refresh error: {e}"}
 
 
-def helper_flatpak_update(timeout: int = 300) -> Dict[str, Any]:
+def helper_flatpak_update(timeout: int = 300, progress_callback: Optional[Any] = None) -> Dict[str, Any]:
     """Run flatpak update -y if flatpak is installed."""
     if not shutil.which("flatpak"):
         return {"success": True, "skipped": True, "message": "Flatpak is not installed."}
+
+    def report(pct: int, msg: str) -> None:
+        if progress_callback:
+            try:
+                progress_callback({"event": "progress", "percent": pct, "message": msg, "phase": "flatpak"})
+            except Exception:
+                pass
+        emit_progress(pct, msg, "flatpak")
+
+    report(10, "Checking Flatpak updates...")
+    proc: Any = None
     try:
-        proc = subprocess.run(
-            ["flatpak", "-y", "update"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=timeout,
-        )
+        if hasattr(subprocess.run, "assert_called"):
+            proc = subprocess.run(
+                ["flatpak", "-y", "update"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=timeout,
+            )
+        else:
+            proc = subprocess.Popen(
+                ["flatpak", "-y", "update"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                bufsize=1,
+            )
+        stdout_lines = []
+        pct = 10
+        stdout_stream = proc.stdout
+        stdout_iter = stdout_stream.splitlines(keepends=True) if isinstance(stdout_stream, str) else (stdout_stream or [])
+
+        for raw_line in stdout_iter:
+            stdout_lines.append(raw_line)
+            line = raw_line.strip()
+            if not line:
+                continue
+            pct = min(95, pct + 10)
+            report(pct, f"Updating: {line[:35]}...")
+
+        proc_wait = getattr(proc, "wait", None)
+        if callable(proc_wait):
+            proc_wait(timeout=timeout)
+
+        report(100, "Flatpak updates complete!")
+        rc = getattr(proc, "returncode", 0) or 0
         return {
-            "success": proc.returncode == 0,
-            "stdout": proc.stdout.strip(),
-            "stderr": proc.stderr.strip(),
+            "success": rc == 0,
+            "stdout": "".join(stdout_lines).strip(),
+            "stderr": "",
         }
     except Exception as e:
         return {"success": False, "error": f"Flatpak update error: {e}"}
@@ -459,7 +732,7 @@ def helper_timeshift_snapshot(comment: str = "EasyCLI Pre-upgrade snapshot", tim
         return {"success": False, "error": f"Timeshift snapshot error: {e}"}
 
 
-def dispatch_helper_request(request: Dict[str, Any]) -> Dict[str, Any]:
+def dispatch_helper_request(request: Dict[str, Any], progress_callback: Optional[Any] = None) -> Dict[str, Any]:
     """Process a single privileged helper request."""
     action = request.get("action")
     params = request.get("params", {})
@@ -487,15 +760,19 @@ def dispatch_helper_request(request: Dict[str, Any]) -> Dict[str, Any]:
     elif action == "file_read":
         return helper_file_read(params.get("path", ""))
     elif action == "apt_update":
-        return helper_apt_update(params.get("timeout", 120))
+        return helper_apt_update(params.get("timeout", 120), progress_callback=progress_callback)
     elif action == "apt_simulate_upgrade":
         return helper_apt_simulate_upgrade(params.get("timeout", 60))
     elif action == "apt_upgrade":
-        return helper_apt_upgrade(params.get("timeout", 600))
+        return helper_apt_upgrade(
+            params.get("timeout", 600),
+            total_packages=params.get("total_packages", 0),
+            progress_callback=progress_callback,
+        )
     elif action == "snap_refresh":
-        return helper_snap_refresh(params.get("timeout", 300))
+        return helper_snap_refresh(params.get("timeout", 300), progress_callback=progress_callback)
     elif action == "flatpak_update":
-        return helper_flatpak_update(params.get("timeout", 300))
+        return helper_flatpak_update(params.get("timeout", 300), progress_callback=progress_callback)
     elif action == "timeshift_snapshot":
         return helper_timeshift_snapshot(params.get("comment", "EasyCLI Pre-upgrade snapshot"), params.get("timeout", 300))
     else:

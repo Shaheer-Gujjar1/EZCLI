@@ -11,6 +11,13 @@ from typing import Any, Dict, List, Optional, Tuple
 from rich import box
 from rich.console import Console
 from rich.panel import Panel
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TaskProgressColumn,
+    TextColumn,
+)
 from rich.prompt import Confirm
 from rich.table import Table
 
@@ -159,14 +166,31 @@ def run_cli_update(console: Optional[Console] = None) -> None:
 
     # 2. Execution with status: Password was ALREADY verified, so spinner runs only during real work!
     with session:
-        with console.status("[bold cyan]Connecting to repositories and updating catalog...[/bold cyan]", spinner="dots"):
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[bold cyan]{task.description}[/bold cyan]"),
+            BarColumn(bar_width=25),
+            TaskProgressColumn(),
+            TextColumn("[dim]{task.fields[detail]}[/dim]"),
+            console=console,
+        ) as progress:
+            task_id = progress.add_task("Refreshing software catalog...", total=100, detail="Connecting...")
+
+            def on_update_progress(evt: Dict[str, Any]) -> None:
+                pct = evt.get("percent", 0)
+                msg = evt.get("message", "")
+                progress.update(task_id, completed=pct, detail=msg[:45])
+
             success, res, err = elevated_apt_update(
                 reason=reason,
                 task_description=task_desc,
                 risk_level="low",
                 skip_explanation=True,
                 console=console,
+                on_progress=on_update_progress,
             )
+            if success:
+                progress.update(task_id, completed=100, detail="Catalog refresh complete")
 
     if not success or not res:
         console.print(
@@ -282,8 +306,23 @@ def run_cli_upgrade(console: Optional[Console] = None) -> None:
 
     with session:
         # 2. Step 1: Refresh Lists
-        with console.status("[bold cyan]Step 1/5: Checking for latest updates across all sources...[/bold cyan]", spinner="dots"):
-            elevated_apt_update(skip_explanation=True, console=console)
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[bold cyan]{task.description}[/bold cyan]"),
+            BarColumn(bar_width=25),
+            TaskProgressColumn(),
+            TextColumn("[dim]{task.fields[detail]}[/dim]"),
+            console=console,
+        ) as progress:
+            task_id = progress.add_task("Step 1/5: Checking for updates...", total=100, detail="Connecting...")
+
+            def on_step1_progress(evt: Dict[str, Any]) -> None:
+                pct = evt.get("percent", 0)
+                msg = evt.get("message", "")
+                progress.update(task_id, completed=pct, detail=msg[:45])
+
+            elevated_apt_update(skip_explanation=True, console=console, on_progress=on_step1_progress)
+            progress.update(task_id, completed=100, detail="Repository refresh done")
 
         # 3. Step 2: Impact Preview (Simulation)
         with console.status("[bold cyan]Step 2/5: Calculating upgrade impact preview...[/bold cyan]", spinner="dots"):
@@ -425,30 +464,100 @@ def run_cli_upgrade(console: Optional[Console] = None) -> None:
 
         # Execute APT Upgrade
         if apt_upgrades:
-            with console.status(f"[bold cyan]Step 4/5: Installing {len(apt_upgrades)} APT package upgrade(s)...[/bold cyan]", spinner="dots"):
-                apt_ok, apt_res, apt_err = elevated_apt_upgrade(skip_explanation=True, console=console)
-            if apt_ok:
-                upgraded_sources.append(f"✔ APT: {len(apt_upgrades)} package(s) upgraded successfully")
-            else:
-                console.print(f"[bold red]APT Upgrade Warning:[/bold red] {apt_err or 'Some packages could not be installed.'}")
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[bold cyan]{task.description}[/bold cyan]"),
+                BarColumn(bar_width=25),
+                TaskProgressColumn(),
+                TextColumn("[dim]{task.fields[detail]}[/dim]"),
+                console=console,
+            ) as progress:
+                task_id = progress.add_task(
+                    f"Step 4/5: Upgrading {len(apt_upgrades)} APT package(s)...",
+                    total=100,
+                    detail="Initializing...",
+                )
+
+                def on_apt_progress(evt: Dict[str, Any]) -> None:
+                    pct = evt.get("percent", 0)
+                    msg = evt.get("message", "")
+                    progress.update(task_id, completed=pct, detail=msg[:50])
+
+                apt_ok, apt_res, apt_err = elevated_apt_upgrade(
+                    skip_explanation=True,
+                    console=console,
+                    total_packages=len(apt_upgrades),
+                    on_progress=on_apt_progress,
+                )
+                if apt_ok:
+                    progress.update(task_id, completed=100, detail="All packages upgraded successfully")
+                    upgraded_sources.append(f"✔ APT: {len(apt_upgrades)} package(s) upgraded successfully")
+                else:
+                    console.print(f"[bold red]APT Upgrade Warning:[/bold red] {apt_err or 'Some packages could not be installed.'}")
 
         # Execute Flatpak Update
         if flatpak_updates:
-            with console.status(f"[bold cyan]Updating {len(flatpak_updates)} Flatpak application(s)...[/bold cyan]", spinner="dots"):
-                fp_ok, fp_res, fp_err = elevated_flatpak_update(skip_explanation=True, console=console)
-            if fp_ok:
-                upgraded_sources.append(f"✔ Flatpak: {len(flatpak_updates)} update(s) applied")
-            else:
-                console.print(f"[bold red]Flatpak Update Warning:[/bold red] {fp_err}")
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[bold cyan]{task.description}[/bold cyan]"),
+                BarColumn(bar_width=25),
+                TaskProgressColumn(),
+                TextColumn("[dim]{task.fields[detail]}[/dim]"),
+                console=console,
+            ) as progress:
+                task_id = progress.add_task(
+                    f"Updating {len(flatpak_updates)} Flatpak application(s)...",
+                    total=100,
+                    detail="Starting...",
+                )
+
+                def on_fp_progress(evt: Dict[str, Any]) -> None:
+                    pct = evt.get("percent", 0)
+                    msg = evt.get("message", "")
+                    progress.update(task_id, completed=pct, detail=msg[:50])
+
+                fp_ok, fp_res, fp_err = elevated_flatpak_update(
+                    skip_explanation=True,
+                    console=console,
+                    on_progress=on_fp_progress,
+                )
+                if fp_ok:
+                    progress.update(task_id, completed=100, detail="Flatpak updates complete")
+                    upgraded_sources.append(f"✔ Flatpak: {len(flatpak_updates)} update(s) applied")
+                else:
+                    console.print(f"[bold red]Flatpak Update Warning:[/bold red] {fp_err}")
 
         # Execute Snap Refresh
         if snap_updates:
-            with console.status(f"[bold cyan]Refreshing {len(snap_updates)} Snap package(s)...[/bold cyan]", spinner="dots"):
-                sn_ok, sn_res, sn_err = elevated_snap_refresh(skip_explanation=True, console=console)
-            if sn_ok:
-                upgraded_sources.append(f"✔ Snap: {len(snap_updates)} package(s) refreshed")
-            else:
-                console.print(f"[bold red]Snap Refresh Warning:[/bold red] {sn_err}")
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[bold cyan]{task.description}[/bold cyan]"),
+                BarColumn(bar_width=25),
+                TaskProgressColumn(),
+                TextColumn("[dim]{task.fields[detail]}[/dim]"),
+                console=console,
+            ) as progress:
+                task_id = progress.add_task(
+                    f"Refreshing {len(snap_updates)} Snap package(s)...",
+                    total=100,
+                    detail="Starting...",
+                )
+
+                def on_sn_progress(evt: Dict[str, Any]) -> None:
+                    pct = evt.get("percent", 0)
+                    msg = evt.get("message", "")
+                    progress.update(task_id, completed=pct, detail=msg[:50])
+
+                sn_ok, sn_res, sn_err = elevated_snap_refresh(
+                    skip_explanation=True,
+                    console=console,
+                    on_progress=on_sn_progress,
+                )
+                if sn_ok:
+                    progress.update(task_id, completed=100, detail="Snap refresh complete")
+                    upgraded_sources.append(f"✔ Snap: {len(snap_updates)} package(s) refreshed")
+                else:
+                    console.print(f"[bold red]Snap Refresh Warning:[/bold red] {sn_err}")
 
         # 6. Step 5: Success Summary & Reboot Check
         reboot_needed = os.path.exists("/var/run/reboot-required")

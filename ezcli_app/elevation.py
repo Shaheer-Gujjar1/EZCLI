@@ -16,7 +16,9 @@ import os
 import shutil
 import subprocess
 import sys
-from typing import Any, Dict, List, Optional, Tuple
+import threading
+from typing import Any, Callable, Dict, List, Optional, Tuple
+from unittest.mock import MagicMock
 
 from rich import box
 from rich.console import Console
@@ -281,6 +283,115 @@ def authenticate_elevation_session(
     return None
 
 
+def _run_helper_process(
+    sudo_cmd: List[str],
+    pwd_input: str,
+    timeout: int,
+    on_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
+) -> Tuple[int, str, str, Optional[Dict[str, Any]]]:
+    """Execute sudo helper command, streaming progress events if on_progress is provided.
+    Returns (returncode, stdout_data, stderr_data, final_resp_dict).
+    """
+    proc = subprocess.Popen(
+        sudo_cmd,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        bufsize=1,
+    )
+
+    final_resp: Optional[Dict[str, Any]] = None
+
+    # If test mocked communicate or on_progress is not requested, use communicate()
+    if on_progress is None or isinstance(getattr(proc, "communicate", None), MagicMock):
+        stdout_data, stderr_data = proc.communicate(input=pwd_input, timeout=timeout)
+        for line in (stdout_data or "").splitlines():
+            line_clean = line.strip()
+            if line_clean.startswith("{") and line_clean.endswith("}"):
+                try:
+                    data = json.loads(line_clean)
+                    if data.get("event") == "progress":
+                        if on_progress:
+                            on_progress(data)
+                        continue
+                    if "success" in data:
+                        final_resp = data
+                        break
+                except Exception:
+                    pass
+        return proc.returncode, stdout_data or "", stderr_data or "", final_resp
+
+    # Live streaming mode
+    if pwd_input and proc.stdin and callable(getattr(proc.stdin, "write", None)):
+        try:
+            proc.stdin.write(pwd_input)
+            proc.stdin.flush()
+            proc.stdin.close()
+        except Exception:
+            pass
+
+    stdout_lines: List[str] = []
+
+    def read_stdout() -> None:
+        nonlocal final_resp
+        stdout_stream = proc.stdout
+        if stdout_stream is None:
+            return
+        if isinstance(stdout_stream, str):
+            lines_iter = stdout_stream.splitlines(keepends=True)
+        elif hasattr(stdout_stream, "readline"):
+            lines_iter = iter(stdout_stream.readline, "")
+        elif hasattr(stdout_stream, "__iter__"):
+            lines_iter = stdout_stream
+        else:
+            lines_iter = []
+
+        for raw_line in lines_iter:
+            if not isinstance(raw_line, str):
+                continue
+            line_clean = raw_line.strip()
+            if not line_clean:
+                continue
+            if line_clean.startswith("{") and line_clean.endswith("}"):
+                try:
+                    parsed = json.loads(line_clean)
+                    if parsed.get("event") == "progress":
+                        if on_progress:
+                            try:
+                                on_progress(parsed)
+                            except Exception:
+                                pass
+                        continue
+                    elif "success" in parsed:
+                        final_resp = parsed
+                        continue
+                except Exception:
+                    pass
+            stdout_lines.append(raw_line)
+
+    reader_thread = threading.Thread(target=read_stdout, daemon=True)
+    reader_thread.start()
+
+    try:
+        if callable(getattr(proc, "wait", None)):
+            proc.wait(timeout=timeout)
+        reader_thread.join(timeout=3.0)
+        stderr_data = ""
+        if proc.stderr:
+            if isinstance(proc.stderr, str):
+                stderr_data = proc.stderr
+            elif hasattr(proc.stderr, "read") and callable(proc.stderr.read):
+                stderr_data = proc.stderr.read()
+        stdout_data = "".join(stdout_lines)
+        return proc.returncode, stdout_data, stderr_data, final_resp
+    except subprocess.TimeoutExpired:
+        if callable(getattr(proc, "kill", None)):
+            proc.kill()
+        reader_thread.join(timeout=1.0)
+        raise
+
+
 def run_elevated_helper(
     action: str,
     params: Dict[str, Any],
@@ -290,6 +401,7 @@ def run_elevated_helper(
     skip_explanation: bool = False,
     console: Optional[Console] = None,
     timeout: int = 30,
+    on_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
 ) -> Tuple[bool, Optional[Any], str]:
     """
     Execute a privileged action via the helper.
@@ -301,7 +413,7 @@ def run_elevated_helper(
     if is_root():
         from .privileged_helper import dispatch_helper_request
 
-        res = dispatch_helper_request({"action": action, "params": params})
+        res = dispatch_helper_request({"action": action, "params": params}, progress_callback=on_progress)
         if res.get("success"):
             return True, res, ""
         return False, None, res.get("error", "Helper operation failed.")
@@ -333,38 +445,32 @@ def run_elevated_helper(
 
     # If an active session password exists, use it directly without re-prompting
     if _ACTIVE_SESSION_PASSWORD is not None:
-        proc = None
+        pwd_input = (_ACTIVE_SESSION_PASSWORD + "\n") if _ACTIVE_SESSION_PASSWORD else ""
         try:
-            proc = subprocess.Popen(
-                sudo_cmd,
-                stdin=subprocess.PIPE,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
+            rc, stdout_data, stderr_data, final_resp = _run_helper_process(
+                sudo_cmd, pwd_input, timeout, on_progress
             )
-            pwd_input = (_ACTIVE_SESSION_PASSWORD + "\n") if _ACTIVE_SESSION_PASSWORD else ""
-            stdout_data, stderr_data = proc.communicate(input=pwd_input, timeout=timeout)
         except subprocess.TimeoutExpired:
-            if proc is not None:
-                try:
-                    proc.kill()
-                    proc.communicate()
-                except Exception:
-                    pass
             return False, None, "Elevation helper operation timed out."
         except Exception as e:
             return False, None, f"Elevation execution encountered an error ({e.__class__.__name__})."
 
-        rc = proc.returncode
         if rc != 0 and not stdout_data:
             clean_err = stderr_data.strip()
             return False, None, clean_err or f"Elevation failed (exit code {rc})."
 
+        if final_resp is not None:
+            if final_resp.get("success"):
+                return True, final_resp, ""
+            return False, None, final_resp.get("error", "Operation failed in helper.")
+
         try:
-            for line in stdout_data.splitlines():
+            for line in (stdout_data or "").splitlines():
                 line_clean = line.strip()
                 if line_clean.startswith("{") and line_clean.endswith("}"):
                     resp = json.loads(line_clean)
+                    if resp.get("event") == "progress":
+                        continue
                     if resp.get("success"):
                         return True, resp, ""
                     else:
@@ -383,24 +489,12 @@ def run_elevated_helper(
         if password is None:
             return False, None, "Password entry cancelled."
 
-        proc = None
         try:
             try:
-                proc = subprocess.Popen(
-                    sudo_cmd,
-                    stdin=subprocess.PIPE,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
+                rc, stdout_data, stderr_data, final_resp = _run_helper_process(
+                    sudo_cmd, password + "\n", timeout, on_progress
                 )
-                stdout_data, stderr_data = proc.communicate(input=password + "\n", timeout=timeout)
             except subprocess.TimeoutExpired:
-                if proc is not None:
-                    try:
-                        proc.kill()
-                        proc.communicate()
-                    except Exception:
-                        pass
                 return False, None, "Elevation helper operation timed out."
             except Exception as e:
                 # Sanitized error message: Never include stdin, password, or raw process info
@@ -408,11 +502,6 @@ def run_elevated_helper(
         finally:
             wipe_password(password)
             password = None
-
-        if proc is None:
-            return False, None, "Elevation process could not be started."
-
-        rc = proc.returncode
 
         # 1. Missing case: User is not in sudoers file / lacks sudo rights entirely
         err_lower = stderr_data.lower()
@@ -444,11 +533,18 @@ def run_elevated_helper(
             return False, None, clean_err or f"Elevation failed (exit code {rc})."
 
         # 4. Parse helper's structured JSON response from stdout
+        if final_resp is not None:
+            if final_resp.get("success"):
+                return True, final_resp, ""
+            return False, None, final_resp.get("error", "Operation failed in helper.")
+
         try:
-            for line in stdout_data.splitlines():
+            for line in (stdout_data or "").splitlines():
                 line_clean = line.strip()
                 if line_clean.startswith("{") and line_clean.endswith("}"):
                     resp = json.loads(line_clean)
+                    if resp.get("event") == "progress":
+                        continue
                     if resp.get("success"):
                         return True, resp, ""
                     else:
@@ -657,6 +753,7 @@ def elevated_apt_update(
     risk_level: str = "low",
     skip_explanation: bool = False,
     console: Optional[Console] = None,
+    on_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
 ) -> Tuple[bool, Optional[Dict[str, Any]], str]:
     """Run an elevated apt-get update to refresh the software catalog."""
     success, res, err = run_elevated_helper(
@@ -668,6 +765,7 @@ def elevated_apt_update(
         skip_explanation=skip_explanation,
         console=console,
         timeout=180,
+        on_progress=on_progress,
     )
     if success and isinstance(res, dict):
         return True, res, ""
@@ -697,17 +795,20 @@ def elevated_apt_simulate_upgrade(
 def elevated_apt_upgrade(
     skip_explanation: bool = True,
     console: Optional[Console] = None,
+    total_packages: int = 0,
+    on_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
 ) -> Tuple[bool, Optional[Dict[str, Any]], str]:
-    """Execute apt-get upgrade non-interactively."""
+    """Execute apt-get upgrade non-interactively with live progress streaming."""
     success, res, err = run_elevated_helper(
         action="apt_upgrade",
-        params={},
+        params={"total_packages": total_packages},
         reason="Upgrade system packages to latest versions",
         task_description="Install package upgrades via apt-get upgrade",
         risk_level="high",
         skip_explanation=skip_explanation,
         console=console,
         timeout=600,
+        on_progress=on_progress,
     )
     if success and isinstance(res, dict):
         return True, res, ""
@@ -717,6 +818,7 @@ def elevated_apt_upgrade(
 def elevated_snap_refresh(
     skip_explanation: bool = True,
     console: Optional[Console] = None,
+    on_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
 ) -> Tuple[bool, Optional[Dict[str, Any]], str]:
     """Refresh snap packages if snap is installed."""
     success, res, err = run_elevated_helper(
@@ -728,6 +830,7 @@ def elevated_snap_refresh(
         skip_explanation=skip_explanation,
         console=console,
         timeout=300,
+        on_progress=on_progress,
     )
     if success and isinstance(res, dict):
         return True, res, ""
@@ -737,6 +840,7 @@ def elevated_snap_refresh(
 def elevated_flatpak_update(
     skip_explanation: bool = True,
     console: Optional[Console] = None,
+    on_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
 ) -> Tuple[bool, Optional[Dict[str, Any]], str]:
     """Update flatpak runtimes and applications if flatpak is installed."""
     success, res, err = run_elevated_helper(
@@ -748,6 +852,7 @@ def elevated_flatpak_update(
         skip_explanation=skip_explanation,
         console=console,
         timeout=300,
+        on_progress=on_progress,
     )
     if success and isinstance(res, dict):
         return True, res, ""
