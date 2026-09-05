@@ -335,9 +335,11 @@ class TestAutomaticElevationCLI(unittest.TestCase):
     @patch("subprocess.run")
     def test_authenticate_elevation_session_success(self, mock_sub, mock_prompt, mock_root):
         from ezcli_app.elevation import authenticate_elevation_session
-        proc_sudo_n = MagicMock(returncode=1)
-        proc_sudo_s = MagicMock(returncode=0)
-        mock_sub.side_effect = [proc_sudo_n, proc_sudo_s]
+        def fake_run(cmd, *args, **kwargs):
+            if cmd == ["sudo", "-n", "true"]:
+                return MagicMock(returncode=1)
+            return MagicMock(returncode=0)
+        mock_sub.side_effect = fake_run
 
         session = authenticate_elevation_session(skip_explanation=True)
         self.assertIsNotNone(session)
@@ -347,12 +349,28 @@ class TestAutomaticElevationCLI(unittest.TestCase):
     @patch("subprocess.run")
     def test_authenticate_elevation_session_passwordless(self, mock_sub, mock_root):
         from ezcli_app.elevation import authenticate_elevation_session
-        proc_sudo_n = MagicMock(returncode=0)
-        mock_sub.return_value = proc_sudo_n
+        def fake_run(cmd, *args, **kwargs):
+            return MagicMock(returncode=0)
+        mock_sub.side_effect = fake_run
 
         session = authenticate_elevation_session(skip_explanation=True)
         self.assertIsNotNone(session)
         self.assertEqual(session.password, "")
+
+    @patch("ezcli_app.elevation.is_root", return_value=False)
+    @patch("ezcli_app.elevation.prompt_password_dots", return_value="wrong_pass")
+    @patch("subprocess.run")
+    def test_authenticate_elevation_session_wrong_password_retry(self, mock_sub, mock_prompt, mock_root):
+        from ezcli_app.elevation import authenticate_elevation_session
+        def fake_run(cmd, *args, **kwargs):
+            if cmd == ["sudo", "-n", "true"] or cmd == ["sudo", "-S", "-p", "", "true"]:
+                return MagicMock(returncode=1, stderr="incorrect password")
+            return MagicMock(returncode=0)
+        mock_sub.side_effect = fake_run
+
+        session = authenticate_elevation_session(skip_explanation=True)
+        self.assertIsNone(session)
+        self.assertEqual(mock_prompt.call_count, 3)
 
     @patch("ezcli_app.elevation.is_root", return_value=False)
     @patch("ezcli_app.elevation.prompt_password_dots", return_value=None)

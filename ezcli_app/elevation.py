@@ -198,8 +198,10 @@ def authenticate_elevation_session(
             console.print("[yellow]Update cancelled. No repository lists were changed.[/yellow]")
             return None
 
-    # 2. Check if passwordless sudo is already active (e.g. valid timestamp or NOPASSWD)
+    # 2. Check if genuine passwordless sudo is configured in sudoers (NOPASSWD)
+    # Using 'sudo -k' resets any previous session timestamp so we only auto-skip if sudo genuinely requires no password.
     try:
+        subprocess.run(["sudo", "-k"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
         check = subprocess.run(
             ["sudo", "-n", "true"],
             stdout=subprocess.DEVNULL,
@@ -223,8 +225,17 @@ def authenticate_elevation_session(
             console.print("[yellow]Password entry cancelled.[/yellow]")
             return None
 
-        # Verify password via sudo
+        if not password:
+            if attempt < max_attempts:
+                console.print("[yellow]No password entered — please enter your admin password.[/yellow]")
+                continue
+            else:
+                console.print("[bold red]No password entered 3 times. Elevation cancelled.[/bold red]")
+                return None
+
+        # Verify password via sudo (clearing any cache first with sudo -k)
         try:
+            subprocess.run(["sudo", "-k"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5)
             test_proc = subprocess.run(
                 ["sudo", "-S", "-p", "", "true"],
                 input=password + "\n",
@@ -257,6 +268,10 @@ def authenticate_elevation_session(
         except subprocess.TimeoutExpired:
             wipe_password(password)
             console.print("[bold red]Authentication timed out.[/bold red]")
+            return None
+        except Exception as e:
+            wipe_password(password)
+            console.print(f"[bold red]Authentication error: {e.__class__.__name__}[/bold red]")
             return None
         except Exception as e:
             wipe_password(password)
