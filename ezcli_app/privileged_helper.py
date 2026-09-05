@@ -234,6 +234,231 @@ def helper_file_read(path: str) -> Dict[str, Any]:
         return {"success": False, "error": f"Elevated file read error: {e}"}
 
 
+def helper_apt_update(timeout: int = 120) -> Dict[str, Any]:
+    """Run apt-get update safely, capturing repo hits and per-repo warnings."""
+    env = os.environ.copy()
+    env["DEBIAN_FRONTEND"] = "noninteractive"
+    env["LANG"] = "C.UTF-8"
+    env["LC_ALL"] = "C.UTF-8"
+
+    cmd = ["apt-get", "update"]
+    try:
+        proc = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=timeout,
+            env=env,
+        )
+        stdout = proc.stdout or ""
+        stderr = proc.stderr or ""
+
+        warnings: List[str] = []
+        errors: List[str] = []
+        repos_hit = 0
+        repos_get = 0
+
+        for line in stdout.splitlines() + stderr.splitlines():
+            line_str = line.strip()
+            if not line_str:
+                continue
+            if line_str.startswith("Hit:"):
+                repos_hit += 1
+            elif line_str.startswith("Get:"):
+                repos_get += 1
+            elif line_str.startswith("W:"):
+                warnings.append(line_str[2:].strip())
+            elif line_str.startswith("E:"):
+                errors.append(line_str[2:].strip())
+
+        # An exit code of 0 is full success; 100 often occurs with partial repo warnings in apt
+        is_success = (proc.returncode == 0) or (len(errors) == 0 and (repos_hit > 0 or repos_get > 0))
+
+        return {
+            "success": is_success,
+            "returncode": proc.returncode,
+            "stdout": stdout,
+            "stderr": stderr,
+            "warnings": warnings,
+            "errors": errors,
+            "repos_hit": repos_hit,
+            "repos_get": repos_get,
+        }
+    except subprocess.TimeoutExpired:
+        return {"success": False, "error": f"Repository update timed out after {timeout} seconds."}
+    except Exception as e:
+        return {"success": False, "error": f"Failed to execute apt update: {e}"}
+
+
+def helper_apt_simulate_upgrade(timeout: int = 60) -> Dict[str, Any]:
+    """Run apt-get -s upgrade and parse upgradable, kept back, and download size."""
+    env = os.environ.copy()
+    env["DEBIAN_FRONTEND"] = "noninteractive"
+    env["LANG"] = "C.UTF-8"
+    env["LC_ALL"] = "C.UTF-8"
+
+    cmd = ["apt-get", "-s", "-o", "Dpkg::Options::=--force-confdef", "upgrade"]
+    try:
+        proc = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=timeout,
+            env=env,
+        )
+        stdout = proc.stdout or ""
+
+        upgraded_pkgs: List[str] = []
+        new_pkgs: List[str] = []
+        kept_back_pkgs: List[str] = []
+        download_size = ""
+        disk_delta = ""
+
+        current_section = None
+        for line in stdout.splitlines():
+            line_strip = line.strip()
+            if "The following packages will be upgraded:" in line_strip:
+                current_section = "upgraded"
+                continue
+            elif "The following NEW packages will be installed:" in line_strip:
+                current_section = "new"
+                continue
+            elif "The following packages have been kept back:" in line_strip:
+                current_section = "kept_back"
+                continue
+            elif line_strip.startswith("Need to get ") or " upgraded, " in line_strip:
+                current_section = None
+
+            if current_section == "upgraded":
+                upgraded_pkgs.extend(line_strip.split())
+            elif current_section == "new":
+                new_pkgs.extend(line_strip.split())
+            elif current_section == "kept_back":
+                kept_back_pkgs.extend(line_strip.split())
+
+            if "Need to get " in line_strip:
+                parts = line_strip.split("Need to get ")
+                if len(parts) > 1:
+                    sub = parts[1].split(" of archives")[0]
+                    download_size = sub.strip()
+            if "additional disk space will be used" in line_strip or "disk space will be freed" in line_strip:
+                disk_delta = line_strip
+
+        return {
+            "success": proc.returncode == 0,
+            "upgraded_packages": [p for p in upgraded_pkgs if p],
+            "new_packages": [p for p in new_pkgs if p],
+            "kept_back_packages": [p for p in kept_back_pkgs if p],
+            "download_size": download_size,
+            "disk_delta": disk_delta,
+            "raw_output": stdout,
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Failed to simulate upgrade: {e}"}
+
+
+def helper_apt_upgrade(timeout: int = 600) -> Dict[str, Any]:
+    """Execute apt-get upgrade non-interactively."""
+    env = os.environ.copy()
+    env["DEBIAN_FRONTEND"] = "noninteractive"
+    env["LANG"] = "C.UTF-8"
+    env["LC_ALL"] = "C.UTF-8"
+
+    cmd = [
+        "apt-get",
+        "-y",
+        "-o",
+        "Dpkg::Options::=--force-confdef",
+        "-o",
+        "Dpkg::Options::=--force-confold",
+        "upgrade",
+    ]
+    try:
+        proc = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=timeout,
+            env=env,
+        )
+        return {
+            "success": proc.returncode == 0,
+            "returncode": proc.returncode,
+            "stdout": proc.stdout.strip(),
+            "stderr": proc.stderr.strip(),
+        }
+    except subprocess.TimeoutExpired:
+        return {"success": False, "error": f"Upgrade timed out after {timeout} seconds."}
+    except Exception as e:
+        return {"success": False, "error": f"Failed to execute apt upgrade: {e}"}
+
+
+def helper_snap_refresh(timeout: int = 300) -> Dict[str, Any]:
+    """Run snap refresh if snap is installed."""
+    if not shutil.which("snap"):
+        return {"success": True, "skipped": True, "message": "Snap is not installed."}
+    try:
+        proc = subprocess.run(
+            ["snap", "refresh"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=timeout,
+        )
+        return {
+            "success": proc.returncode == 0,
+            "stdout": proc.stdout.strip(),
+            "stderr": proc.stderr.strip(),
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Snap refresh error: {e}"}
+
+
+def helper_flatpak_update(timeout: int = 300) -> Dict[str, Any]:
+    """Run flatpak update -y if flatpak is installed."""
+    if not shutil.which("flatpak"):
+        return {"success": True, "skipped": True, "message": "Flatpak is not installed."}
+    try:
+        proc = subprocess.run(
+            ["flatpak", "-y", "update"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=timeout,
+        )
+        return {
+            "success": proc.returncode == 0,
+            "stdout": proc.stdout.strip(),
+            "stderr": proc.stderr.strip(),
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Flatpak update error: {e}"}
+
+
+def helper_timeshift_snapshot(comment: str = "EasyCLI Pre-upgrade snapshot", timeout: int = 300) -> Dict[str, Any]:
+    """Create a Timeshift snapshot if timeshift is installed."""
+    if not shutil.which("timeshift"):
+        return {"success": False, "error": "Timeshift is not installed on this system."}
+    try:
+        proc = subprocess.run(
+            ["timeshift", "--create", "--comments", comment],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=timeout,
+        )
+        return {
+            "success": proc.returncode == 0,
+            "stdout": proc.stdout.strip(),
+            "stderr": proc.stderr.strip(),
+        }
+    except Exception as e:
+        return {"success": False, "error": f"Timeshift snapshot error: {e}"}
+
+
 def dispatch_helper_request(request: Dict[str, Any]) -> Dict[str, Any]:
     """Process a single privileged helper request."""
     action = request.get("action")
@@ -261,6 +486,18 @@ def dispatch_helper_request(request: Dict[str, Any]) -> Dict[str, Any]:
         return helper_file_write(params.get("path", ""), params.get("content", ""))
     elif action == "file_read":
         return helper_file_read(params.get("path", ""))
+    elif action == "apt_update":
+        return helper_apt_update(params.get("timeout", 120))
+    elif action == "apt_simulate_upgrade":
+        return helper_apt_simulate_upgrade(params.get("timeout", 60))
+    elif action == "apt_upgrade":
+        return helper_apt_upgrade(params.get("timeout", 600))
+    elif action == "snap_refresh":
+        return helper_snap_refresh(params.get("timeout", 300))
+    elif action == "flatpak_update":
+        return helper_flatpak_update(params.get("timeout", 300))
+    elif action == "timeshift_snapshot":
+        return helper_timeshift_snapshot(params.get("comment", "EasyCLI Pre-upgrade snapshot"), params.get("timeout", 300))
     else:
         return {"success": False, "error": f"Unknown helper action '{action}'."}
 

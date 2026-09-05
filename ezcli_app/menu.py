@@ -95,6 +95,14 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
                 menu_args.target = edit_target
                 run_cli_edit_file(args=menu_args, console=console)
                 return
+            elif feature.id == "update":
+                from .upgrade_cli import run_cli_update
+                run_cli_update(console=console)
+                return
+            elif feature.id == "upgrade":
+                from .upgrade_cli import run_cli_upgrade
+                run_cli_upgrade(console=console)
+                return
             elif renderer_fn is not None:
                 if feature.subcommand == "big_files" or feature.id == "big_files":
                     raw_folder = args_values[0] if args_values else "~"

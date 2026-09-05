@@ -313,6 +313,26 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 
 ---
 
+#### `ez update`
+- **Replaces:** `apt update`, `apt-get update`
+- **Why it's better:** Provides a friendly, strictly read-only repository catalog refresh. Shows an explanation card, asks for consent, and prompts for admin authentication with visible dot feedback (`●●●●`). After updating, summarizes how many packages can be upgraded and tolerates repository warnings (like expired PPA keys) without crashing. Concludes with a reassuring anti-panic note: *"This was only an information refresh — nothing was installed. You do not need to run this repeatedly."*
+- **Syntax:**
+  ```bash
+  ez update
+  ```
+
+---
+
+#### `ez upgrade`
+- **Replaces:** `apt upgrade`, `apt-get upgrade`, `snap refresh`, `flatpak update`
+- **Why it's better:** Orchestrates a comprehensive multi-source system upgrade under a single elevation consent. First refreshes lists, then builds an impact simulation preview (packages to upgrade, download size, disk delta, kept-back packages). Evaluates risk level (Medium vs. High), recommends a Timeshift snapshot if installed, prompts for explicit confirmation, runs non-destructive upgrades sequentially, checks `/var/run/reboot-required`, and ends with: *"Done. Run this only when you choose to — there is no daily obligation."*
+- **Syntax:**
+  ```bash
+  ez upgrade
+  ```
+
+---
+
 #### `ez installed-packages`
 *(Alias: `ez installed`)*
 - **Replaces:** `apt list --installed`, `dpkg-query -l`, `flatpak list`, `snap list`

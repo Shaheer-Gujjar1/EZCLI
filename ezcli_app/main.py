@@ -195,6 +195,12 @@ def main() -> None:
             renderers.render_package(console, pkg_name)
         elif feature.id == "available_updates":
             renderers.render_available_updates(console)
+        elif feature.id == "update":
+            from .upgrade_cli import run_cli_update
+            run_cli_update(console=console)
+        elif feature.id == "upgrade":
+            from .upgrade_cli import run_cli_upgrade
+            run_cli_upgrade(console=console)
         elif feature.id == "service_status":
             svc_name = sub_args[0]
             renderers.render_service_status(console, svc_name)

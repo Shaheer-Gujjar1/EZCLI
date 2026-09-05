@@ -136,6 +136,8 @@ ez help
 | 🔍 | `ez package-search <term>` | **v0.1** | `apt search`, `flathub`, `snapcraft` | Universal search across **APT 📦**, **Flatpak 🟣**, and **Snap 🟢** with interactive platform selection & installation commands. |
 | 📦 | `ez package <name>` | **v0.1** | `apt show`, `dpkg -s` | Card showing package version, size, homepage, description, and installed status. |
 | 🔄 | `ez available-updates` | **v0.1** | `apt list --upgradable` | Table of upgradable packages and versions using existing lists only (never runs `apt update`). |
+| 🔄 | `ez update` | **v0.4** | `apt update`, `apt-get update` | Refresh package catalog from repositories without installing or modifying software. Safe elevation. |
+| ⬆️ | `ez upgrade` | **v0.4** | `apt upgrade`, `snap refresh`, `flatpak update` | Comprehensive upgrade across APT, Flatpak, and Snap with impact simulation, Timeshift restore point prompt, and reboot check. |
 | ⚙️ | `ez service-status <name>` | **v0.1** | `systemctl is-active`, `systemctl is-enabled` | Status card with running state and boot enablement indicators. |
 | 🌐 | `ez network-info` | **v0.1** | `ip addr`, `ip route`, `/etc/resolv.conf` | Overview card and table of network interfaces, IP addresses, gateway, DNS, and online status. |
 | 📄 | `ez logs [N]` | **v0.1** | `journalctl -n N --no-pager` | Color-coded system logs by severity (errors red, warnings yellow, ok green). Defaults to 50 lines. |
@@ -452,6 +454,37 @@ In `ez choose-directory`, directories that the normal user cannot read are marke
 
 ---
 
+## 🔄 Software Catalog Updates & System Upgrade (v0.4)
+
+EasyCLI v0.4 introduces two dedicated, privileged package management commands that streamline software maintenance with beginner-friendly guardrails:
+
+### 1. `ez update` — Software Catalog Refresh (Read-Only)
+Refreshes the local repository index (`apt-get update`) with elevated rights, without modifying or installing any packages on your machine:
+```bash
+ez update
+```
+- **Consent Flow**: Displays an explanation card highlighting that this is strictly a read-only metadata refresh, requests consent, and prompts for your admin password with dots (`●●●●`).
+- **Informational Summary**: Displays how many upgradable packages are now known and counts of updated vs. cached repositories.
+- **Fault-Tolerant**: Captures individual PPA and repository warnings (e.g. expired GPG keys or skipped architectures) without crashing.
+- **Reassuring Reminder**: Concludes with: *"This was only an information refresh — nothing was installed. You do not need to run this repeatedly."*
+
+### 2. `ez upgrade` — Comprehensive Multi-Source System Upgrade
+Orchestrates a comprehensive, non-destructive upgrade across **APT**, **Flatpak**, and **Snap** under a single elevation consent:
+```bash
+ez upgrade
+```
+- **Step 1 — Refresh**: Refreshes package lists across all available packaging ecosystems.
+- **Step 2 — Impact Simulation Preview**:
+  - Displays package counts, estimated download size, and disk space delta.
+  - Highlights any held-back packages with an explanation that they are preserved for system stability.
+  - Assigns an intelligent **Risk Badge** (`Medium Risk` for standard updates, `High Risk` if updating the Linux kernel, systemd, or libc6).
+  - Recommends creating a **Timeshift restore point** snapshot if Timeshift is installed.
+- **Step 3 — Explicit Confirmation**: Prompts for confirmation (`[y/N]`) before any changes are made.
+- **Step 4 — Per-Source Execution**: Runs standard non-destructive upgrades (`apt-get upgrade`, `flatpak update`, `snap refresh`) sequentially with progress indicators.
+- **Step 5 — Summary & Reboot Check**: Checks `/var/run/reboot-required` and reminds the user if core components require a restart. Concludes with: *"Done. Run this only when you choose to — there is no daily obligation."*
+
+---
+
 ## 🎨 Icon & Font Policy
 
 - **Emoji Icons:** Single-character inline emoji icons are used throughout the application without adding extra lines or disrupting grid alignment.
@@ -524,9 +557,13 @@ EZCLI/
   - Pure modern creation commands (`ez create-folder`, `ez create-file`) replacing legacy commands (`mkdir`, `touch`), directly or visually via mini explorer (`[n]`).
   - Consent-first deletion (`ez delete`, `ez delete choose-directory`) replacing dangerous `rm` / `rm -rf`.
   - Modern terminal text and code editor (`ez edit-file`) replacing `nano`/`vi` with Tree-sitter syntax highlighting, line numbers, find search, and unsaved changes guard.
+  - Live system and process monitor (`ez stats`) with per-core visual CPU bars, RAM/Swap gauges, and safe process termination.
   - Non-force-first safety: non-empty folders always prompt before any force removal. Direct commands restricted to current directory.
-  - Dedicated deletion and file editing picker modes so regular directory browsing remains 100% clean and isolated.
   - 100% automatic privilege elevation with consent and visible dot password feedback (`••••`), without `--admin` flags or root contamination.
+- **v0.4 — Privileged Software Catalog Updates & System Upgrade**:
+  - Software catalog refresh (`ez update`) with read-only explanation card, repo hit/get counts, warning tolerance, and anti-panic reminders.
+  - Comprehensive multi-source system upgrade (`ez upgrade`) across APT, Flatpak, and Snap with impact simulation, Timeshift restore point recommendation, risk badge, and reboot check.
+  - Single-consent elevation covering the entire upgrade flow.
 
 ---
 
@@ -537,4 +574,4 @@ To run the automated unit test suite:
 python3 -m unittest discover tests/
 ```
 
-All 103 unit tests validate distro detection, collector safety, file operations, conflict policies, cross-filesystem moves, undo engine, command parsing, file/folder creation, safe deletion with force prompts, mini text editor validation, binary file protection, permission-denied simulations, and the privilege elevation layer.
+All 147 unit tests validate distro detection, collector safety, file operations, conflict policies, cross-filesystem moves, undo engine, command parsing, file/folder creation, safe deletion with force prompts, mini text editor validation, binary file protection, permission-denied simulations, live stats metrics, privileged catalog updates, and multi-source system upgrade simulations.

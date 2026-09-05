@@ -474,3 +474,122 @@ def elevated_file_read(
     if success and res and isinstance(res, dict):
         return True, res.get("content", ""), ""
     return False, None, err
+
+
+def elevated_apt_update(
+    reason: str = "Refresh repository catalog of available packages",
+    task_description: str = "Fetch updated package lists from configured software repositories into /var/lib/apt/lists/",
+    risk_level: str = "low",
+    skip_explanation: bool = False,
+    console: Optional[Console] = None,
+) -> Tuple[bool, Optional[Dict[str, Any]], str]:
+    """Run an elevated apt-get update to refresh the software catalog."""
+    success, res, err = run_elevated_helper(
+        action="apt_update",
+        params={},
+        reason=reason,
+        task_description=task_description,
+        risk_level=risk_level,
+        skip_explanation=skip_explanation,
+        console=console,
+    )
+    if success and isinstance(res, dict):
+        return True, res, ""
+    return False, None, err
+
+
+def elevated_apt_simulate_upgrade(
+    skip_explanation: bool = True,
+    console: Optional[Console] = None,
+) -> Tuple[bool, Optional[Dict[str, Any]], str]:
+    """Simulate an apt-get upgrade to calculate upgradable packages and sizes."""
+    success, res, err = run_elevated_helper(
+        action="apt_simulate_upgrade",
+        params={},
+        reason="Calculate upgrade impact preview",
+        task_description="Simulate package upgrades without modifying system",
+        risk_level="low",
+        skip_explanation=skip_explanation,
+        console=console,
+    )
+    if success and isinstance(res, dict):
+        return True, res, ""
+    return False, None, err
+
+
+def elevated_apt_upgrade(
+    skip_explanation: bool = True,
+    console: Optional[Console] = None,
+) -> Tuple[bool, Optional[Dict[str, Any]], str]:
+    """Execute apt-get upgrade non-interactively."""
+    success, res, err = run_elevated_helper(
+        action="apt_upgrade",
+        params={},
+        reason="Upgrade system packages to latest versions",
+        task_description="Install package upgrades via apt-get upgrade",
+        risk_level="high",
+        skip_explanation=skip_explanation,
+        console=console,
+    )
+    if success and isinstance(res, dict):
+        return True, res, ""
+    return False, None, err
+
+
+def elevated_snap_refresh(
+    skip_explanation: bool = True,
+    console: Optional[Console] = None,
+) -> Tuple[bool, Optional[Dict[str, Any]], str]:
+    """Refresh snap packages if snap is installed."""
+    success, res, err = run_elevated_helper(
+        action="snap_refresh",
+        params={},
+        reason="Refresh snap packages",
+        task_description="Update installed snaps to latest revisions",
+        risk_level="high",
+        skip_explanation=skip_explanation,
+        console=console,
+    )
+    if success and isinstance(res, dict):
+        return True, res, ""
+    return False, None, err
+
+
+def elevated_flatpak_update(
+    skip_explanation: bool = True,
+    console: Optional[Console] = None,
+) -> Tuple[bool, Optional[Dict[str, Any]], str]:
+    """Update flatpak runtimes and applications if flatpak is installed."""
+    success, res, err = run_elevated_helper(
+        action="flatpak_update",
+        params={},
+        reason="Update Flatpak applications and runtimes",
+        task_description="Install latest Flatpak updates via flatpak update",
+        risk_level="high",
+        skip_explanation=skip_explanation,
+        console=console,
+    )
+    if success and isinstance(res, dict):
+        return True, res, ""
+    return False, None, err
+
+
+def elevated_timeshift_snapshot(
+    comment: str = "EasyCLI Pre-upgrade snapshot",
+    skip_explanation: bool = True,
+    console: Optional[Console] = None,
+) -> Tuple[bool, Optional[Dict[str, Any]], str]:
+    """Create a Timeshift restore point snapshot."""
+    success, res, err = run_elevated_helper(
+        action="timeshift_snapshot",
+        params={"comment": comment},
+        reason="Create system restore point before upgrading",
+        task_description=f"Create Timeshift snapshot: {comment}",
+        risk_level="high",
+        skip_explanation=skip_explanation,
+        console=console,
+    )
+    if success and isinstance(res, dict):
+        return True, res, ""
+    return False, None, err
+
