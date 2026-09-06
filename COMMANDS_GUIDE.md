@@ -53,6 +53,7 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 | 30 | `ez version [name]` | `<tool> --version`, `dpkg -s`, `apt-cache policy`, `snap list`, `flatpak info`, `pip show`, `npm list` | Universal version checker: without arguments, prints EasyCLI version + hint; with `<name>`, auto-detects version across binary on PATH, Debian package, APT catalog, Snap, Flatpak, Python library, and Node.js library in a single clean card. |
 | 31 | `ez check-internet` | `ping`, `traceroute`, `host`, `dig`, `curl -I` | 3-stage connectivity test across local router, DNS resolvers, and internet reachability. Shows a visual pipeline with latency (`✔`/`✖`) and an immediate "Why internet isn't working" one-line diagnostic reply. |
 | 32 | `ez connect-wifi` | `nmcli dev wifi`, `nmtui`, `iwconfig`, `wpa_supplicant` | In-terminal graphical Wi-Fi manager with mouse support, signal bars, network scanning, password entry modal with show/hide toggle, and action buttons (`Connect`, `Cancel`, `Refresh`, `Disconnect`). |
+| 33 | `ez search-file <term>` | `find / -iname "*name*"`, `locate`, `fzf` | Fast fuzzy file search starting from `/home`, rich results table with emoji icons, interactive selection to open, copy path, or edit, and optional system-wide (`'/'`) fallback with auto-elevation. |
 
 ---
 
@@ -493,4 +494,27 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
   ez version python3    # Check compiler or runtime version
   ez version rich       # Inspect Python library version
   ez version express    # Inspect Node.js library version
+  ```
+
+---
+
+#### `ez search-file <term>`
+- **Replaces:** `find / -iname "*name*"`, `locate <term>`, `fzf`
+- **Why it's better:** Beginner-friendly fuzzy file finder that eliminates complicated `find` syntax and permission errors.
+  - **Sequenced `/home` Search First:** Instantly scans `/home` without requiring root permissions.
+  - **"Didn't Find What You Wanted?" Option:**
+    - If 0 matches are found in `/home`, prompts: *"File not found in /home. Wanna look in whole system? '/' [y/N]"*.
+    - Even if matches are found, provides a prominent `[s] 🌐 Search entire system ('/')` action in the menu so the user can easily expand the search if the file is outside `/home`.
+  - **Safe Automatic Elevation:** When scanning `'/'`, automatically prompts for admin consent to search root-protected directories (`/etc`, `/var`, `/root`, `/opt`) while safely pruning virtual pseudo-filesystems (`/proc`, `/sys`, `/dev`).
+  - **Interactive Action Menu:**
+    - `[1] 📂 Open`: Launches the selected file in the system default application.
+    - `[2] 📋 Copy path`: Copies the absolute file path to the clipboard and prints it clearly.
+    - `[3] ✏️ Edit`: Opens the file in EasyCLI's integrated code and text editor.
+    - `[q] ❌ Quit`: Clean exit.
+- **Syntax:**
+  ```bash
+  ez search-file <term>
+  ez search-file wifi_app.py
+  ez search-file nginx.conf
+  ez search-file report.pdf
   ```

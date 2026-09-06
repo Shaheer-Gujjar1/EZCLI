@@ -13,7 +13,7 @@ from ezcli_app.wifi.wifi_engine import (
     format_signal_bars,
     parse_terse_line,
 )
-from textual.widgets import DataTable, Input
+from textual.widgets import DataTable, Input  # type: ignore
 
 
 class TestWifiEngine(unittest.TestCase):
@@ -129,6 +129,7 @@ class TestWifiEngine(unittest.TestCase):
         wm = WifiManager()
         active = wm.get_active_wifi()
         self.assertIsNotNone(active)
+        assert active is not None
         self.assertEqual(active["ssid"], "MyOfficeWifi")
         self.assertEqual(active["interface"], "wlp1s0")
         self.assertEqual(active["ip"], "192.168.1.50")

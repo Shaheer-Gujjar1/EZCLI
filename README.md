@@ -1,4 +1,4 @@
-# EasyCLI (`ez`) v0.4
+# EasyCLI (`ez`) v0.5
 
 **EasyCLI** is a beginner-friendly terminal frontend wrapper for Linux commands built specifically for Debian-based systems. It simplifies complex and verbose Linux tasks into beautiful, color-coded terminal cards, interactive menus, a modern graphical file explorer, safety-first file operations with reversible undo, modern file creation/deletion, and seamless automatic privilege elevation.
 
@@ -159,6 +159,7 @@ ez help
 | ℹ️ | `ez version [name]` | **v0.4** | `which`, `dpkg`, `apt`, `snap`, `flatpak`, `python`, `node` | Universal version checker across PATH binaries, Debian packages, APT catalog, Snap, Flatpak, Python, and Node libraries. Dual mode: displays EasyCLI version with no argument, or inspects specified target. |
 | 📶 | `ez check-internet` | **v0.5** | `ping`, `ip route`, `socket` | 3-stage visual connectivity pipeline (`Router → DNS → Internet`) with latency (`✔`/`✖`) and an immediate "Why internet isn't working" one-line diagnostic verdict. |
 | 📶 | `ez connect-wifi` | **v0.5** | `nmcli`, `iw` | In-terminal graphical Wi-Fi manager with mouse support, signal strength bars, network scanning, password entry modal with show/hide toggle (`👁️`/`🙈`), and action buttons (`Connect`, `Cancel`, `Refresh`, `Disconnect`). |
+| 🔍 | `ez search-file <term>` | **v0.5** | `find`, `locate`, `ls` | Fast fuzzy file search starting from `/home`, rich results table with emoji icons, interactive selection to open, copy path, or edit, and optional system-wide (`'/'`) fallback with auto-elevation. |
 
 ---
 
@@ -557,6 +558,22 @@ ez connect-wifi
 - **Action Toolbar**: Clickable buttons for `🔗 Connect`, `🔄 Refresh`, `🚫 Disconnect`, and `❌ Close`.
 - **Search & Filter**: Press `[/]` to search and filter SSIDs in real time.
 
+### 8. `ez search-file` — Fuzzy File Search & Interactive Actions (v0.5)
+Fast fuzzy file finder with `/home`-first sequencing, system-wide `'/'` fallback with administrator rights, and interactive action choices:
+```bash
+ez search-file <term>
+```
+- **Sequenced Search Scope**: Searches `/home` first to deliver instant, relevant results.
+- **"Didn't Find It?" System-Wide Option**:
+  - If 0 matches are found in `/home`, automatically prompts: *"File not found in /home. Wanna look in whole system? '/' [y/N]"*.
+  - Even if matches are found in `/home`, a prominent option (`[s] 🌐 Search entire system ('/')`) is provided so users can expand the search if their desired file was elsewhere.
+- **Safe Auto-Elevation**: Scans protected system directories (`/etc`, `/var`, `/root`, `/opt`) using EasyCLI's safe privilege elevation while safely pruning pseudo-filesystems (`/proc`, `/sys`, `/dev`).
+- **Interactive Action Menu**:
+  - `[1] 📂 Open`: Launches the selected file in your system's default graphical application (`xdg-open`).
+  - `[2] 📋 Copy path`: Copies the absolute path directly to your clipboard (via OSC 52 and `wl-copy`/`xclip`/`xsel`) and displays it prominently.
+  - `[3] ✏️ Edit`: Launches the file in EasyCLI's integrated code and text editor.
+  - `[q] ❌ Quit`: Clean exit.
+
 ---
 
 ## 🎨 Icon & Font Policy
@@ -578,7 +595,7 @@ EZCLI/
 ├── setup.py               # Setup script (v0.5.0)
 ├── install.sh             # 1-step deployment script
 ├── README.md              # Documentation and guide
-├── tests/                 # Comprehensive unit test suite (235 tests)
+├── tests/                 # Comprehensive unit test suite (260 tests)
 │   ├── test_distro.py     # Distro parser and derivative detection tests
 │   ├── test_collectors.py # System inspection and installed package tests
 │   ├── test_file_ops.py   # Copy, move, cross-filesystem, and conflict tests
@@ -593,7 +610,8 @@ EZCLI/
 │   ├── test_task_manager.py # Lite & Pro Windows-style task manager tests (v0.4)
 │   ├── test_version.py    # Universal version checker multi-source tests (v0.4)
 │   ├── test_internet_check.py # Internet connectivity & pipeline tests (v0.5)
-│   └── test_wifi.py       # Wi-Fi scanner, password modal, and manager tests (v0.5)
+│   ├── test_wifi.py       # Wi-Fi scanner, password modal, and manager tests (v0.5)
+│   └── test_search_file.py # Fuzzy file search, action dispatcher & system fallback tests (v0.5)
 └── ezcli_app/
     ├── __init__.py        # Package version (__version__ = "0.5.0")
     ├── config.py          # Declarative FeatureTemplate definitions (canonical commands only)
@@ -616,6 +634,7 @@ EZCLI/
     ├── task_manager.py    # Lite Windows-style terminal task manager (v0.4)
     ├── version_checker.py # Universal multi-source version detector & renderer (v0.4)
     ├── internet_checker.py# Internet connectivity diagnostic engine & pipeline (v0.5)
+    ├── search_file.py     # Fuzzy file search, interactive actions & elevated fallback (v0.5)
     ├── wifi/              # Textual TUI In-Terminal Wi-Fi Manager with mouse support (v0.5)
     │   ├── __init__.py    # Wi-Fi package exports
     │   ├── wifi_engine.py # Network scanning, signal bars, security and connection engine
@@ -655,11 +674,12 @@ EZCLI/
   - Safe application uninstallation (`ez uninstall <name>`) across APT, Flatpak, and Snap with warning card, single consent, and zero-cache admin elevation.
   - Lite & modern terminal Task Manager (`ez task-manager`, `ez task-manager-pro`) with mouse support, real-time gauges, unresponsive process detection, and auto-elevation.
   - Universal Version Checker (`ez version [name]`) automatically inspecting binaries on PATH, Debian packages, APT catalog, Snap, Flatpak, Python, and Node libraries without flags.
-- **v0.5 — Internet Diagnostics, Visual Pipeline & In-Terminal Wi-Fi Manager**:
+- **v0.5 — Internet Diagnostics, Visual Pipeline, In-Terminal Wi-Fi Manager & Fuzzy File Search**:
   - Universal internet connectivity checker (`ez check-internet`) testing Router ping, DNS resolution, and internet reachability.
   - High-contrast visual pipeline (`Router → DNS → Internet`) with latency indicators (`✔`/`✖`).
   - Immediate beginner-friendly one-line diagnostic reply explaining "Why internet isn't working" across all network failure modes.
   - In-terminal graphical Wi-Fi manager (`ez connect-wifi`) with full mouse support, real-time signal bars (`▂▄▆█ 85% 📶`), security detection, password entry modal with show/hide toggle (`👁️`/`🙈`), and action buttons (`Connect`, `Cancel`, `Refresh`, `Disconnect`).
+  - Fast fuzzy file search (`ez search-file <term>`) starting from `/home`, rich results table with emoji icons, interactive selection to open, copy path, or edit, and optional system-wide (`'/'`) fallback with auto-elevation.
 
 ---
 

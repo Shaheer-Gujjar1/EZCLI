@@ -788,6 +788,12 @@ def dispatch_helper_request(request: Dict[str, Any], progress_callback: Optional
             params.get("purge", False),
             params.get("timeout", 300),
         )
+    elif action == "search_files":
+        return helper_search_files(
+            root_dir=params.get("root_dir", "/"),
+            term=params.get("term", ""),
+            max_results=params.get("max_results", 50),
+        )
     else:
         return {"success": False, "error": f"Unknown helper action '{action}'."}
 
@@ -902,6 +908,81 @@ def helper_package_uninstall(
         return {"success": False, "error": f"Uninstallation timed out after {timeout} seconds."}
     except Exception as e:
         return {"success": False, "error": f"Uninstallation error: {e}"}
+
+
+def helper_search_files(
+    root_dir: str = "/",
+    term: str = "",
+    max_results: int = 50,
+) -> Dict[str, Any]:
+    """Search filesystem starting at root_dir for files matching term with admin privileges."""
+    abs_root = os.path.abspath(os.path.expanduser(root_dir))
+    if not os.path.exists(abs_root):
+        return {"success": False, "error": f"Search path '{abs_root}' does not exist."}
+
+    clean_term = term.strip().lower()
+    if not clean_term:
+        return {"success": True, "results": []}
+
+    skip_dirs = {
+        "/proc", "/sys", "/dev", "/run", "/tmp", "/var/tmp",
+        "/var/cache", "/lost+found", "/media", "/mnt",
+    }
+
+    results: List[Dict[str, Any]] = []
+
+    try:
+        for current_dir, dirs, files in os.walk(abs_root, topdown=True, followlinks=False):
+            if abs_root == "/":
+                if current_dir in skip_dirs:
+                    dirs.clear()
+                    continue
+                dirs[:] = [d for d in dirs if os.path.join(current_dir, d) not in skip_dirs]
+
+            items_to_check = [(f, False) for f in files] + [(d, True) for d in dirs]
+            for item_name, is_dir in items_to_check:
+                name_lower = item_name.lower()
+                if clean_term in name_lower:
+                    full_path = os.path.join(current_dir, item_name)
+                    size_bytes = 0
+                    size_str = "-"
+                    mtime_str = "Unknown"
+
+                    try:
+                        st = os.stat(full_path, follow_symlinks=False)
+                        if not is_dir:
+                            size_bytes = st.st_size
+                            size_str = format_bytes(st.st_size)
+                        mtime_dt = datetime.datetime.fromtimestamp(st.st_mtime)
+                        mtime_str = mtime_dt.strftime("%Y-%m-%d %H:%M")
+                    except Exception:
+                        pass
+
+                    score = 100 if name_lower == clean_term else (
+                        90 if name_lower.startswith(clean_term) else 70
+                    )
+
+                    results.append({
+                        "name": item_name,
+                        "path": full_path,
+                        "is_dir": is_dir,
+                        "size_bytes": size_bytes,
+                        "size_str": size_str,
+                        "mtime_str": mtime_str,
+                        "score": score,
+                    })
+
+                    if len(results) >= max_results:
+                        dirs.clear()
+                        break
+
+            if len(results) >= max_results:
+                break
+
+        results.sort(key=lambda x: (x.get("score", 0), -len(x.get("name", ""))), reverse=True)
+        return {"success": True, "results": results[:max_results]}
+    except Exception as e:
+        return {"success": False, "error": f"Search error: {e}"}
 
 
 def main() -> None:

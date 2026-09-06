@@ -130,6 +130,11 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
                 from .wifi import run_wifi_app
                 run_wifi_app()
                 return
+            elif feature.id == "search_file":
+                from .search_file import run_search_file_cli
+                term_val = args_values[0] if args_values else None
+                run_search_file_cli(term=term_val, console=console)
+                return
             elif renderer_fn is not None:
                 if feature.subcommand == "big_files" or feature.id == "big_files":
                     raw_folder = args_values[0] if args_values else "~"

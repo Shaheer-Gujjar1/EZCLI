@@ -25,7 +25,7 @@ class FeatureTemplate:
     renderer_name: str = ""
 
 
-# Feature Templates (v0.1, v0.2, v0.3, v0.4)
+# Feature Templates (v0.1, v0.2, v0.3, v0.4, v0.5)
 FEATURES: List[FeatureTemplate] = [
     FeatureTemplate(
         id="system_info",
@@ -422,6 +422,23 @@ FEATURES: List[FeatureTemplate] = [
         wrapped_commands=["nmcli", "iw"],
         arguments=[],
         renderer_name="run_wifi_app",
+    ),
+    FeatureTemplate(
+        id="search_file",
+        subcommand="search-file",
+        title="Search Files",
+        icon="🔍",
+        description="Fuzzy file search starting from /home with interactive selection and optional system-wide fallback",
+        wrapped_commands=["find", "locate", "ls"],
+        arguments=[
+            ArgumentDef(
+                name="term",
+                help="Keyword or file name to search",
+                required=False,
+                default="",
+            )
+        ],
+        renderer_name="run_search_file_cli",
     ),
 ]
 

@@ -275,10 +275,6 @@ def authenticate_elevation_session(
             wipe_password(password)
             console.print(f"[bold red]Authentication error: {e.__class__.__name__}[/bold red]")
             return None
-        except Exception as e:
-            wipe_password(password)
-            console.print(f"[bold red]Authentication error: {e.__class__.__name__}[/bold red]")
-            return None
 
     return None
 
@@ -927,5 +923,32 @@ def elevated_package_uninstall(
     if success and isinstance(res, dict):
         return True, res, ""
     return False, None, err
+
+
+def elevated_search_files(
+    root_dir: str = "/",
+    term: str = "",
+    max_results: int = 50,
+    skip_explanation: bool = False,
+    console: Optional[Console] = None,
+    timeout: int = 60,
+) -> Tuple[bool, List[Dict[str, Any]], str]:
+    """Search filesystem starting at root_dir with administrator privileges."""
+    success, res, err = run_elevated_helper(
+        action="search_files",
+        params={"root_dir": root_dir, "term": term, "max_results": max_results},
+        reason=f"Administrator authorization is required to search protected system files in '{root_dir}'.",
+        task_description=f"System-wide file search for '{term}'",
+        risk_level="low",
+        skip_explanation=skip_explanation,
+        console=console,
+        timeout=timeout,
+    )
+    if success and isinstance(res, dict):
+        results_list = res.get("results", [])
+        if isinstance(results_list, list):
+            return True, results_list, ""
+    return False, [], err
+
 
 

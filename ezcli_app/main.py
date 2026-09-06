@@ -329,6 +329,10 @@ def main() -> None:
                 sys.exit(1)
             from .wifi import run_wifi_app
             run_wifi_app()
+        elif feature.id == "search_file":
+            from .search_file import run_search_file_cli
+            search_term = " ".join(sub_args).strip() if sub_args else None
+            run_search_file_cli(term=search_term, console=console)
     except BrokenPipeError:
         try:
             devnull = os.open(os.devnull, os.O_WRONLY)

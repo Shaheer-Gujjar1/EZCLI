@@ -151,6 +151,17 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(res.returncode, 0)
         self.assertIn("connect-wifi", res.stdout)
 
+    def test_search_file_in_help(self):
+        res = self.run_ez("help")
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("search-file", res.stdout)
+
+    def test_search_file_usage_no_args(self):
+        res = self.run_ez("search-file")
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("Usage:", res.stdout)
+        self.assertIn("ez search-file <term>", res.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
