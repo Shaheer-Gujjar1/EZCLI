@@ -140,6 +140,17 @@ class TestCLI(unittest.TestCase):
         self.assertIn("Direct Targeting Restricted", res.stdout)
         self.assertIn("ez copy choose-directory", res.stdout)
 
+    def test_check_internet_subcommand(self):
+        res = self.run_ez("check-internet")
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("Internet Connection Pipeline", res.stdout)
+        self.assertIn("Why internet isn't working", res.stdout)
+
+    def test_connect_wifi_in_help(self):
+        res = self.run_ez("help")
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("connect-wifi", res.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

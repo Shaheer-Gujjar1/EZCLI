@@ -120,6 +120,16 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
                 from .version_checker import run_version_command
                 target_app = args_values[0] if args_values else None
                 run_version_command(name=target_app, console=console)
+            elif feature.id == "check_internet":
+                from .internet_checker import render_internet_check
+                render_internet_check(console=console)
+            elif feature.id == "connect_wifi":
+                from .main import check_textual_installed
+                if not check_textual_installed(console):
+                    return
+                from .wifi import run_wifi_app
+                run_wifi_app()
+                return
             elif renderer_fn is not None:
                 if feature.subcommand == "big_files" or feature.id == "big_files":
                     raw_folder = args_values[0] if args_values else "~"

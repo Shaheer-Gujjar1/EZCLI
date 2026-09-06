@@ -157,6 +157,8 @@ ez help
 | 🗑️ | `ez delete [target \| choose-directory]` | **v0.3** | `delete` | Permanently delete file(s) or folder(s) with explicit consent, non-force-first safety, and automatic elevation. |
 | 📝 | `ez edit-file [target \| choose-directory]` | **v0.3** | `edit-file` | Modern terminal text and code editor with syntax highlighting, line numbers, visual search, and auto-elevation. |
 | ℹ️ | `ez version [name]` | **v0.4** | `which`, `dpkg`, `apt`, `snap`, `flatpak`, `python`, `node` | Universal version checker across PATH binaries, Debian packages, APT catalog, Snap, Flatpak, Python, and Node libraries. Dual mode: displays EasyCLI version with no argument, or inspects specified target. |
+| 📶 | `ez check-internet` | **v0.5** | `ping`, `ip route`, `socket` | 3-stage visual connectivity pipeline (`Router → DNS → Internet`) with latency (`✔`/`✖`) and an immediate "Why internet isn't working" one-line diagnostic verdict. |
+| 📶 | `ez connect-wifi` | **v0.5** | `nmcli`, `iw` | In-terminal graphical Wi-Fi manager with mouse support, signal strength bars, network scanning, password entry modal with show/hide toggle (`👁️`/`🙈`), and action buttons (`Connect`, `Cancel`, `Refresh`, `Disconnect`). |
 
 ---
 
@@ -529,6 +531,32 @@ ez version curl    # Universal inspection across all 7 sources
 - **Friendly Guidance**: If nothing is found across any source, renders a helpful card suggesting `ez package-search <name>` and `ez installed-packages`.
 - **Read-Only & Flagless**: Zero administrative elevation needed; strictly flagless.
 
+### 6. `ez check-internet` — Universal Internet Connectivity Checker (v0.5)
+Instant 3-stage connectivity diagnosis and visual pipeline:
+```bash
+ez check-internet
+```
+- **3-Stage Visual Pipeline**:
+  - **Local Router**: Resolves default gateway from `ip route` and measures ICMP ping latency.
+  - **DNS Resolution**: Checks nameservers in `/etc/resolv.conf` and times live hostname lookup (`google.com`, `cloudflare.com`).
+  - **Internet Reachability**: Tests end-to-end access to public anycast endpoints (`1.1.1.1`, `8.8.8.8`) using ICMP ping with transparent TCP socket fallback (port 53/443) if ICMP is filtered.
+- **Visual Display**: Renders a high-contrast pipeline (`Router ✔ (1.6 ms) ➔ DNS ✔ (24.3 ms) ➔ Internet ✔ (26.2 ms)`), an itemized diagnostics table, and a dedicated verdict panel.
+- **"Why internet isn't working" One-Line Reply**: Pinpoints whether the issue is local Wi-Fi/cable disconnect, router timeout, DNS failure, ISP outage, or a restrictive firewall.
+
+### 7. `ez connect-wifi` — In-Terminal Graphical Wi-Fi Manager (v0.5)
+Interactive terminal Wi-Fi application featuring full mouse support, real-time signal bars, and password entry:
+```bash
+ez connect-wifi
+```
+- **Full Mouse & Keyboard Navigation**: Click any network row to select, double-click to connect, or use keyboard shortcuts (`[c]` Connect, `[r]` Refresh, `[d]` Disconnect, `[q]` Close).
+- **Network Scanner**: Automatically discovers nearby Wi-Fi networks, displays signal bars (`▂▄▆█ 85% 📶`), detects security encryption (`🔒 WPA2/WPA3` / `🔓 Open`), and highlights your active connection (`🟢 Connected`).
+- **Password Modal with Visibility Toggle**:
+  - Secure masked password field by default (`••••••••`).
+  - Click `👁️ Show Password` to reveal plaintext and avoid typos, toggling back to `🙈 Hide Password`.
+  - Action buttons: `[🔗 Connect]` and `[❌ Cancel]`.
+- **Action Toolbar**: Clickable buttons for `🔗 Connect`, `🔄 Refresh`, `🚫 Disconnect`, and `❌ Close`.
+- **Search & Filter**: Press `[/]` to search and filter SSIDs in real time.
+
 ---
 
 ## 🎨 Icon & Font Policy
@@ -546,11 +574,11 @@ EasyCLI is designed with a layered, decoupled architecture:
 ```
 EZCLI/
 ├── ez                     # Executable entrypoint script
-├── pyproject.toml         # Packaging configuration (v0.4.0)
-├── setup.py               # Setup script (v0.4.0)
+├── pyproject.toml         # Packaging configuration (v0.5.0)
+├── setup.py               # Setup script (v0.5.0)
 ├── install.sh             # 1-step deployment script
 ├── README.md              # Documentation and guide
-├── tests/                 # Comprehensive unit test suite (200 tests)
+├── tests/                 # Comprehensive unit test suite (235 tests)
 │   ├── test_distro.py     # Distro parser and derivative detection tests
 │   ├── test_collectors.py # System inspection and installed package tests
 │   ├── test_file_ops.py   # Copy, move, cross-filesystem, and conflict tests
@@ -563,9 +591,11 @@ EZCLI/
 │   ├── test_update_upgrade.py # Update & upgrade catalog and simulation tests (v0.4)
 │   ├── test_uninstall.py  # Safe multi-source uninstallation tests (v0.4)
 │   ├── test_task_manager.py # Lite & Pro Windows-style task manager tests (v0.4)
-│   └── test_version.py    # Universal version checker multi-source tests (v0.4)
+│   ├── test_version.py    # Universal version checker multi-source tests (v0.4)
+│   ├── test_internet_check.py # Internet connectivity & pipeline tests (v0.5)
+│   └── test_wifi.py       # Wi-Fi scanner, password modal, and manager tests (v0.5)
 └── ezcli_app/
-    ├── __init__.py        # Package version (__version__ = "0.4.0")
+    ├── __init__.py        # Package version (__version__ = "0.5.0")
     ├── config.py          # Declarative FeatureTemplate definitions (canonical commands only)
     ├── distro.py          # /etc/os-release parsing and Debian validation
     ├── emoji.py           # Font capability and UTF-8 detection
@@ -585,6 +615,11 @@ EZCLI/
     ├── uninstall_cli.py   # Multi-source safe application uninstallation (v0.4)
     ├── task_manager.py    # Lite Windows-style terminal task manager (v0.4)
     ├── version_checker.py # Universal multi-source version detector & renderer (v0.4)
+    ├── internet_checker.py# Internet connectivity diagnostic engine & pipeline (v0.5)
+    ├── wifi/              # Textual TUI In-Terminal Wi-Fi Manager with mouse support (v0.5)
+    │   ├── __init__.py    # Wi-Fi package exports
+    │   ├── wifi_engine.py # Network scanning, signal bars, security and connection engine
+    │   └── wifi_app.py    # Textual TUI with mouse, password dialog, and show/hide toggle
     ├── editor/            # Textual TUI Mini Text & Code Editor (v0.3)
     │   ├── __init__.py    # Editor package exports
     │   └── editor_app.py  # Syntax highlighting, line numbers, modals & auto-elevation
@@ -620,6 +655,11 @@ EZCLI/
   - Safe application uninstallation (`ez uninstall <name>`) across APT, Flatpak, and Snap with warning card, single consent, and zero-cache admin elevation.
   - Lite & modern terminal Task Manager (`ez task-manager`, `ez task-manager-pro`) with mouse support, real-time gauges, unresponsive process detection, and auto-elevation.
   - Universal Version Checker (`ez version [name]`) automatically inspecting binaries on PATH, Debian packages, APT catalog, Snap, Flatpak, Python, and Node libraries without flags.
+- **v0.5 — Internet Diagnostics, Visual Pipeline & In-Terminal Wi-Fi Manager**:
+  - Universal internet connectivity checker (`ez check-internet`) testing Router ping, DNS resolution, and internet reachability.
+  - High-contrast visual pipeline (`Router → DNS → Internet`) with latency indicators (`✔`/`✖`).
+  - Immediate beginner-friendly one-line diagnostic reply explaining "Why internet isn't working" across all network failure modes.
+  - In-terminal graphical Wi-Fi manager (`ez connect-wifi`) with full mouse support, real-time signal bars (`▂▄▆█ 85% 📶`), security detection, password entry modal with show/hide toggle (`👁️`/`🙈`), and action buttons (`Connect`, `Cancel`, `Refresh`, `Disconnect`).
 
 ---
 
@@ -630,4 +670,4 @@ To run the automated unit test suite:
 python3 -m unittest discover tests/
 ```
 
-All 200 unit tests validate distro detection, collector safety, file operations, conflict policies, cross-filesystem moves, undo engine, command parsing, file/folder creation, safe deletion with force prompts, mini text editor validation, binary file protection, permission-denied simulations, live stats metrics, privileged catalog updates, multi-source system upgrade simulations, safe application uninstallation, Windows-style task manager, and universal version checking.
+All 235 unit tests validate distro detection, collector safety, file operations, conflict policies, cross-filesystem moves, undo engine, command parsing, file/folder creation, safe deletion with force prompts, mini text editor validation, binary file protection, permission-denied simulations, live stats metrics, privileged catalog updates, multi-source system upgrade simulations, safe application uninstallation, Windows-style task manager, universal version checking, internet connectivity diagnostics, and in-terminal Wi-Fi management.

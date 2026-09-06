@@ -403,6 +403,26 @@ FEATURES: List[FeatureTemplate] = [
         ],
         renderer_name="render_version_info",
     ),
+    FeatureTemplate(
+        id="check_internet",
+        subcommand="check-internet",
+        title="Check Internet Connection",
+        icon="📶",
+        description="Check router ping, DNS resolution, internet reachability, and why internet isn't working",
+        wrapped_commands=["ping", "ip route", "socket"],
+        arguments=[],
+        renderer_name="render_internet_check",
+    ),
+    FeatureTemplate(
+        id="connect_wifi",
+        subcommand="connect-wifi",
+        title="Connect Wi-Fi",
+        icon="📶",
+        description="In-terminal graphical Wi-Fi manager with mouse support, network scanning, and password dialog",
+        wrapped_commands=["nmcli", "iw"],
+        arguments=[],
+        renderer_name="run_wifi_app",
+    ),
 ]
 
 # Lookup map by subcommand

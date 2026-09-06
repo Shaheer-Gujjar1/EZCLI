@@ -322,6 +322,13 @@ def main() -> None:
             from .version_checker import run_version_command
             target_arg = sub_args[0] if sub_args else None
             run_version_command(name=target_arg, console=console)
+        elif feature.id == "check_internet":
+            renderers.render_internet_check(console)
+        elif feature.id == "connect_wifi":
+            if not check_textual_installed(console):
+                sys.exit(1)
+            from .wifi import run_wifi_app
+            run_wifi_app()
     except BrokenPipeError:
         try:
             devnull = os.open(os.devnull, os.O_WRONLY)

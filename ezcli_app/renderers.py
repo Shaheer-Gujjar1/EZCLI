@@ -823,3 +823,15 @@ def render_version_info(console: Console, name: str = "") -> None:
     from .version_checker import run_version_command
     run_version_command(name=name, console=console)
 
+
+def render_internet_check(console: Console) -> None:
+    """Internet connectivity diagnostics renderer (wraps ez check-internet)."""
+    from .internet_checker import render_internet_check as run_render
+    run_render(console=console)
+
+
+def run_wifi_app(console: Console) -> None:
+    """Launch interactive Wi-Fi manager (wraps ez connect-wifi)."""
+    from .wifi import run_wifi_app as start_wifi_app
+    start_wifi_app()
+

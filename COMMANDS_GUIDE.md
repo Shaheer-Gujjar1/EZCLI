@@ -51,6 +51,8 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 | 28 | `ez` *(no args)* | *(Manual CLI navigation)* | Full interactive TUI menu with searchable categories, emoji icons, and hotkey navigation. |
 | 29 | `ez help` | `man <tool>`, `<tool> --help` | Formatted overview of all subcommands, arguments, and safety guidelines. |
 | 30 | `ez version [name]` | `<tool> --version`, `dpkg -s`, `apt-cache policy`, `snap list`, `flatpak info`, `pip show`, `npm list` | Universal version checker: without arguments, prints EasyCLI version + hint; with `<name>`, auto-detects version across binary on PATH, Debian package, APT catalog, Snap, Flatpak, Python library, and Node.js library in a single clean card. |
+| 31 | `ez check-internet` | `ping`, `traceroute`, `host`, `dig`, `curl -I` | 3-stage connectivity test across local router, DNS resolvers, and internet reachability. Shows a visual pipeline with latency (`✔`/`✖`) and an immediate "Why internet isn't working" one-line diagnostic reply. |
+| 32 | `ez connect-wifi` | `nmcli dev wifi`, `nmtui`, `iwconfig`, `wpa_supplicant` | In-terminal graphical Wi-Fi manager with mouse support, signal bars, network scanning, password entry modal with show/hide toggle, and action buttons (`Connect`, `Cancel`, `Refresh`, `Disconnect`). |
 
 ---
 
@@ -410,6 +412,40 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 - **Syntax:**
   ```bash
   ez network-info
+  ```
+
+---
+
+#### `ez check-internet`
+- **Replaces:** `ping <gateway>`, `host google.com`, `ping 1.1.1.1`, `traceroute`, `curl -I`
+- **Why it's better:** Replaces cumbersome multi-step troubleshooting commands with a single instant diagnostic. Checks router ping, DNS resolution, and public internet reachability, displaying a high-contrast visual pipeline with precise latency and an immediate one-line explanation of *"Why internet isn't working"*.
+- **Visual Pipeline:**
+  ```
+  Router ✔ (1.6 ms) ➔ DNS ✔ (24.3 ms) ➔ Internet ✔ (26.2 ms)
+  ```
+- **"Why internet isn't working" Diagnostics:**
+  - If router ping fails: Identifies whether local Wi-Fi/Ethernet is disconnected or the router is unresponsive.
+  - If DNS fails: Pinpoints DNS resolver failure and advises checking DNS settings.
+  - If internet reachability fails: Detects ISP outages, disconnected WAN cables, or captive portal blocks.
+  - If all systems pass: Reassures the user that their internet connection is active and healthy.
+- **Syntax:**
+  ```bash
+  ez check-internet
+  ```
+
+---
+
+#### `ez connect-wifi`
+- **Replaces:** `nmcli dev wifi connect`, `nmtui`, `wpa_passphrase`, `iwconfig`, `wpa_supplicant`
+- **Why it's better:** Replaces complex and awkward wireless command syntax with a full, modern, in-terminal Wi-Fi application featuring full mouse support, real-time signal bars (`▂▄▆█ 85% 📶`), security detection (`🔒 WPA2/WPA3` / `🔓 Open`), password entry modal with show/hide toggle (`👁️` / `🙈`), and action buttons (`🔗 Connect`, `❌ Cancel`, `🔄 Refresh`, `🚫 Disconnect`).
+- **Features & Controls:**
+  - **Mouse Support:** Click any network row to select, double-click to connect directly, and click bottom toolbar buttons.
+  - **Password Dialog:** Modal dialog with masked password input and an `👁️ Show Password` / `🙈 Hide Password` toggle button so users can verify typos before connecting.
+  - **Action Toolbar:** `[c]` / `[🔗 Connect]`, `[r]` / `[🔄 Refresh]`, `[d]` / `[🚫 Disconnect]`, `[q]` / `[❌ Close]`.
+  - **Search & Filter:** Press `[/]` to instantly search and filter Wi-Fi networks by name.
+- **Syntax:**
+  ```bash
+  ez connect-wifi
   ```
 
 ---
