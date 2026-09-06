@@ -40,12 +40,27 @@ class TestCLI(unittest.TestCase):
         self.assertIn("logs", res.stdout)
         self.assertIn("ez <subcommand>", res.stdout)
 
-    def test_version_flag(self):
+    def test_version_subcommand(self):
         from ezcli_app import __version__
-        res = self.run_ez("--version")
+        res = self.run_ez("version")
         self.assertEqual(res.returncode, 0)
         self.assertIn(f"v{__version__}", res.stdout)
         self.assertIn("EasyCLI (ez)", res.stdout)
+
+    def test_flags_rejected(self):
+        # EasyCLI is completely flagless — all flags must be rejected
+        for flag in ("--version", "-v", "-h", "--help", "-p", "--print-path", "-f"):
+            res = self.run_ez(flag)
+            self.assertEqual(res.returncode, 1, f"Flag '{flag}' should be rejected")
+            self.assertIn("flagless", res.stdout.lower())
+
+    def test_aliases_rejected(self):
+        # All aliases must be rejected; only canonical subcommands are supported
+        aliases = ["installed", "choose", "explorer", "new-folder", "new-file", "del", "remove"]
+        for alias in aliases:
+            res = self.run_ez(alias)
+            self.assertEqual(res.returncode, 1, f"Alias '{alias}' should be rejected")
+            self.assertIn("Unknown subcommand", res.stdout)
 
     def test_unknown_subcommand(self):
         res = self.run_ez("foobar-unknown-command")

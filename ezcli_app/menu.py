@@ -63,7 +63,7 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
             elif feature.id == "create_folder":
                 from .create_cli import run_cli_create_folder
                 raw_name = args_values[0] if args_values else ""
-                if not raw_name or raw_name.lower() in ("choose-directory", "choose", "picker", "select", "c"):
+                if not raw_name or raw_name.lower() == "choose-directory":
                     run_cli_create_folder(name=None, choose_dest=True, console=console)
                 else:
                     run_cli_create_folder(name=raw_name, choose_dest=False, console=console)
@@ -71,7 +71,7 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
             elif feature.id == "create_file":
                 from .create_cli import run_cli_create_file
                 raw_name = args_values[0] if args_values else ""
-                if not raw_name or raw_name.lower() in ("choose-directory", "choose", "picker", "select", "c"):
+                if not raw_name or raw_name.lower() == "choose-directory":
                     run_cli_create_file(name=None, choose_dest=True, console=console)
                 else:
                     run_cli_create_file(name=raw_name, choose_dest=False, console=console)
@@ -79,7 +79,7 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
             elif feature.id == "delete":
                 from .delete_cli import run_cli_delete
                 target = args_values[0] if args_values else "choose-directory"
-                if not target or target.strip().lower() in ("choose-directory", "choose", "picker", "c"):
+                if not target or target.strip().lower() == "choose-directory":
                     run_cli_delete(args=["choose-directory"], console=console)
                 else:
                     run_cli_delete(args=[target.strip()], console=console)
@@ -119,7 +119,7 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
             elif renderer_fn is not None:
                 if feature.subcommand == "big_files" or feature.id == "big_files":
                     raw_folder = args_values[0] if args_values else "~"
-                    if raw_folder.lower() in ("choose-directory", "choose", "picker", "select", "c"):
+                    if raw_folder.lower() == "choose-directory":
                         from .explorer.explorer_app import ExplorerApp
                         app = ExplorerApp(mode="pick_dest", initial_dir="~")
                         chosen_dir = app.run()
@@ -142,7 +142,7 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
                 elif feature.subcommand == "logs" or feature.id == "logs":
                     lines = int(args_values[0]) if (args_values and args_values[0].isdigit()) else 50
                     renderer_fn(console, lines)
-                elif feature.subcommand in ("installed", "installed-packages") or feature.id == "installed_packages":
+                elif feature.subcommand == "installed-packages" or feature.id == "installed_packages":
                     renderer_fn(console)
                 elif feature.subcommand == "installed-package-search" or feature.id == "installed_package_search":
                     term = args_values[0] if args_values else ""

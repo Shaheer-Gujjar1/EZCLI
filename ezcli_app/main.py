@@ -59,14 +59,11 @@ def print_custom_help(console: Console) -> None:
     )
     console.print(Panel(header_text, box=box.ROUNDED, border_style="cyan"))
 
-    console.print("[bold]Usage:[/bold]")
+    console.print("[bold]Usage (Flagless Command-Only Frontend):[/bold]")
     console.print("  [cyan]ez[/cyan]                         [dim]Open interactive TUI menu[/dim]")
     console.print("  [cyan]ez <subcommand> [args][/cyan]     [dim]Run subcommand directly and print output[/dim]")
-    console.print("  [cyan]ez help[/cyan]                    [dim]Show this help message[/dim]\n")
-
-    console.print("[bold]Options:[/bold]")
-    console.print("  [green]-h, --help[/green]                 [dim]Show this help message[/dim]")
-    console.print("  [green]-v, --version[/green]              [dim]Show EasyCLI version[/dim]\n")
+    console.print("  [cyan]ez help[/cyan]                    [dim]Show this help message[/dim]")
+    console.print("  [cyan]ez version[/cyan]                 [dim]Show EasyCLI version[/dim]\n")
 
     table = Table(
         box=box.ROUNDED,
@@ -126,15 +123,29 @@ def main() -> None:
             sys.exit(0)
         return
 
+    # 2. EasyCLI is strictly flagless — reject any flags starting with '-'
+    for a in args:
+        if a.startswith("-"):
+            console.print(
+                f"[bold red]Error:[/bold red] EasyCLI is completely flagless — flags like '[cyan]{a}[/cyan]' are not supported."
+            )
+            if a in ("-h", "--help"):
+                console.print("Use the [bold green]ez help[/bold green] command to view all available commands.")
+            elif a in ("-v", "--version"):
+                console.print("Use the [bold green]ez version[/bold green] command to check the application version.")
+            else:
+                console.print("Run [bold green]ez help[/bold green] to view all available commands.")
+            sys.exit(1)
+
     first_arg = args[0].strip().lower()
 
-    # 2. Help flags or subcommand 'help'
-    if first_arg in ("help", "--help", "-h"):
+    # 3. Subcommand 'help'
+    if first_arg == "help":
         print_custom_help(console)
         sys.exit(0)
 
-    # 3. Version flag
-    if first_arg in ("--version", "-v", "version"):
+    # 4. Subcommand 'version'
+    if first_arg == "version":
         console.print(f"EasyCLI (ez) v{__version__} [dim](Safe Automatic Elevation)[/dim]")
         sys.exit(0)
 
@@ -184,7 +195,7 @@ def main() -> None:
             renderers.render_disk_info(console)
         elif feature.id == "big_files":
             raw_folder = sub_args[0] if sub_args else "~"
-            if raw_folder.lower() in ("choose-directory", "choose", "picker", "select"):
+            if raw_folder.lower() == "choose-directory":
                 if not check_textual_installed(console):
                     sys.exit(1)
                 from .explorer.explorer_app import ExplorerApp
@@ -238,19 +249,12 @@ def main() -> None:
             if not check_textual_installed(console):
                 sys.exit(1)
             from .explorer.explorer_app import run_choose_directory
-            print_only = False
-            clean_sub = []
-            for a in sub_args:
-                if a in ("-p", "--print-path"):
-                    print_only = True
-                else:
-                    clean_sub.append(a)
-            initial_dir = clean_sub[0] if clean_sub else "~"
-            run_choose_directory(initial_dir, print_path_only=print_only)
+            initial_dir = sub_args[0] if sub_args else "~"
+            run_choose_directory(initial_dir)
         elif feature.id == "copy":
             from .file_cli import run_cli_stage
-            choose_dir = any(a.lower() in ("choose-directory", "choose", "picker", "select") for a in sub_args)
-            clean_sub = [a for a in sub_args if a.lower() not in ("choose-directory", "choose", "picker", "select")]
+            choose_dir = any(a.lower() == "choose-directory" for a in sub_args)
+            clean_sub = [a for a in sub_args if a.lower() != "choose-directory"]
             if choose_dir or not sub_args:
                 if not check_textual_installed(console):
                     sys.exit(1)
@@ -259,8 +263,8 @@ def main() -> None:
                 run_cli_stage("copy", targets=clean_sub, console=console)
         elif feature.id == "move":
             from .file_cli import run_cli_stage
-            choose_dir = any(a.lower() in ("choose-directory", "choose", "picker", "select") for a in sub_args)
-            clean_sub = [a for a in sub_args if a.lower() not in ("choose-directory", "choose", "picker", "select")]
+            choose_dir = any(a.lower() == "choose-directory" for a in sub_args)
+            clean_sub = [a for a in sub_args if a.lower() != "choose-directory"]
             if choose_dir or not sub_args:
                 if not check_textual_installed(console):
                     sys.exit(1)
@@ -269,7 +273,7 @@ def main() -> None:
                 run_cli_stage("move", targets=clean_sub, console=console)
         elif feature.id == "paste":
             from .file_cli import run_cli_paste
-            choose_dir = any(a.lower() in ("choose-directory", "choose", "picker", "select") for a in sub_args)
+            choose_dir = any(a.lower() == "choose-directory" for a in sub_args)
             if choose_dir:
                 if not check_textual_installed(console):
                     sys.exit(1)
@@ -284,14 +288,14 @@ def main() -> None:
             run_cli_redo(console=console)
         elif feature.id == "create_folder":
             from .create_cli import run_cli_create_folder
-            choose_dest = any(a.lower() in ("choose-directory", "choose", "picker", "select") for a in sub_args)
-            clean_sub = [a for a in sub_args if a.lower() not in ("choose-directory", "choose", "picker", "select")]
+            choose_dest = any(a.lower() == "choose-directory" for a in sub_args)
+            clean_sub = [a for a in sub_args if a.lower() != "choose-directory"]
             folder_name = clean_sub[0] if clean_sub else None
             run_cli_create_folder(folder_name=folder_name, choose_dest=choose_dest, console=console)
         elif feature.id == "create_file":
             from .create_cli import run_cli_create_file
-            choose_dest = any(a.lower() in ("choose-directory", "choose", "picker", "select") for a in sub_args)
-            clean_sub = [a for a in sub_args if a.lower() not in ("choose-directory", "choose", "picker", "select")]
+            choose_dest = any(a.lower() == "choose-directory" for a in sub_args)
+            clean_sub = [a for a in sub_args if a.lower() != "choose-directory"]
             file_name = clean_sub[0] if clean_sub else None
             run_cli_create_file(file_name=file_name, choose_dest=choose_dest, console=console)
         elif feature.id == "delete":

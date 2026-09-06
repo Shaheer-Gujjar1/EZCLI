@@ -392,12 +392,3 @@ FEATURES: List[FeatureTemplate] = [
 FEATURES_BY_SUBCOMMAND: Dict[str, FeatureTemplate] = {
     f.subcommand: f for f in FEATURES
 }
-
-# Convenient aliases
-FEATURES_BY_SUBCOMMAND["installed"] = FEATURES_BY_SUBCOMMAND["installed-packages"]
-FEATURES_BY_SUBCOMMAND["choose"] = FEATURES_BY_SUBCOMMAND["choose-directory"]
-FEATURES_BY_SUBCOMMAND["explorer"] = FEATURES_BY_SUBCOMMAND["choose-directory"]
-FEATURES_BY_SUBCOMMAND["new-folder"] = FEATURES_BY_SUBCOMMAND["create-folder"]
-FEATURES_BY_SUBCOMMAND["new-file"] = FEATURES_BY_SUBCOMMAND["create-file"]
-FEATURES_BY_SUBCOMMAND["del"] = FEATURES_BY_SUBCOMMAND["delete"]
-FEATURES_BY_SUBCOMMAND["remove"] = FEATURES_BY_SUBCOMMAND["delete"]

@@ -537,13 +537,13 @@ EZCLI/
 │   ├── test_create.py     # File & folder creation validation tests (v0.3)
 │   ├── test_delete.py     # Safe deletion, non-force, and consent tests (v0.3)
 │   ├── test_editor.py     # Mini text & code editor validation tests (v0.3)
-│   ├── test_cli.py        # CLI dispatch, flags, and end-to-end flow tests
+│   ├── test_cli.py        # CLI dispatch, flagless enforcement, and end-to-end flow tests
 │   ├── test_elevation.py  # Privilege elevation & permission-denied simulation tests
 │   ├── test_update_upgrade.py # Update & upgrade catalog and simulation tests (v0.4)
 │   └── test_uninstall.py  # Safe multi-source uninstallation tests (v0.4)
 └── ezcli_app/
     ├── __init__.py        # Package version (__version__ = "0.4.0")
-    ├── config.py          # Declarative FeatureTemplate definitions & aliases
+    ├── config.py          # Declarative FeatureTemplate definitions (canonical commands only)
     ├── distro.py          # /etc/os-release parsing and Debian validation
     ├── emoji.py           # Font capability and UTF-8 detection
     ├── collectors.py      # Subprocess execution and multi-platform queries

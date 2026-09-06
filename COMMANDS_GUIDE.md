@@ -19,7 +19,7 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 
 ## 🗺️ Complete Command Replacement Matrix
 
-| # | EasyCLI Command & Aliases | Traditional Linux Command(s) Replaced | Primary Value Add & Safety Improvements |
+| # | EasyCLI Command (Flagless) | Traditional Linux Command(s) Replaced | Primary Value Add & Safety Improvements |
 | :-: | :--- | :--- | :--- |
 | 1 | `ez system-info` | `hostnamectl`, `uptime -p`, `/etc/os-release`, `uname -r`, `arch` | Single formatted card with OS, kernel, hostname, architecture, and uptime without running 4 separate commands. |
 | 2 | `ez stats` | `htop`, `top`, `free -h`, `uptime`, `nproc`, `ps aux`, `kill` | Modern live Textual monitor with per-core CPU bars, RAM/Swap meters, instant search filtering (`/`), and safe GUI-style kill confirmation with auto-elevation. |
@@ -28,15 +28,15 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 | 5 | `ez disk-info` | `df -h` | Eliminates screen clutter from pseudo-filesystems (loop, tmpfs, udev); displays physical storage drives with colored inline usage bars. |
 | 6 | `ez big-files [dir \| choose-directory]` | `du -h --max-depth=1 \| sort -hr \| head -n 10`, `find` | Replaces long shell pipelines with an animated scanner spinner, formatted size table, and visual folder picker. |
 | 7 | `ez logs [N]` | `journalctl -n N --no-pager`, `dmesg` | Color-codes error logs in red, warnings in yellow, and info logs in green. |
-| 8 | `ez choose-directory [path]`<br>*(Aliases: `ez choose`, `ez explorer`)* | `ranger`, `mc`, `cd`, `ls -la`, `xdg-open` | Full graphical terminal file manager with mouse support, file emojis, bookmarks, and a subshell launcher (`o`) or path output (`-p`). |
+| 8 | `ez choose-directory [path]` | `ranger`, `mc`, `cd`, `ls -la`, `xdg-open` | Full graphical terminal file manager with mouse support, file emojis, bookmarks, and a subshell launcher (`o`). |
 | 9 | `ez copy [target \| choose-directory]` | `cp -r <src> <dest>` | Desktop-style clipboard staging (current directory directly, or anywhere visually) without needing destination upfront; includes collision detection and undo logging. |
 | 10 | `ez move [target \| choose-directory]` | `mv <src> <dest>` | Reversible cut-and-paste with collision resolution and automatic rollback. |
 | 11 | `ez paste [choose-directory]` | *(No direct CLI equivalent — GUI clipboard)* | Pastes staged clipboard files into the current folder or a visually selected destination with conflict resolution (Overwrite, Auto-Rename, Skip). |
 | 12 | `ez undo` | *(No native bash equivalent — lost data)* | One-click rollback for the most recent paste operation (restores overwritten files and reverses moves). |
 | 13 | `ez redo` | *(No native bash equivalent)* | Re-applies the most recently undone operation with safety checks. |
-| 14 | `ez create-folder [name] [choose-directory]`<br>*(Alias: `ez new-folder`)* | `mkdir -p <name>` | Validates folder names, detects existing folders, and allows creating directly or picking the target directory visually with auto-elevation. |
-| 15 | `ez create-file [name] [choose-directory]`<br>*(Alias: `ez new-file`)* | `touch <name>` | Validates file extensions, prevents accidental overwrites, and supports visual destination selection with auto-elevation. |
-| 16 | `ez delete [target \| choose-directory]`<br>*(Aliases: `ez del`, `ez remove`)* | `rm -rf <target>`, `rmdir <target>` | Prevents catastrophic mistakes: non-force check first, displays item summary, requires explicit confirmation, and handles safe auto-elevation. |
+| 14 | `ez create-folder [name] [choose-directory]` | `mkdir -p <name>` | Validates folder names, detects existing folders, and allows creating directly or picking the target directory visually with auto-elevation. |
+| 15 | `ez create-file [name] [choose-directory]` | `touch <name>` | Validates file extensions, prevents accidental overwrites, and supports visual destination selection with auto-elevation. |
+| 16 | `ez delete [target \| choose-directory]` | `rm -rf <target>`, `rmdir <target>` | Prevents catastrophic mistakes: non-force check first, displays item summary, requires explicit confirmation, and handles safe auto-elevation. |
 | 17 | `ez edit-file [target \| choose-directory]` | `nano`, `vim`, `micro`, `gedit`, `sudoedit` | Modern code & text editor with syntax highlighting for 15+ languages, visual find & replace (`Ctrl+F`), and automatic elevated saving for protected system files. |
 | 18 | `ez package-search <kw>` | `apt search`, `flatpak search`, `snap find` | Unified search across **APT 📦**, **Flatpak 🟣**, and **Snap 🟢**; merges duplicates into one item with source badges and directly installs selected packages with automated elevation. |
 | 19 | `ez package <name>` | `apt show <name>`, `dpkg -s <name>` | Clean summary card showing version, size, homepage, description, and installed status without walls of text. |
@@ -44,13 +44,13 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 | 21 | `ez update` | `apt update`, `apt-get update` | Refresh package catalog only, with consent, dot password feedback, warning tolerance, and anti-panic reminders. |
 | 22 | `ez upgrade` | `apt upgrade`, `flatpak update`, `snap refresh` | Multi-source safe system upgrade under single elevation consent with simulation preview, risk badge, Timeshift restore point, and reboot check. |
 | 23 | `ez uninstall <name>` | `apt remove`, `flatpak uninstall`, `snap remove` | Safe application uninstallation across APT, Flatpak, and Snap with pre-removal warning card, single consent, and zero-cache admin elevation. |
-| 24 | `ez installed-packages`<br>*(Alias: `ez installed`)* | `apt list --installed`, `dpkg-query -l`, `flatpak list`, `snap list` | Comprehensive list of installed software across system packages and desktop applications without truncation. |
+| 24 | `ez installed-packages` | `apt list --installed`, `dpkg-query -l`, `flatpak list`, `snap list` | Comprehensive list of installed software across system packages and desktop applications without truncation. |
 | 25 | `ez installed-package-search <kw>` | `apt list --installed \| grep -i <kw>` | Fast case-insensitive search through installed system software without complex bash regex. |
 | 26 | `ez service-status <name>` | `systemctl status <name>`, `is-active`, `is-enabled` | Compact card with clear running state (Active/Inactive) and boot startup state (Enabled/Disabled). |
 | 27 | `ez network-info` | `ip -br addr`, `ip route`, `/etc/resolv.conf`, `ping` | Consolidates IP addresses, interfaces, default gateway, DNS servers, and Internet connectivity into one card. |
 | 28 | `ez` *(no args)* | *(Manual CLI navigation)* | Full interactive TUI menu with searchable categories, emoji icons, and hotkey navigation. |
-| 29 | `ez help`<br>*(Flags: `-h`, `--help`)* | `man <tool>`, `<tool> --help` | Formatted overview of all subcommands, arguments, and safety guidelines. |
-| 30 | `ez version`<br>*(Flags: `-v`, `--version`)* | `<tool> --version`, `<tool> -v` | Displays application version and safe elevation status. |
+| 29 | `ez help` | `man <tool>`, `<tool> --help` | Formatted overview of all subcommands, arguments, and safety guidelines. |
+| 30 | `ez version` | `<tool> --version`, `<tool> -v` | Displays application version and safe elevation status. |
 
 ---
 
@@ -167,7 +167,6 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 ### 2. File & Directory Management (Visual + Direct)
 
 #### `ez choose-directory [path]`
-*(Aliases: `ez choose`, `ez explorer`)*
 - **Replaces:** `ranger`, `mc`, `cd`, `ls -la`, `xdg-open`
 - **Why it's better:** A full graphical terminal file manager built with Textual. Includes full mouse support, single-character file type emojis, bookmarks (Home, Documents, Downloads, Desktop), file details, hidden files toggle (`.`), and a subshell launcher (`o`) that drops you directly into any folder.
 - **Syntax:**
@@ -175,11 +174,6 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
   ez choose-directory           # Opens in current folder
   ez choose-directory ~         # Opens in Home directory
   ez choose-directory /var/log  # Opens in specific folder
-  ez choose-directory -p        # Prints selected directory to stdout (ideal for shell integration)
-  ```
-- **Shell `cd` Integration:**
-  ```bash
-  cd "$(ez choose -p)"
   ```
 
 ---
@@ -246,7 +240,6 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 ---
 
 #### `ez create-folder [name] [choose-directory]`
-*(Alias: `ez new-folder`)*
 - **Replaces:** `mkdir -p <name>`
 - **Why it's better:** Validates naming, detects existing folders, supports visual destination selection, and automatically elevates privileges if creating in a protected system path.
 - **Syntax:**
@@ -262,7 +255,6 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 ---
 
 #### `ez create-file [name] [choose-directory]`
-*(Alias: `ez new-file`)*
 - **Replaces:** `touch <name>`
 - **Why it's better:** Validates file extensions, prevents accidental overwriting of existing files, supports visual destination selection, and automatically elevates privileges if creating in protected directories.
 - **Syntax:**
@@ -278,7 +270,6 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 ---
 
 #### `ez delete [target | choose-directory]`
-*(Aliases: `ez del`, `ez remove`)*
 - **Replaces:** `rm -rf <target>`, `rmdir <target>`
 - **Why it's better:** Traditional `rm -rf` has caused countless catastrophic data losses. `ez delete`:
   1. Non-force first: Warns if folder is non-empty before proceeding.
@@ -380,13 +371,11 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 ---
 
 #### `ez installed-packages`
-*(Alias: `ez installed`)*
 - **Replaces:** `apt list --installed`, `dpkg-query -l`, `flatpak list`, `snap list`
 - **Why it's better:** Lists all installed system software across APT and desktop sandboxes without truncating names or requiring complex piping.
 - **Syntax:**
   ```bash
   ez installed-packages
-  ez installed
   ```
 
 ---
@@ -425,7 +414,7 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 
 ---
 
-### 5. Interactive Navigation & Global Options
+### 5. Interactive Navigation & Global Commands (Flagless)
 
 #### `ez` *(No Arguments)*
 - **Replaces:** Manual command memorization
@@ -438,25 +427,19 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 ---
 
 #### `ez help`
-*(Flags: `-h`, `--help`)*
 - **Replaces:** `man <tool>`, `<tool> --help`
 - **Why it's better:** Outputs a clean, categorized table of all subcommands, arguments, and practical examples.
 - **Syntax:**
   ```bash
   ez help
-  ez --help
-  ez -h
   ```
 
 ---
 
 #### `ez version`
-*(Flags: `-v`, `--version`)*
 - **Replaces:** `<tool> --version`, `<tool> -v`
 - **Why it's better:** Displays application version and safe elevation status.
 - **Syntax:**
   ```bash
   ez version
-  ez --version
-  ez -v
   ```
