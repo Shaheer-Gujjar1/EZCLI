@@ -146,8 +146,15 @@ def main() -> None:
 
     # 4. Subcommand 'version'
     if first_arg == "version":
-        console.print(f"EasyCLI (ez) v{__version__} [dim](Safe Automatic Elevation)[/dim]")
-        sys.exit(0)
+        sub_args = args[1:]
+        if not sub_args:
+            console.print(f"EasyCLI (ez) v{__version__} [dim](Safe Automatic Elevation)[/dim]")
+            console.print("[dim]💡 Tip: Check the version of any app, package, or library with '[bold cyan]ez version <name>[/bold cyan]'[/dim]")
+            sys.exit(0)
+        else:
+            from .version_checker import run_version_command
+            run_version_command(name=sub_args[0], console=console)
+            sys.exit(0)
 
     # 4. Check if subcommand matches a registered feature
     if first_arg not in FEATURES_BY_SUBCOMMAND:
@@ -311,6 +318,10 @@ def main() -> None:
                 target = target_arg
 
             run_cli_edit_file(args=EditArgs(), console=console)
+        elif feature.id == "version":
+            from .version_checker import run_version_command
+            target_arg = sub_args[0] if sub_args else None
+            run_version_command(name=target_arg, console=console)
     except BrokenPipeError:
         try:
             devnull = os.open(os.devnull, os.O_WRONLY)

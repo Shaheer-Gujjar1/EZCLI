@@ -156,6 +156,7 @@ ez help
 | 📄 | `ez create-file <name> [choose-directory]` | **v0.3** | `create-file` | Create a new blank file directly or choose destination directory visually with mini explorer. Automatic privilege elevation. |
 | 🗑️ | `ez delete [target \| choose-directory]` | **v0.3** | `delete` | Permanently delete file(s) or folder(s) with explicit consent, non-force-first safety, and automatic elevation. |
 | 📝 | `ez edit-file [target \| choose-directory]` | **v0.3** | `edit-file` | Modern terminal text and code editor with syntax highlighting, line numbers, visual search, and auto-elevation. |
+| ℹ️ | `ez version [name]` | **v0.4** | `which`, `dpkg`, `apt`, `snap`, `flatpak`, `python`, `node` | Universal version checker across PATH binaries, Debian packages, APT catalog, Snap, Flatpak, Python, and Node libraries. Dual mode: displays EasyCLI version with no argument, or inspects specified target. |
 
 ---
 
@@ -508,6 +509,26 @@ ez task-manager-pro   # Pro Mode: All tasks (Apps + Background Daemons + System 
 - **Mouse & Keyboard Controls**: Click rows to select, double-click or press `Del`/`k` to End Task, click column headers to sort by CPU %, Memory %, Name, PID, or Status, press `/` to live filter.
 - **Automatic Elevation**: In Pro Mode, terminating root or system processes automatically elevates through the privileged helper without needing to launch EasyCLI as root.
 
+### 5. `ez version [name]` — Universal Version Checker
+A single, flagless, beginner-friendly version checker for any application, package, binary, or library:
+```bash
+ez version         # Displays EasyCLI version + usage hint
+ez version curl    # Universal inspection across all 7 sources
+```
+- **Dual Invocation**:
+  - **No argument (`ez version`)**: Displays EasyCLI's own version along with a clear one-line tip on inspecting any external software.
+  - **With argument (`ez version <name>`)**: Automatically inspects the target across all 7 detection sources in exact sequence:
+    1. **Executable on PATH**: Quietly probes standard candidate version flags (`--version`, `-v`, `-V`, `version`, `-version`) with execution timeouts and safety guards.
+    2. **Installed Debian Package**: Queries `dpkg-query` and retrieves installation timestamp from `/var/lib/dpkg/info/<pkg>.list`.
+    3. **APT Catalog**: Checks candidate versions available via repository catalog (`apt-cache policy`).
+    4. **Snap Package**: Inspects installed snaps via `snap list` and `/snap/<name>/current` mtime.
+    5. **Flatpak Application**: Inspects installed Flatpaks via `flatpak info` and `flatpak list --app`.
+    6. **Python Library**: Discovers installed Python packages via standard `importlib.metadata.distribution`.
+    7. **Node.js Library**: Scans global npm packages (`npm root -g`) and local `./node_modules/<name>/package.json`.
+- **Unified Multi-Source Card**: If a tool is present in multiple places (e.g. `curl` installed as both a system binary and Debian package), all matches are rendered together in a single, clear Rich card with Source Type, Detected Version, Identifier/Path, and Install Date.
+- **Friendly Guidance**: If nothing is found across any source, renders a helpful card suggesting `ez package-search <name>` and `ez installed-packages`.
+- **Read-Only & Flagless**: Zero administrative elevation needed; strictly flagless.
+
 ---
 
 ## 🎨 Icon & Font Policy
@@ -529,7 +550,7 @@ EZCLI/
 ├── setup.py               # Setup script (v0.4.0)
 ├── install.sh             # 1-step deployment script
 ├── README.md              # Documentation and guide
-├── tests/                 # Comprehensive unit test suite (173 tests)
+├── tests/                 # Comprehensive unit test suite (200 tests)
 │   ├── test_distro.py     # Distro parser and derivative detection tests
 │   ├── test_collectors.py # System inspection and installed package tests
 │   ├── test_file_ops.py   # Copy, move, cross-filesystem, and conflict tests
@@ -540,7 +561,9 @@ EZCLI/
 │   ├── test_cli.py        # CLI dispatch, flagless enforcement, and end-to-end flow tests
 │   ├── test_elevation.py  # Privilege elevation & permission-denied simulation tests
 │   ├── test_update_upgrade.py # Update & upgrade catalog and simulation tests (v0.4)
-│   └── test_uninstall.py  # Safe multi-source uninstallation tests (v0.4)
+│   ├── test_uninstall.py  # Safe multi-source uninstallation tests (v0.4)
+│   ├── test_task_manager.py # Lite & Pro Windows-style task manager tests (v0.4)
+│   └── test_version.py    # Universal version checker multi-source tests (v0.4)
 └── ezcli_app/
     ├── __init__.py        # Package version (__version__ = "0.4.0")
     ├── config.py          # Declarative FeatureTemplate definitions (canonical commands only)
@@ -558,6 +581,10 @@ EZCLI/
     ├── delete_cli.py      # Safe consent-first delete CLI handlers (v0.3)
     ├── edit_cli.py        # Modern text & code editor CLI handlers (v0.3)
     ├── undo.py            # Reversible undo history engine (~/.local/share/ez)
+    ├── update_upgrade.py  # Catalog refresh, simulation & system upgrade (v0.4)
+    ├── uninstall_cli.py   # Multi-source safe application uninstallation (v0.4)
+    ├── task_manager.py    # Lite Windows-style terminal task manager (v0.4)
+    ├── version_checker.py # Universal multi-source version detector & renderer (v0.4)
     ├── editor/            # Textual TUI Mini Text & Code Editor (v0.3)
     │   ├── __init__.py    # Editor package exports
     │   └── editor_app.py  # Syntax highlighting, line numbers, modals & auto-elevation
@@ -587,10 +614,12 @@ EZCLI/
   - Live system and process monitor (`ez stats`) with per-core visual CPU bars, RAM/Swap gauges, and safe process termination.
   - Non-force-first safety: non-empty folders always prompt before any force removal. Direct commands restricted to current directory.
   - 100% automatic privilege elevation with consent and visible dot password feedback (`••••`), without `--admin` flags or root contamination.
-- **v0.4 — Privileged Software Catalog Updates & System Upgrade**:
+- **v0.4 — Privileged Software Catalog Updates, System Upgrade, Task Manager & Universal Version Checker**:
   - Software catalog refresh (`ez update`) with read-only explanation card, repo hit/get counts, warning tolerance, and anti-panic reminders.
   - Comprehensive multi-source system upgrade (`ez upgrade`) across APT, Flatpak, and Snap with impact simulation, Timeshift restore point recommendation, risk badge, and reboot check.
-  - Single-consent elevation covering the entire upgrade flow.
+  - Safe application uninstallation (`ez uninstall <name>`) across APT, Flatpak, and Snap with warning card, single consent, and zero-cache admin elevation.
+  - Lite & modern terminal Task Manager (`ez task-manager`, `ez task-manager-pro`) with mouse support, real-time gauges, unresponsive process detection, and auto-elevation.
+  - Universal Version Checker (`ez version [name]`) automatically inspecting binaries on PATH, Debian packages, APT catalog, Snap, Flatpak, Python, and Node libraries without flags.
 
 ---
 
@@ -601,4 +630,4 @@ To run the automated unit test suite:
 python3 -m unittest discover tests/
 ```
 
-All 147 unit tests validate distro detection, collector safety, file operations, conflict policies, cross-filesystem moves, undo engine, command parsing, file/folder creation, safe deletion with force prompts, mini text editor validation, binary file protection, permission-denied simulations, live stats metrics, privileged catalog updates, and multi-source system upgrade simulations.
+All 200 unit tests validate distro detection, collector safety, file operations, conflict policies, cross-filesystem moves, undo engine, command parsing, file/folder creation, safe deletion with force prompts, mini text editor validation, binary file protection, permission-denied simulations, live stats metrics, privileged catalog updates, multi-source system upgrade simulations, safe application uninstallation, Windows-style task manager, and universal version checking.

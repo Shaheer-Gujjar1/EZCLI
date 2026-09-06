@@ -50,7 +50,7 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 | 27 | `ez network-info` | `ip -br addr`, `ip route`, `/etc/resolv.conf`, `ping` | Consolidates IP addresses, interfaces, default gateway, DNS servers, and Internet connectivity into one card. |
 | 28 | `ez` *(no args)* | *(Manual CLI navigation)* | Full interactive TUI menu with searchable categories, emoji icons, and hotkey navigation. |
 | 29 | `ez help` | `man <tool>`, `<tool> --help` | Formatted overview of all subcommands, arguments, and safety guidelines. |
-| 30 | `ez version` | `<tool> --version`, `<tool> -v` | Displays application version and safe elevation status. |
+| 30 | `ez version [name]` | `<tool> --version`, `dpkg -s`, `apt-cache policy`, `snap list`, `flatpak info`, `pip show`, `npm list` | Universal version checker: without arguments, prints EasyCLI version + hint; with `<name>`, auto-detects version across binary on PATH, Debian package, APT catalog, Snap, Flatpak, Python library, and Node.js library in a single clean card. |
 
 ---
 
@@ -436,10 +436,25 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 
 ---
 
-#### `ez version`
-- **Replaces:** `<tool> --version`, `<tool> -v`
-- **Why it's better:** Displays application version and safe elevation status.
+#### `ez version [name]`
+- **Replaces:** `<tool> --version`, `dpkg -s`, `apt-cache policy`, `snap list`, `flatpak info`, `pip show`, `npm list`
+- **Why it's better:** One single, fully automatic, beginner-friendly version checker for any app, package, or library without needing any flags or type specifiers.
+  - **No argument (`ez version`)**: Displays EasyCLI's own version and a one-line tip on how to check other items.
+  - **With argument (`ez version <name>`)**: Automatically scans 7 sources in exact order:
+    1. 🖥️ **Binary on PATH**: Quietly tries common version arguments and parses the first sane version string.
+    2. 📦 **Debian Package (`dpkg`)**: Queries installed packages and installation timestamp.
+    3. 📋 **APT Catalog**: Checks available repository candidate version.
+    4. 🟢 **Snap Package**: Inspects installed Snap revisions and timestamps.
+    5. 🟣 **Flatpak App**: Checks Flatpak application metadata and version.
+    6. 🐍 **Python Library**: Queries Python package metadata via `importlib.metadata`.
+    7. 📦 **Node.js Library**: Inspects global and local `package.json` files.
+  - **Multi-Source Consolidation**: If a tool is installed via multiple systems (e.g. `curl` as both binary, Debian package, and Snap), all matches are displayed together in one clean card.
+  - **Actionable Not-Found Guidance**: If nothing is found, provides friendly suggestions pointing to `ez package-search <name>` and `ez installed-packages`.
 - **Syntax:**
   ```bash
-  ez version
+  ez version            # Show EasyCLI version and usage hint
+  ez version curl       # Inspect system app / binary / package
+  ez version python3    # Check compiler or runtime version
+  ez version rich       # Inspect Python library version
+  ez version express    # Inspect Node.js library version
   ```

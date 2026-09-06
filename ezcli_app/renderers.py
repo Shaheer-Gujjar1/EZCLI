@@ -817,3 +817,9 @@ def render_installed_package_search(console: Console, term: str, is_admin: bool 
     """Search installed packages by name (wraps apt list --installed | grep -i <app>)."""
     render_installed_packages(console, filter_term=term)
 
+
+def render_version_info(console: Console, name: str = "") -> None:
+    """Universal version checker renderer (wraps ez version [name])."""
+    from .version_checker import run_version_command
+    run_version_command(name=name, console=console)
+

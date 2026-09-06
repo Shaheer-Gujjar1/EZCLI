@@ -46,6 +46,13 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(res.returncode, 0)
         self.assertIn(f"v{__version__}", res.stdout)
         self.assertIn("EasyCLI (ez)", res.stdout)
+        self.assertIn("ez version", res.stdout)
+
+    def test_version_subcommand_with_target(self):
+        res = self.run_ez("version", "bash")
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("Version Information: bash", res.stdout)
+        self.assertIn("Binary", res.stdout)
 
     def test_flags_rejected(self):
         # EasyCLI is completely flagless — all flags must be rejected

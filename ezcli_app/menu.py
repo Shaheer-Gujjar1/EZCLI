@@ -116,6 +116,10 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
                 from .task_manager import run_task_manager
                 run_task_manager(mode="pro")
                 return
+            elif feature.id == "version":
+                from .version_checker import run_version_command
+                target_app = args_values[0] if args_values else None
+                run_version_command(name=target_app, console=console)
             elif renderer_fn is not None:
                 if feature.subcommand == "big_files" or feature.id == "big_files":
                     raw_folder = args_values[0] if args_values else "~"

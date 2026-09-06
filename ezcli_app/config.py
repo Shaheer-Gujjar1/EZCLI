@@ -386,6 +386,23 @@ FEATURES: List[FeatureTemplate] = [
         ],
         renderer_name="run_cli_edit_file",
     ),
+    FeatureTemplate(
+        id="version",
+        subcommand="version",
+        title="Check Version",
+        icon="ℹ️",
+        description="Check installed version of any app, package, snap, flatpak, or library",
+        wrapped_commands=["which", "dpkg", "apt", "snap", "flatpak", "python", "node"],
+        arguments=[
+            ArgumentDef(
+                name="name",
+                help="Name of app, package, or library to inspect (omit for EasyCLI version)",
+                required=False,
+                default="",
+            )
+        ],
+        renderer_name="render_version_info",
+    ),
 ]
 
 # Lookup map by subcommand
