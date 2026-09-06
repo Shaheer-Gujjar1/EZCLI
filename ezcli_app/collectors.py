@@ -646,25 +646,91 @@ def collect_package_search(term: str, limit: int = 25) -> Dict[str, Any]:
     combined.extend(snap_items)
     combined.extend(remaining_apt)
 
-    # Attach install & setup command metadata
+    # Attach platform support metadata
     for pkg in combined:
         plat = pkg["platform"]
-        app_id = pkg.get("app_id", pkg["name"])
-        name = pkg["name"]
-        if plat == "apt":
-            pkg["install_cmd"] = f"sudo apt install -y {app_id}"
-            pkg["setup_cmd"] = ""
-            pkg["platform_supported"] = result["has_apt"]
-        elif plat == "flatpak":
-            pkg["install_cmd"] = f"flatpak install flathub {app_id}"
-            pkg["setup_cmd"] = "sudo apt install -y flatpak && flatpak remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo"
-            pkg["platform_supported"] = result["has_flatpak"]
-        elif plat == "snap":
-            pkg["install_cmd"] = f"sudo snap install {app_id}"
-            pkg["setup_cmd"] = "sudo apt install -y snapd"
-            pkg["platform_supported"] = result["has_snap"]
+        pkg["platform_supported"] = result.get(f"has_{plat}", True)
 
-    result["packages"] = combined[:limit]
+    # Merge multi-source packages sharing the exact same name
+    merged = merge_search_packages(combined)
+    result["packages"] = merged[:limit]
+    return result
+
+
+def merge_search_packages(packages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Merge package search results from different sources sharing the exact same name."""
+    merged_map: Dict[str, Dict[str, Any]] = {}
+    ordered_keys: List[str] = []
+
+    for pkg in packages:
+        raw_name = pkg.get("name", "").strip()
+        if not raw_name:
+            continue
+        norm_key = raw_name.lower()
+
+        # Match existing merged item by name or app_id suffix (e.g. org.videolan.VLC matching vlc)
+        matched_key = None
+        if norm_key in merged_map:
+            matched_key = norm_key
+        else:
+            app_id = pkg.get("app_id", "")
+            app_suffix = app_id.split(".")[-1].lower() if "." in app_id else ""
+            if app_suffix and app_suffix in merged_map:
+                matched_key = app_suffix
+            else:
+                for existing_key, existing_item in merged_map.items():
+                    existing_app_id = existing_item.get("app_id", "")
+                    existing_suffix = existing_app_id.split(".")[-1].lower() if "." in existing_app_id else ""
+                    if existing_suffix == norm_key:
+                        matched_key = existing_key
+                        break
+
+        source_info = {
+            "platform": pkg.get("platform", "apt"),
+            "platform_name": pkg.get("platform_name", "APT"),
+            "platform_icon": pkg.get("platform_icon", "📦"),
+            "name": pkg.get("name", ""),
+            "app_id": pkg.get("app_id", pkg.get("name", "")),
+            "description": pkg.get("description", ""),
+            "version_info": pkg.get("version_info", ""),
+            "installed": bool(pkg.get("installed", False)),
+            "platform_supported": bool(pkg.get("platform_supported", True)),
+        }
+
+        if matched_key is None:
+            ordered_keys.append(norm_key)
+            merged_map[norm_key] = {
+                "name": raw_name,
+                "app_id": pkg.get("app_id", raw_name),
+                "description": pkg.get("description", ""),
+                "installed": bool(pkg.get("installed", False)),
+                "sources": [source_info],
+                "platforms": [source_info["platform"]],
+                "platform": source_info["platform"],
+                "platform_name": source_info["platform_name"],
+                "platform_icon": source_info["platform_icon"],
+                "platform_supported": source_info["platform_supported"],
+            }
+        else:
+            entry = merged_map[matched_key]
+            existing_platforms = [s["platform"] for s in entry["sources"]]
+            if source_info["platform"] not in existing_platforms:
+                entry["sources"].append(source_info)
+                entry["platforms"].append(source_info["platform"])
+                if source_info["installed"]:
+                    entry["installed"] = True
+                if not entry["description"] and source_info["description"]:
+                    entry["description"] = source_info["description"]
+                if raw_name != raw_name.lower() and entry["name"] == entry["name"].lower():
+                    entry["name"] = raw_name
+
+    result: List[Dict[str, Any]] = []
+    for key in ordered_keys:
+        item = merged_map[key]
+        item["platform_badges"] = "  ".join(f"{s['platform_icon']} {s['platform_name']}" for s in item["sources"])
+        item["installed_sources"] = [s["platform_name"] for s in item["sources"] if s["installed"]]
+        result.append(item)
+
     return result
 
 

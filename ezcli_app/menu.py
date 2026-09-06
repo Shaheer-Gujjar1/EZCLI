@@ -103,6 +103,19 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
                 from .upgrade_cli import run_cli_upgrade
                 run_cli_upgrade(console=console)
                 return
+            elif feature.id == "uninstall":
+                from .uninstall_cli import run_cli_uninstall
+                target_app = args_values[0] if args_values else None
+                run_cli_uninstall(app_name=target_app, console=console)
+                return
+            elif feature.id == "task_manager":
+                from .task_manager import run_task_manager
+                run_task_manager(mode="normal")
+                return
+            elif feature.id == "task_manager_pro":
+                from .task_manager import run_task_manager
+                run_task_manager(mode="pro")
+                return
             elif renderer_fn is not None:
                 if feature.subcommand == "big_files" or feature.id == "big_files":
                     raw_folder = args_values[0] if args_values else "~"

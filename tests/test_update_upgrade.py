@@ -14,9 +14,11 @@ from ezcli_app.privileged_helper import (
     helper_apt_update,
     helper_apt_upgrade,
     helper_flatpak_update,
+    helper_package_install,
     helper_snap_refresh,
     helper_timeshift_snapshot,
 )
+from ezcli_app.elevation import elevated_package_install
 from ezcli_app.upgrade_cli import (
     assess_upgrade_risk,
     check_flatpak_updates,
@@ -186,6 +188,93 @@ class TestUpdateUpgradeHelper(unittest.TestCase):
             mock_sim.return_value = {"success": True}
             res = dispatch_helper_request({"action": "apt_simulate_upgrade", "params": {}})
             self.assertTrue(res["success"])
+
+        with patch("ezcli_app.privileged_helper.helper_package_install") as mock_inst:
+            mock_inst.return_value = {"success": True}
+            res = dispatch_helper_request({
+                "action": "package_install",
+                "params": {"platform": "apt", "package": "curl", "timeout": 300},
+            })
+            self.assertTrue(res["success"])
+            mock_inst.assert_called_once_with("apt", "curl", 300)
+
+    @patch("subprocess.run")
+    def test_helper_package_install_apt(self, mock_run):
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0
+        mock_proc.stdout = "Setting up curl ... done"
+        mock_proc.stderr = ""
+        mock_run.return_value = mock_proc
+
+        res = helper_package_install("apt", "curl")
+        self.assertTrue(res["success"])
+        self.assertEqual(res["returncode"], 0)
+        cmd_called = mock_run.call_args[0][0]
+        self.assertIn("apt-get", cmd_called)
+        self.assertIn("install", cmd_called)
+        self.assertIn("curl", cmd_called)
+
+    @patch("shutil.which")
+    @patch("subprocess.run")
+    def test_helper_package_install_snap(self, mock_run, mock_which):
+        mock_which.return_value = "/usr/bin/snap"
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0
+        mock_proc.stdout = "vlc installed"
+        mock_proc.stderr = ""
+        mock_run.return_value = mock_proc
+
+        res = helper_package_install("snap", "vlc")
+        self.assertTrue(res["success"])
+        cmd_called = mock_run.call_args[0][0]
+        self.assertEqual(cmd_called, ["snap", "install", "vlc"])
+
+    @patch("shutil.which")
+    @patch("subprocess.run")
+    def test_helper_package_install_flatpak(self, mock_run, mock_which):
+        mock_which.return_value = "/usr/bin/flatpak"
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0
+        mock_proc.stdout = "Installation complete."
+        mock_proc.stderr = ""
+        mock_run.return_value = mock_proc
+
+        res = helper_package_install("flatpak", "org.videolan.VLC")
+        self.assertTrue(res["success"])
+        cmd_called = mock_run.call_args[0][0]
+        self.assertEqual(cmd_called, ["flatpak", "-y", "install", "flathub", "org.videolan.VLC"])
+
+    def test_helper_package_install_edge_cases(self):
+        # Empty package name
+        res_empty = helper_package_install("apt", "")
+        self.assertFalse(res_empty["success"])
+        self.assertIn("No package specified", res_empty["error"])
+
+        # Unsupported platform
+        res_unsupp = helper_package_install("brew", "curl")
+        self.assertFalse(res_unsupp["success"])
+        self.assertIn("Unsupported", res_unsupp["error"])
+
+        # Missing runtime
+        with patch("shutil.which", return_value=None):
+            res_no_fp = helper_package_install("flatpak", "org.videolan.VLC")
+            self.assertFalse(res_no_fp["success"])
+            self.assertIn("Flatpak is not installed", res_no_fp["error"])
+
+            res_no_snap = helper_package_install("snap", "vlc")
+            self.assertFalse(res_no_snap["success"])
+            self.assertIn("Snap is not installed", res_no_snap["error"])
+
+    @patch("ezcli_app.elevation.run_elevated_helper")
+    def test_elevated_package_install(self, mock_helper):
+        mock_helper.return_value = (True, {"success": True, "returncode": 0}, "")
+        ok, res, err = elevated_package_install("apt", "htop")
+        self.assertTrue(ok)
+        self.assertEqual(err, "")
+        mock_helper.assert_called_once()
+        self.assertEqual(mock_helper.call_args[1]["action"], "package_install")
+        self.assertEqual(mock_helper.call_args[1]["params"]["package"], "htop")
+
 
 
 class TestUpdateUpgradeCLI(unittest.TestCase):

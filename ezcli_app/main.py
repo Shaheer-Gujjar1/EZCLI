@@ -170,6 +170,16 @@ def main() -> None:
                 else:
                     from .stats import run_live_stats
                     run_live_stats()
+        elif feature.id == "task_manager":
+            if not check_textual_installed(console):
+                sys.exit(1)
+            from .task_manager import run_task_manager
+            run_task_manager(mode="normal")
+        elif feature.id == "task_manager_pro":
+            if not check_textual_installed(console):
+                sys.exit(1)
+            from .task_manager import run_task_manager
+            run_task_manager(mode="pro")
         elif feature.id == "disk_info":
             renderers.render_disk_info(console)
         elif feature.id == "big_files":
@@ -201,6 +211,10 @@ def main() -> None:
         elif feature.id == "upgrade":
             from .upgrade_cli import run_cli_upgrade
             run_cli_upgrade(console=console)
+        elif feature.id == "uninstall":
+            from .uninstall_cli import run_cli_uninstall
+            target_app = sub_args[0] if sub_args else None
+            run_cli_uninstall(app_name=target_app, console=console)
         elif feature.id == "service_status":
             svc_name = sub_args[0]
             renderers.render_service_status(console, svc_name)

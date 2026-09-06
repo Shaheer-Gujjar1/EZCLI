@@ -1,4 +1,4 @@
-# EasyCLI (`ez`) v0.3
+# EasyCLI (`ez`) v0.4
 
 **EasyCLI** is a beginner-friendly terminal frontend wrapper for Linux commands built specifically for Debian-based systems. It simplifies complex and verbose Linux tasks into beautiful, color-coded terminal cards, interactive menus, a modern graphical file explorer, safety-first file operations with reversible undo, modern file creation/deletion, and seamless automatic privilege elevation.
 
@@ -131,6 +131,8 @@ ez help
 | :---: | :--- | :---: | :--- | :--- |
 | 💻 | `ez system-info` | **v0.1** | `hostnamectl`, `uptime -p`, `/etc/os-release` | Key-value card with OS name/version, hostname, kernel, architecture, and uptime. |
 | ⚡ | `ez stats` | **v0.3** | `/proc`, `ps`, `free`, `uptime` | Live-updating system & process monitor (modern `htop` alternative with per-core CPU bars, RAM/Swap gauges, search filtering, and safe process termination). |
+| 📋 | `ez task-manager` | **v0.4** | *(Windows Task Manager)*, `ps`, `kill` | Lite & modern Windows-style task manager for user apps with mouse support, emoji icons, unresponsive detection, and instant termination. |
+| 🛡️ | `ez task-manager-pro` | **v0.4** | `ps aux`, `top`, `sudo kill` | Comprehensive pro task manager with user apps, background daemons, system services, category tabs, and auto admin elevation. |
 | 💽 | `ez disk-info` | **v0.1** | `df -h` | Table of storage mounts, sizes, used/available space, and inline usage bars (filters out pseudo-filesystems). |
 | 📁 | `ez big-files [path \| choose-directory]` | **v0.1** | `du -h --max-depth=1`, `find` | Table of largest files and folders. Provide a path or use `choose-directory` to pick visually via the mini explorer. Defaults to `~`. |
 | 🔍 | `ez package-search <term>` | **v0.1** | `apt search`, `flathub`, `snapcraft` | Universal search across **APT 📦**, **Flatpak 🟣**, and **Snap 🟢** with interactive platform selection & installation commands. |
@@ -138,6 +140,7 @@ ez help
 | 🔄 | `ez available-updates` | **v0.1** | `apt list --upgradable` | Table of upgradable packages and versions using existing lists only (never runs `apt update`). |
 | 🔄 | `ez update` | **v0.4** | `apt update`, `apt-get update` | Refresh package catalog from repositories without installing or modifying software. Safe elevation. |
 | ⬆️ | `ez upgrade` | **v0.4** | `apt upgrade`, `snap refresh`, `flatpak update` | Comprehensive upgrade across APT, Flatpak, and Snap with impact simulation, Timeshift restore point prompt, and reboot check. |
+| 🗑️ | `ez uninstall <name>` | **v0.4** | `apt remove`, `snap remove`, `flatpak uninstall` | Safe application uninstallation across APT, Flatpak, and Snap with warning card, single consent, and zero-cache admin elevation. |
 | ⚙️ | `ez service-status <name>` | **v0.1** | `systemctl is-active`, `systemctl is-enabled` | Status card with running state and boot enablement indicators. |
 | 🌐 | `ez network-info` | **v0.1** | `ip addr`, `ip route`, `/etc/resolv.conf` | Overview card and table of network interfaces, IP addresses, gateway, DNS, and online status. |
 | 📄 | `ez logs [N]` | **v0.1** | `journalctl -n N --no-pager` | Color-coded system logs by severity (errors red, warnings yellow, ok green). Defaults to 50 lines. |
@@ -483,6 +486,28 @@ ez upgrade
 - **Step 4 — Per-Source Execution**: Runs standard non-destructive upgrades (`apt-get upgrade`, `flatpak update`, `snap refresh`) sequentially with progress indicators.
 - **Step 5 — Summary & Reboot Check**: Checks `/var/run/reboot-required` and reminds the user if core components require a restart. Concludes with: *"Done. Run this only when you choose to — there is no daily obligation."*
 
+### 3. `ez uninstall <name>` — Safe Multi-Source Application Removal
+Safely uninstalls software across **APT**, **Flatpak**, and **Snap** with clear impact warnings and zero-cache admin elevation:
+```bash
+ez uninstall vlc
+```
+- **Automatic Multi-Source Resolution**: Automatically checks if the application is installed via APT, Flatpak, or Snap. If multiple installations exist, provides an interactive menu to choose which instance to remove.
+- **Pre-Removal Warning Card**: Displays a formatted card with the application name, package ID, platform badge, installed version, space occupied, and impact notices.
+- **Single Consent & Non-Cached Authentication**: Requires a single explicit confirmation (`[y/N]`) and prompts for the admin password with dots (`●●●●`). Strictly **never caches or persists your admin password** in memory or on disk.
+- **Reassuring Summary**: Shows an uninstallation completion panel confirming removal of application binaries and desktop integrations.
+
+### 4. `ez task-manager` & `ez task-manager-pro` — Lite & Modern Terminal Task Manager
+Windows-inspired, ultra-light terminal Task Manager featuring full mouse support, emoji icons, real-time gauges, and unresponsive process detection:
+```bash
+ez task-manager       # Normal Mode: Interactive User Applications only
+ez task-manager-pro   # Pro Mode: All tasks (Apps + Background Daemons + System Services)
+```
+- **Normal Mode (`ez task-manager`)**: Displays only your running user applications (browsers, IDEs, media players, terminals). Automatically hides noisy system daemons, systemd units, and kernel threads.
+- **Pro Mode (`ez task-manager-pro`)**: Comprehensive administrator view with all active processes classified into category tabs (`[All]`, `[Apps]`, `[Background]`, `[System]`, `[Unresponsive]`).
+- **Unresponsive Detection**: Detects hung processes in uninterruptible sleep (`D`), zombie state (`Z`), or stopped state (`T`), prominently highlighting them with `⚠️ Unresponsive` badges.
+- **Mouse & Keyboard Controls**: Click rows to select, double-click or press `Del`/`k` to End Task, click column headers to sort by CPU %, Memory %, Name, PID, or Status, press `/` to live filter.
+- **Automatic Elevation**: In Pro Mode, terminating root or system processes automatically elevates through the privileged helper without needing to launch EasyCLI as root.
+
 ---
 
 ## 🎨 Icon & Font Policy
@@ -500,11 +525,11 @@ EasyCLI is designed with a layered, decoupled architecture:
 ```
 EZCLI/
 ├── ez                     # Executable entrypoint script
-├── pyproject.toml         # Packaging configuration (v0.3.0)
-├── setup.py               # Setup script (v0.3.0)
+├── pyproject.toml         # Packaging configuration (v0.4.0)
+├── setup.py               # Setup script (v0.4.0)
 ├── install.sh             # 1-step deployment script
 ├── README.md              # Documentation and guide
-├── tests/                 # Comprehensive unit test suite (103 tests)
+├── tests/                 # Comprehensive unit test suite (173 tests)
 │   ├── test_distro.py     # Distro parser and derivative detection tests
 │   ├── test_collectors.py # System inspection and installed package tests
 │   ├── test_file_ops.py   # Copy, move, cross-filesystem, and conflict tests
@@ -513,9 +538,11 @@ EZCLI/
 │   ├── test_delete.py     # Safe deletion, non-force, and consent tests (v0.3)
 │   ├── test_editor.py     # Mini text & code editor validation tests (v0.3)
 │   ├── test_cli.py        # CLI dispatch, flags, and end-to-end flow tests
-│   └── test_elevation.py  # Privilege elevation & permission-denied simulation tests
+│   ├── test_elevation.py  # Privilege elevation & permission-denied simulation tests
+│   ├── test_update_upgrade.py # Update & upgrade catalog and simulation tests (v0.4)
+│   └── test_uninstall.py  # Safe multi-source uninstallation tests (v0.4)
 └── ezcli_app/
-    ├── __init__.py        # Package version (__version__ = "0.3.0")
+    ├── __init__.py        # Package version (__version__ = "0.4.0")
     ├── config.py          # Declarative FeatureTemplate definitions & aliases
     ├── distro.py          # /etc/os-release parsing and Debian validation
     ├── emoji.py           # Font capability and UTF-8 detection

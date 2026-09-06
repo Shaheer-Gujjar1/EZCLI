@@ -25,7 +25,7 @@ class FeatureTemplate:
     renderer_name: str = ""
 
 
-# Feature Templates (v0.1, v0.2, v0.3)
+# Feature Templates (v0.1, v0.2, v0.3, v0.4)
 FEATURES: List[FeatureTemplate] = [
     FeatureTemplate(
         id="system_info",
@@ -44,6 +44,24 @@ FEATURES: List[FeatureTemplate] = [
         description="Live-updating system & process monitor (per-core CPU, RAM/Swap, process manager)",
         wrapped_commands=["free -h", "uptime", "nproc", "ps"],
         renderer_name="render_stats",
+    ),
+    FeatureTemplate(
+        id="task_manager",
+        subcommand="task-manager",
+        title="Task Manager",
+        icon="📋",
+        description="Lite and modern terminal Task Manager showing active user apps, unresponsive detection, and instant process termination",
+        wrapped_commands=["ps", "kill"],
+        renderer_name="run_task_manager",
+    ),
+    FeatureTemplate(
+        id="task_manager_pro",
+        subcommand="task-manager-pro",
+        title="Task Manager (Pro)",
+        icon="🛡️",
+        description="Comprehensive Task Manager showing all user apps, background daemons, and system processes with automatic admin elevation",
+        wrapped_commands=["ps", "kill", "sudo kill"],
+        renderer_name="run_task_manager_pro",
     ),
     FeatureTemplate(
         id="disk_info",
@@ -129,6 +147,22 @@ FEATURES: List[FeatureTemplate] = [
         description="Comprehensive upgrade across APT, Flatpak, and Snap with safety preview",
         wrapped_commands=["apt upgrade", "snap refresh", "flatpak update"],
         renderer_name="run_cli_upgrade",
+    ),
+    FeatureTemplate(
+        id="uninstall",
+        subcommand="uninstall",
+        title="Uninstall Application",
+        icon="🗑️",
+        description="Safely uninstall an application across APT, Flatpak, or Snap with admin authorization",
+        wrapped_commands=["apt remove", "flatpak uninstall", "snap remove"],
+        arguments=[
+            ArgumentDef(
+                name="name",
+                help="Name or ID of the application to uninstall",
+                required=False,
+            )
+        ],
+        renderer_name="run_cli_uninstall",
     ),
     FeatureTemplate(
         id="service_status",

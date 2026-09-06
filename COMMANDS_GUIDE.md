@@ -23,29 +23,34 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 | :-: | :--- | :--- | :--- |
 | 1 | `ez system-info` | `hostnamectl`, `uptime -p`, `/etc/os-release`, `uname -r`, `arch` | Single formatted card with OS, kernel, hostname, architecture, and uptime without running 4 separate commands. |
 | 2 | `ez stats` | `htop`, `top`, `free -h`, `uptime`, `nproc`, `ps aux`, `kill` | Modern live Textual monitor with per-core CPU bars, RAM/Swap meters, instant search filtering (`/`), and safe GUI-style kill confirmation with auto-elevation. |
-| 3 | `ez disk-info` | `df -h` | Eliminates screen clutter from pseudo-filesystems (loop, tmpfs, udev); displays physical storage drives with colored inline usage bars. |
-| 4 | `ez big-files [dir \| choose-directory]` | `du -h --max-depth=1 \| sort -hr \| head -n 10`, `find` | Replaces long shell pipelines with an animated scanner spinner, formatted size table, and visual folder picker. |
-| 5 | `ez logs [N]` | `journalctl -n N --no-pager`, `dmesg` | Color-codes error logs in red, warnings in yellow, and info logs in green. |
-| 6 | `ez choose-directory [path]`<br>*(Aliases: `ez choose`, `ez explorer`)* | `ranger`, `mc`, `cd`, `ls -la`, `xdg-open` | Full graphical terminal file manager with mouse support, file emojis, bookmarks, and a subshell launcher (`o`) or path output (`-p`). |
-| 7 | `ez copy [target \| choose-directory]` | `cp -r <src> <dest>` | Desktop-style clipboard staging (current directory directly, or anywhere visually) without needing destination upfront; includes collision detection and undo logging. |
-| 8 | `ez move [target \| choose-directory]` | `mv <src> <dest>` | Reversible cut-and-paste with collision resolution and automatic rollback. |
-| 9 | `ez paste [choose-directory]` | *(No direct CLI equivalent — GUI clipboard)* | Pastes staged clipboard files into the current folder or a visually selected destination with conflict resolution (Overwrite, Auto-Rename, Skip). |
-| 10 | `ez undo` | *(No native bash equivalent — lost data)* | One-click rollback for the most recent paste operation (restores overwritten files and reverses moves). |
-| 11 | `ez redo` | *(No native bash equivalent)* | Re-applies the most recently undone operation with safety checks. |
-| 12 | `ez create-folder [name] [choose-directory]`<br>*(Alias: `ez new-folder`)* | `mkdir -p <name>` | Validates folder names, detects existing folders, and allows creating directly or picking the target directory visually with auto-elevation. |
-| 13 | `ez create-file [name] [choose-directory]`<br>*(Alias: `ez new-file`)* | `touch <name>` | Validates file extensions, prevents accidental overwrites, and supports visual destination selection with auto-elevation. |
-| 14 | `ez delete [target \| choose-directory]`<br>*(Aliases: `ez del`, `ez remove`)* | `rm -rf <target>`, `rmdir <target>` | Prevents catastrophic mistakes: non-force check first, displays item summary, requires explicit confirmation, and handles safe auto-elevation. |
-| 15 | `ez edit-file [target \| choose-directory]` | `nano`, `vim`, `micro`, `gedit`, `sudoedit` | Modern code & text editor with syntax highlighting for 15+ languages, visual find & replace (`Ctrl+F`), and automatic elevated saving for protected system files. |
-| 16 | `ez package-search <kw>` | `apt search`, `flatpak search`, `snap find` | Unified search across **APT 📦**, **Flatpak 🟣**, and **Snap 🟢** with one-click platform installation commands. |
-| 17 | `ez package <name>` | `apt show <name>`, `dpkg -s <name>` | Clean summary card showing version, size, homepage, description, and installed status without walls of text. |
-| 18 | `ez available-updates` | `apt list --upgradable` | Read-only summary table of available upgrades without modifying system lists or running unexpected updates. |
-| 19 | `ez installed-packages`<br>*(Alias: `ez installed`)* | `apt list --installed`, `dpkg-query -l`, `flatpak list`, `snap list` | Comprehensive list of installed software across system packages and desktop applications without truncation. |
-| 20 | `ez installed-package-search <kw>` | `apt list --installed \| grep -i <kw>` | Fast case-insensitive search through installed system software without complex bash regex. |
-| 21 | `ez service-status <name>` | `systemctl status <name>`, `is-active`, `is-enabled` | Compact card with clear running state (Active/Inactive) and boot startup state (Enabled/Disabled). |
-| 22 | `ez network-info` | `ip -br addr`, `ip route`, `/etc/resolv.conf`, `ping` | Consolidates IP addresses, interfaces, default gateway, DNS servers, and Internet connectivity into one card. |
-| 23 | `ez` *(no args)* | *(Manual CLI navigation)* | Full interactive TUI menu with searchable categories, emoji icons, and hotkey navigation. |
-| 24 | `ez help`<br>*(Flags: `-h`, `--help`)* | `man <tool>`, `<tool> --help` | Formatted overview of all subcommands, arguments, and safety guidelines. |
-| 25 | `ez version`<br>*(Flags: `-v`, `--version`)* | `<tool> --version`, `<tool> -v` | Displays application version and safe elevation status. |
+| 3 | `ez task-manager` | *(Windows Task Manager)*, `ps`, `kill` | Lite & modern Windows-style task manager for user apps with full mouse support, rich emoji icons, unresponsive app detection (`⚠️ Unresponsive`), and one-click termination. |
+| 4 | `ez task-manager-pro` | `ps aux`, `top`, `sudo kill` | Comprehensive pro task manager displaying all user apps, background daemons, and system services with category tabs (`[All]`, `[Apps]`, `[Background]`, `[System]`, `[Unresponsive]`) and automatic admin elevation. |
+| 5 | `ez disk-info` | `df -h` | Eliminates screen clutter from pseudo-filesystems (loop, tmpfs, udev); displays physical storage drives with colored inline usage bars. |
+| 6 | `ez big-files [dir \| choose-directory]` | `du -h --max-depth=1 \| sort -hr \| head -n 10`, `find` | Replaces long shell pipelines with an animated scanner spinner, formatted size table, and visual folder picker. |
+| 7 | `ez logs [N]` | `journalctl -n N --no-pager`, `dmesg` | Color-codes error logs in red, warnings in yellow, and info logs in green. |
+| 8 | `ez choose-directory [path]`<br>*(Aliases: `ez choose`, `ez explorer`)* | `ranger`, `mc`, `cd`, `ls -la`, `xdg-open` | Full graphical terminal file manager with mouse support, file emojis, bookmarks, and a subshell launcher (`o`) or path output (`-p`). |
+| 9 | `ez copy [target \| choose-directory]` | `cp -r <src> <dest>` | Desktop-style clipboard staging (current directory directly, or anywhere visually) without needing destination upfront; includes collision detection and undo logging. |
+| 10 | `ez move [target \| choose-directory]` | `mv <src> <dest>` | Reversible cut-and-paste with collision resolution and automatic rollback. |
+| 11 | `ez paste [choose-directory]` | *(No direct CLI equivalent — GUI clipboard)* | Pastes staged clipboard files into the current folder or a visually selected destination with conflict resolution (Overwrite, Auto-Rename, Skip). |
+| 12 | `ez undo` | *(No native bash equivalent — lost data)* | One-click rollback for the most recent paste operation (restores overwritten files and reverses moves). |
+| 13 | `ez redo` | *(No native bash equivalent)* | Re-applies the most recently undone operation with safety checks. |
+| 14 | `ez create-folder [name] [choose-directory]`<br>*(Alias: `ez new-folder`)* | `mkdir -p <name>` | Validates folder names, detects existing folders, and allows creating directly or picking the target directory visually with auto-elevation. |
+| 15 | `ez create-file [name] [choose-directory]`<br>*(Alias: `ez new-file`)* | `touch <name>` | Validates file extensions, prevents accidental overwrites, and supports visual destination selection with auto-elevation. |
+| 16 | `ez delete [target \| choose-directory]`<br>*(Aliases: `ez del`, `ez remove`)* | `rm -rf <target>`, `rmdir <target>` | Prevents catastrophic mistakes: non-force check first, displays item summary, requires explicit confirmation, and handles safe auto-elevation. |
+| 17 | `ez edit-file [target \| choose-directory]` | `nano`, `vim`, `micro`, `gedit`, `sudoedit` | Modern code & text editor with syntax highlighting for 15+ languages, visual find & replace (`Ctrl+F`), and automatic elevated saving for protected system files. |
+| 18 | `ez package-search <kw>` | `apt search`, `flatpak search`, `snap find` | Unified search across **APT 📦**, **Flatpak 🟣**, and **Snap 🟢**; merges duplicates into one item with source badges and directly installs selected packages with automated elevation. |
+| 19 | `ez package <name>` | `apt show <name>`, `dpkg -s <name>` | Clean summary card showing version, size, homepage, description, and installed status without walls of text. |
+| 20 | `ez available-updates` | `apt list --upgradable` | Read-only summary table of available upgrades without modifying system lists or running unexpected updates. |
+| 21 | `ez update` | `apt update`, `apt-get update` | Refresh package catalog only, with consent, dot password feedback, warning tolerance, and anti-panic reminders. |
+| 22 | `ez upgrade` | `apt upgrade`, `flatpak update`, `snap refresh` | Multi-source safe system upgrade under single elevation consent with simulation preview, risk badge, Timeshift restore point, and reboot check. |
+| 23 | `ez uninstall <name>` | `apt remove`, `flatpak uninstall`, `snap remove` | Safe application uninstallation across APT, Flatpak, and Snap with pre-removal warning card, single consent, and zero-cache admin elevation. |
+| 24 | `ez installed-packages`<br>*(Alias: `ez installed`)* | `apt list --installed`, `dpkg-query -l`, `flatpak list`, `snap list` | Comprehensive list of installed software across system packages and desktop applications without truncation. |
+| 25 | `ez installed-package-search <kw>` | `apt list --installed \| grep -i <kw>` | Fast case-insensitive search through installed system software without complex bash regex. |
+| 26 | `ez service-status <name>` | `systemctl status <name>`, `is-active`, `is-enabled` | Compact card with clear running state (Active/Inactive) and boot startup state (Enabled/Disabled). |
+| 27 | `ez network-info` | `ip -br addr`, `ip route`, `/etc/resolv.conf`, `ping` | Consolidates IP addresses, interfaces, default gateway, DNS servers, and Internet connectivity into one card. |
+| 28 | `ez` *(no args)* | *(Manual CLI navigation)* | Full interactive TUI menu with searchable categories, emoji icons, and hotkey navigation. |
+| 29 | `ez help`<br>*(Flags: `-h`, `--help`)* | `man <tool>`, `<tool> --help` | Formatted overview of all subcommands, arguments, and safety guidelines. |
+| 30 | `ez version`<br>*(Flags: `-v`, `--version`)* | `<tool> --version`, `<tool> -v` | Displays application version and safe elevation status. |
 
 ---
 
@@ -90,6 +95,36 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
   ```
 - **Scripting / Non-Interactive Fallback:**
   When piped (e.g. `ez stats | cat`) or run in test scripts, outputs a static Rich card with CPU load and RAM/Swap meters.
+
+---
+
+#### `ez task-manager`
+- **Replaces:** Windows Task Manager, `ps`, `kill`, `killall`
+- **Why it's better:** Modern, lightweight terminal Task Manager modeled after Windows Task Manager with full mouse support and rich emoji icons. Filters out confusing system daemons and kernel threads to display only your active **User Applications** (browsers, editors, terminals, media players). Automatically detects **unresponsive / hung processes** (`⚠️ Unresponsive`) and provides one-click safe termination (`End Task` / `Force Kill`).
+- **Interactive Controls:**
+  - `Click row`: Select process.
+  - `Click column headers`: Sort by CPU%, Memory%, Name, PID, or Status.
+  - `Del` / `k`: End Task (Graceful `SIGTERM` with safety confirmation).
+  - `Shift+K`: Force Kill (Immediate `SIGKILL`).
+  - `/`: Search / filter processes in real-time.
+  - `p`: Switch to Pro Mode (`ez task-manager-pro`).
+  - `i` / `Enter`: Detailed process inspection.
+  - `Space`: Pause / Resume live polling.
+  - `q` / `Esc`: Exit.
+- **Syntax:**
+  ```bash
+  ez task-manager
+  ```
+
+---
+
+#### `ez task-manager-pro`
+- **Replaces:** `top`, `htop`, `ps aux`, `sudo kill`
+- **Why it's better:** The comprehensive administrator version of the Task Manager. Shows all programs from normal mode plus **background daemons and system services** (`📱 Apps`, `⚙️ Background`, `🔒 System`). Includes category tabs (`[All]`, `[Apps]`, `[Background]`, `[System]`, `[Unresponsive]`). When terminating system or root processes, **admin consent is handled automatically** via the elevation layer without having to launch the app as root.
+- **Syntax:**
+  ```bash
+  ez task-manager-pro
+  ```
 
 ---
 
@@ -283,7 +318,7 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 
 #### `ez package-search <keyword>`
 - **Replaces:** `apt search <kw>`, `flatpak search <kw>`, `snap find <kw>`
-- **Why it's better:** Searches across **APT**, **Flatpak**, and **Snap** simultaneously. Displays an interactive platform picker and presents exact installation commands ready to run.
+- **Why it's better:** Searches across **APT**, **Flatpak**, and **Snap** simultaneously. Automatically merges results sharing the same name into a single entry with multi-source badges (`📦 APT  🟣 Flatpak  🟢 Snap`), lets you pick which source to install from, and installs the software directly with automated elevation.
 - **Syntax:**
   ```bash
   ez package-search vlc
@@ -329,6 +364,17 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 - **Syntax:**
   ```bash
   ez upgrade
+  ```
+
+---
+
+#### `ez uninstall <name>`
+- **Replaces:** `apt remove <name>`, `flatpak uninstall <name>`, `snap remove <name>`
+- **Why it's better:** Unified software removal across **APT**, **Flatpak**, and **Snap**. Automatically resolves whether an application is installed as a system package or desktop container. Displays a clear pre-removal warning card (package details, occupied disk space, and impact notice). Requires a single explicit confirmation prompt followed by dot-masked admin password authentication (`●●●●`). Strictly **never stores or caches your admin credentials**.
+- **Syntax:**
+  ```bash
+  ez uninstall vlc
+  ez uninstall gimp
   ```
 
 ---

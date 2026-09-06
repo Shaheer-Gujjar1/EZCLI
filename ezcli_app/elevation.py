@@ -879,3 +879,53 @@ def elevated_timeshift_snapshot(
         return True, res, ""
     return False, None, err
 
+
+def elevated_package_install(
+    platform: str,
+    package: str,
+    skip_explanation: bool = False,
+    console: Optional[Console] = None,
+    timeout: int = 300,
+) -> Tuple[bool, Optional[Dict[str, Any]], str]:
+    """Install a software package via the privileged helper (APT, Flatpak, Snap)."""
+    plat_label = (platform or "apt").upper()
+    success, res, err = run_elevated_helper(
+        action="package_install",
+        params={"platform": platform, "package": package, "timeout": timeout},
+        reason=f"Install {plat_label} software package '{package}' onto the system",
+        task_description=f"Install '{package}' via {plat_label} package manager",
+        risk_level="medium",
+        skip_explanation=skip_explanation,
+        console=console,
+        timeout=timeout + 30,
+    )
+    if success and isinstance(res, dict):
+        return True, res, ""
+    return False, None, err
+
+
+def elevated_package_uninstall(
+    platform: str,
+    package: str,
+    purge: bool = False,
+    skip_explanation: bool = False,
+    console: Optional[Console] = None,
+    timeout: int = 300,
+) -> Tuple[bool, Optional[Dict[str, Any]], str]:
+    """Uninstall a software package via the privileged helper without password caching."""
+    plat_label = (platform or "apt").upper()
+    success, res, err = run_elevated_helper(
+        action="package_uninstall",
+        params={"platform": platform, "package": package, "purge": purge, "timeout": timeout},
+        reason=f"Admin rights are required to uninstall {plat_label} software package '{package}'.",
+        task_description=f"Uninstall '{package}' via {plat_label} package manager",
+        risk_level="medium",
+        skip_explanation=skip_explanation,
+        console=console,
+        timeout=timeout + 30,
+    )
+    if success and isinstance(res, dict):
+        return True, res, ""
+    return False, None, err
+
+

@@ -775,8 +775,133 @@ def dispatch_helper_request(request: Dict[str, Any], progress_callback: Optional
         return helper_flatpak_update(params.get("timeout", 300), progress_callback=progress_callback)
     elif action == "timeshift_snapshot":
         return helper_timeshift_snapshot(params.get("comment", "EasyCLI Pre-upgrade snapshot"), params.get("timeout", 300))
+    elif action == "package_install":
+        return helper_package_install(
+            params.get("platform", "apt"),
+            params.get("package", ""),
+            params.get("timeout", 300),
+        )
+    elif action == "package_uninstall":
+        return helper_package_uninstall(
+            params.get("platform", "apt"),
+            params.get("package", ""),
+            params.get("purge", False),
+            params.get("timeout", 300),
+        )
     else:
         return {"success": False, "error": f"Unknown helper action '{action}'."}
+
+
+def helper_package_install(platform: str, package: str, timeout: int = 300) -> Dict[str, Any]:
+    """Install a package via APT, Flatpak, or Snap with elevated permissions."""
+    if not package or not package.strip():
+        return {"success": False, "error": "No package specified for installation."}
+
+    pkg_clean = package.strip()
+    platform_clean = (platform or "apt").lower()
+
+    env = os.environ.copy()
+    env["DEBIAN_FRONTEND"] = "noninteractive"
+    env["LANG"] = "C.UTF-8"
+    env["LC_ALL"] = "C.UTF-8"
+
+    if platform_clean == "apt":
+        cmd = [
+            "apt-get", "install", "-y", "--with-new-pkgs",
+            "-o", "Dpkg::Options::=--force-confdef",
+            "-o", "Dpkg::Options::=--force-confold",
+            pkg_clean,
+        ]
+    elif platform_clean == "snap":
+        if not shutil.which("snap"):
+            return {"success": False, "error": "Snap is not installed on this system."}
+        cmd = ["snap", "install", pkg_clean]
+    elif platform_clean == "flatpak":
+        if not shutil.which("flatpak"):
+            return {"success": False, "error": "Flatpak is not installed on this system."}
+        cmd = ["flatpak", "-y", "install", "flathub", pkg_clean]
+    else:
+        return {"success": False, "error": f"Unsupported installation platform '{platform}'."}
+
+    proc: Any = None
+    try:
+        proc = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=timeout,
+            env=env,
+        )
+        return {
+            "success": proc.returncode == 0,
+            "returncode": proc.returncode,
+            "stdout": (proc.stdout or "").strip(),
+            "stderr": (proc.stderr or "").strip(),
+        }
+    except subprocess.TimeoutExpired:
+        return {"success": False, "error": f"Installation timed out after {timeout} seconds."}
+    except Exception as e:
+        return {"success": False, "error": f"Installation error: {e}"}
+
+
+def helper_package_uninstall(
+    platform: str,
+    package: str,
+    purge: bool = False,
+    timeout: int = 300,
+) -> Dict[str, Any]:
+    """Uninstall a package via APT, Flatpak, or Snap with elevated permissions."""
+    if not package or not package.strip():
+        return {"success": False, "error": "No package specified for uninstallation."}
+
+    pkg_clean = package.strip()
+    platform_clean = (platform or "apt").lower()
+
+    env = os.environ.copy()
+    env["DEBIAN_FRONTEND"] = "noninteractive"
+    env["LANG"] = "C.UTF-8"
+    env["LC_ALL"] = "C.UTF-8"
+
+    if platform_clean == "apt":
+        action_verb = "purge" if purge else "remove"
+        cmd = [
+            "apt-get", action_verb, "-y",
+            "-o", "Dpkg::Options::=--force-confdef",
+            "-o", "Dpkg::Options::=--force-confold",
+            pkg_clean,
+        ]
+    elif platform_clean == "snap":
+        if not shutil.which("snap"):
+            return {"success": False, "error": "Snap is not installed on this system."}
+        cmd = ["snap", "remove", pkg_clean]
+    elif platform_clean == "flatpak":
+        if not shutil.which("flatpak"):
+            return {"success": False, "error": "Flatpak is not installed on this system."}
+        cmd = ["flatpak", "-y", "uninstall", pkg_clean]
+    else:
+        return {"success": False, "error": f"Unsupported uninstallation platform '{platform}'."}
+
+    proc: Any = None
+    try:
+        proc = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=timeout,
+            env=env,
+        )
+        return {
+            "success": proc.returncode == 0,
+            "returncode": proc.returncode,
+            "stdout": (proc.stdout or "").strip(),
+            "stderr": (proc.stderr or "").strip(),
+        }
+    except subprocess.TimeoutExpired:
+        return {"success": False, "error": f"Uninstallation timed out after {timeout} seconds."}
+    except Exception as e:
+        return {"success": False, "error": f"Uninstallation error: {e}"}
 
 
 def main() -> None:

@@ -15,6 +15,7 @@ from ezcli_app.collectors import (
     collect_network_info,
     collect_logs,
     collect_installed_packages,
+    merge_search_packages,
 )
 
 
@@ -71,6 +72,67 @@ class TestCollectors(unittest.TestCase):
         self.assertIsInstance(res["packages"], list)
         if res["packages"]:
             self.assertIn("name", res["packages"][0])
+
+    def test_merge_search_packages(self):
+        sample_packages = [
+            {
+                "platform": "apt",
+                "platform_name": "APT",
+                "platform_icon": "📦",
+                "name": "vlc",
+                "app_id": "vlc",
+                "description": "multimedia player and streamer",
+                "installed": True,
+            },
+            {
+                "platform": "flatpak",
+                "platform_name": "Flatpak",
+                "platform_icon": "🟣",
+                "name": "VLC",
+                "app_id": "org.videolan.VLC",
+                "description": "VLC media player",
+                "installed": False,
+            },
+            {
+                "platform": "snap",
+                "platform_name": "Snap",
+                "platform_icon": "🟢",
+                "name": "vlc",
+                "app_id": "vlc",
+                "description": "The ultimate media player",
+                "installed": False,
+            },
+            {
+                "platform": "apt",
+                "platform_name": "APT",
+                "platform_icon": "📦",
+                "name": "htop",
+                "app_id": "htop",
+                "description": "interactive process viewer",
+                "installed": False,
+            },
+        ]
+
+        merged = merge_search_packages(sample_packages)
+        # 4 inputs should produce 2 merged entries (vlc merged across apt/flatpak/snap, htop standalone)
+        self.assertEqual(len(merged), 2)
+
+        vlc_entry = merged[0]
+        self.assertEqual(vlc_entry["name"], "VLC")  # Preserves Title-cased name if available
+        self.assertEqual(len(vlc_entry["sources"]), 3)
+        self.assertIn("apt", vlc_entry["platforms"])
+        self.assertIn("flatpak", vlc_entry["platforms"])
+        self.assertIn("snap", vlc_entry["platforms"])
+        self.assertTrue(vlc_entry["installed"])
+        self.assertIn("APT", vlc_entry["installed_sources"])
+        self.assertIn("📦 APT", vlc_entry["platform_badges"])
+        self.assertIn("🟣 Flatpak", vlc_entry["platform_badges"])
+        self.assertIn("🟢 Snap", vlc_entry["platform_badges"])
+
+        htop_entry = merged[1]
+        self.assertEqual(htop_entry["name"], "htop")
+        self.assertEqual(len(htop_entry["sources"]), 1)
+        self.assertFalse(htop_entry["installed"])
 
     def test_collect_package_info(self):
         # Package curl is standard
