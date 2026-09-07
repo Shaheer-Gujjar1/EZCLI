@@ -135,6 +135,10 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
                 term_val = args_values[0] if args_values else None
                 run_search_file_cli(term=term_val, console=console)
                 return
+            elif feature.id == "compress":
+                from .compress_cli import run_cli_compress
+                run_cli_compress(targets=args_values, console=console)
+                return
             elif renderer_fn is not None:
                 if feature.subcommand == "big_files" or feature.id == "big_files":
                     raw_folder = args_values[0] if args_values else "~"

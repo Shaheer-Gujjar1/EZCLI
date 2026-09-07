@@ -27,6 +27,7 @@ from .explorer.file_icons import get_file_icon
 from .file_engine import (
     execute_file_operation,
     is_destination_protected,
+    normalize_target_args,
     preview_file_operation,
     scan_source_items,
 )
@@ -142,15 +143,16 @@ def run_cli_stage(
 
     # If targets are provided, validate each item in the current directory
     if targets:
+        normalized_targets = normalize_target_args(targets)
         # Check if user requested visual picker
-        if any(t.lower() in ("choose-directory", "choose", "picker", "select") for t in targets):
+        if any(t.lower() in ("choose-directory", "choose", "picker", "select") for t in normalized_targets):
             selected_items = run_source_picker()
             if not selected_items:
                 console.print("[dim]No items selected. Nothing added to clipboard.[/dim]")
                 return
         else:
             resolved_targets: List[str] = []
-            for t in targets:
+            for t in normalized_targets:
                 valid, err_msg, abs_p, _ = validate_direct_stage_target(t)
                 if not valid:
                     console.print(

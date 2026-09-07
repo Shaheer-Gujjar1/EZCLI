@@ -3,10 +3,25 @@
 import hashlib
 import os
 import shutil
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 from .collectors import format_bytes
 from .undo import record_operation
+
+
+def normalize_target_args(raw_args: Sequence[str]) -> List[str]:
+    """Normalize CLI target arguments, cleanly supporting comma-separated and space-separated lists.
+
+    Examples:
+        ["file1.txt,", "file2.txt"] -> ["file1.txt", "file2.txt"]
+        ["file1.txt,file2.txt"] -> ["file1.txt", "file2.txt"]
+        ["folder1/,", "folder2/"] -> ["folder1/", "folder2/"]
+    """
+    normalized: List[str] = []
+    for arg in raw_args:
+        parts = [p.strip() for p in arg.split(",") if p.strip()]
+        normalized.extend(parts)
+    return normalized
 
 
 def compute_sha256(filepath: str) -> str:

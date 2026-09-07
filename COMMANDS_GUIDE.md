@@ -34,8 +34,8 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 | 11 | `ez paste [choose-directory]` | *(No direct CLI equivalent — GUI clipboard)* | Pastes staged clipboard files into the current folder or a visually selected destination with conflict resolution (Overwrite, Auto-Rename, Skip). |
 | 12 | `ez undo` | *(No native bash equivalent — lost data)* | One-click rollback for the most recent paste operation (restores overwritten files and reverses moves). |
 | 13 | `ez redo` | *(No native bash equivalent)* | Re-applies the most recently undone operation with safety checks. |
-| 14 | `ez create-folder [name] [choose-directory]` | `mkdir -p <name>` | Validates folder names, detects existing folders, and allows creating directly or picking the target directory visually with auto-elevation. |
-| 15 | `ez create-file [name] [choose-directory]` | `touch <name>` | Validates file extensions, prevents accidental overwrites, and supports visual destination selection with auto-elevation. |
+| 14 | `ez create-folder [names...] [choose-directory]` | `mkdir -p <name>` | Validates folder names, prevents overwrites, supports single or comma-separated multiple folders in current directory, or picking visually with auto-elevation. |
+| 15 | `ez create-file [names...] [choose-directory]` | `touch <name>` | Validates file extensions, prevents accidental overwrites, supports single or comma-separated multiple blank files in current directory, or picking visually. |
 | 16 | `ez delete [target \| choose-directory]` | `rm -rf <target>`, `rmdir <target>` | Prevents catastrophic mistakes: non-force check first, displays item summary, requires explicit confirmation, and handles safe auto-elevation. |
 | 17 | `ez edit-file [target \| choose-directory]` | `nano`, `vim`, `micro`, `gedit`, `sudoedit` | Modern code & text editor with syntax highlighting for 15+ languages, visual find & replace (`Ctrl+F`), and automatic elevated saving for protected system files. |
 | 18 | `ez package-search <kw>` | `apt search`, `flatpak search`, `snap find` | Unified search across **APT 📦**, **Flatpak 🟣**, and **Snap 🟢**; merges duplicates into one item with source badges and directly installs selected packages with automated elevation. |
@@ -54,6 +54,7 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 | 31 | `ez check-internet` | `ping`, `traceroute`, `host`, `dig`, `curl -I` | 3-stage connectivity test across local router, DNS resolvers, and internet reachability. Shows a visual pipeline with latency (`✔`/`✖`) and an immediate "Why internet isn't working" one-line diagnostic reply. |
 | 32 | `ez connect-wifi` | `nmcli dev wifi`, `nmtui`, `iwconfig`, `wpa_supplicant` | In-terminal graphical Wi-Fi manager with mouse support, signal bars, network scanning, password entry modal with show/hide toggle, and action buttons (`Connect`, `Cancel`, `Refresh`, `Disconnect`). |
 | 33 | `ez search-file <term>` | `find / -iname "*name*"`, `locate`, `fzf` | Fast fuzzy file search starting from `/home`, rich results table with emoji icons, interactive selection to open, copy path, or edit, and optional system-wide (`'/'`) fallback with auto-elevation. |
+| 34 | `ez compress [targets \| choose-directory]` | `zip`, `tar -czf`, `tar -cJf`, `7z a`, `gzip`, `bzip2` | Interactive multi-format archive creator (`.zip`, `.tar.gz`, `.tar.xz`, `.7z`, `.tar.bz2`) with comma-separated targeting in current directory, mini explorer picker, live progress, and space-saved metrics. |
 
 ---
 
@@ -242,31 +243,36 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 
 ---
 
-#### `ez create-folder [name] [choose-directory]`
+#### `ez create-folder [names...] [choose-directory]`
 - **Replaces:** `mkdir -p <name>`
-- **Why it's better:** Validates naming, detects existing folders, supports visual destination selection, and automatically elevates privileges if creating in a protected system path.
+- **Why it's better:** Validates naming, detects existing folders, supports creating single or comma-separated multiple folders in current directory, supports visual destination selection, and automatically elevates privileges if creating in a protected system path.
 - **Syntax:**
   ```bash
-  # Mode 1: Create in Current Directory
+  # Mode 1: Create in Current Directory (Single or Multiple)
   ez create-folder Projects
+  ez create-folder folder1, folder2, folder3
+  ez create-folder assets/, components/
 
   # Mode 2: Create in Any Chosen Location Visually
   ez create-folder Projects choose-directory
+  ez create-folder dir1, dir2 choose-directory
   ez create-folder choose-directory
   ```
 
 ---
 
-#### `ez create-file [name] [choose-directory]`
+#### `ez create-file [names...] [choose-directory]`
 - **Replaces:** `touch <name>`
-- **Why it's better:** Validates file extensions, prevents accidental overwriting of existing files, supports visual destination selection, and automatically elevates privileges if creating in protected directories.
+- **Why it's better:** Validates file extensions, prevents accidental overwriting of existing files, supports creating single or comma-separated multiple files in current directory, supports visual destination selection, and automatically elevates privileges if creating in protected directories.
 - **Syntax:**
   ```bash
-  # Mode 1: Create in Current Directory
+  # Mode 1: Create in Current Directory (Single or Multiple)
   ez create-file script.py
+  ez create-file README.md, app.py, styles.css
 
   # Mode 2: Create in Any Chosen Location Visually
   ez create-file script.py choose-directory
+  ez create-file index.html, main.js choose-directory
   ez create-file choose-directory
   ```
 
@@ -517,4 +523,28 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
   ez search-file wifi_app.py
   ez search-file nginx.conf
   ez search-file report.pdf
+  ```
+
+---
+
+#### `ez compress [targets | choose-directory]`
+- **Replaces:** `zip -r <archive.zip> <files...>`, `tar -czf <archive.tar.gz> <files...>`, `tar -cJf <archive.tar.xz> <files...>`, `7z a <archive.7z> <files...>`, `gzip`, `bzip2`
+- **Why it's better:** Eliminates cryptic tar/zip flags (`-czvf`, `-cJf`, `-r`, `-9`) and dangerous destination syntax.
+  - **Dual-Mode System:**
+    - **Direct Mode:** Specify single or multiple files and folders in the current directory (separated by commas or spaces). Subfolder paths are strictly blocked for safety to prevent accidental archives of unexpected locations.
+    - **Visual Mode:** Run `ez compress choose-directory` (or `ez compress` with no args) to launch the mini explorer and choose items across any directory.
+  - **Interactive TUI Format Selector:** Select between `.zip`, `.tar.gz`, `.tar.xz`, `.7z`, and `.tar.bz2` with clear descriptions of speed vs compression ratio.
+  - **Intelligent Default Naming:** Pre-populates the archive name from the selected item name (or `archive.<ext>` for multi-item archives) with easy in-place editing.
+  - **Collision Protection:** Checks if the target archive already exists and prompts with `[O]verwrite`, `[R]ename` (e.g. `archive (1).zip`), or `[C]ancel`.
+  - **Live Progress & Success Card:** Displays an animated progress bar with current file name, percentage, bytes processed, and time remaining, followed by a summary card showing space saved, file counts, and archive path.
+- **Syntax:**
+  ```bash
+  # Direct mode (current directory items)
+  ez compress my_folder/
+  ez compress report.pdf notes.txt
+  ez compress file1.txt, file2.txt, folder1/
+
+  # Visual picker mode
+  ez compress choose-directory
+  ez compress
   ```

@@ -297,14 +297,12 @@ def main() -> None:
             from .create_cli import run_cli_create_folder
             choose_dest = any(a.lower() == "choose-directory" for a in sub_args)
             clean_sub = [a for a in sub_args if a.lower() != "choose-directory"]
-            folder_name = clean_sub[0] if clean_sub else None
-            run_cli_create_folder(folder_name=folder_name, choose_dest=choose_dest, console=console)
+            run_cli_create_folder(raw_args=clean_sub, choose_dest=choose_dest, console=console)
         elif feature.id == "create_file":
             from .create_cli import run_cli_create_file
             choose_dest = any(a.lower() == "choose-directory" for a in sub_args)
             clean_sub = [a for a in sub_args if a.lower() != "choose-directory"]
-            file_name = clean_sub[0] if clean_sub else None
-            run_cli_create_file(file_name=file_name, choose_dest=choose_dest, console=console)
+            run_cli_create_file(raw_args=clean_sub, choose_dest=choose_dest, console=console)
         elif feature.id == "delete":
             from .delete_cli import run_cli_delete
             run_cli_delete(args=sub_args, console=console)
@@ -333,6 +331,9 @@ def main() -> None:
             from .search_file import run_search_file_cli
             search_term = " ".join(sub_args).strip() if sub_args else None
             run_search_file_cli(term=search_term, console=console)
+        elif feature.id == "compress":
+            from .compress_cli import run_cli_compress
+            run_cli_compress(targets=sub_args, console=console)
     except BrokenPipeError:
         try:
             devnull = os.open(os.devnull, os.O_WRONLY)

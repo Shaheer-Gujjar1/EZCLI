@@ -14,7 +14,7 @@ from rich.table import Table
 from .collectors import format_bytes
 from .elevation import elevated_file_delete, is_root
 from .explorer.file_icons import get_file_icon
-from .file_engine import is_destination_protected
+from .file_engine import is_destination_protected, normalize_target_args
 
 
 def validate_direct_delete_target(
@@ -212,11 +212,12 @@ def run_cli_delete(
     """
     console = console or Console()
     args = args or []
+    norm_args = normalize_target_args(args)
 
     # 1. Determine target paths
     target_items: List[Tuple[str, bool]] = []  # List of (abs_path, is_dir)
 
-    if not args or args == ["choose-directory"]:
+    if not norm_args or norm_args == ["choose-directory"]:
         from .explorer.explorer_app import run_delete_picker
         console.print("[bold cyan]Opening mini explorer to choose file(s) or folder(s) to delete...[/bold cyan]")
         chosen_paths = run_delete_picker(initial_dir=".")
@@ -228,7 +229,7 @@ def run_cli_delete(
             target_items.append((p, is_d))
     else:
         # User provided direct arguments (must be in current directory)
-        for raw in args:
+        for raw in norm_args:
             if raw == "choose-directory":
                 console.print(
                     "[bold red]Error:[/bold red] 'choose-directory' cannot be mixed with direct file or folder arguments."

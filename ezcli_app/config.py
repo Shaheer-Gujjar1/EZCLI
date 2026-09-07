@@ -323,12 +323,12 @@ FEATURES: List[FeatureTemplate] = [
         subcommand="create-folder",
         title="Create New Folder",
         icon="📁",
-        description="Create a new folder directly or via visual directory picker",
+        description="Create new folder(s) directly or via visual directory picker",
         wrapped_commands=["create-folder"],
         arguments=[
             ArgumentDef(
                 name="name",
-                help="Name of folder to create (or 'choose-directory' to pick location visually)",
+                help="Folder name(s) separated by commas (in current directory), or 'choose-directory'",
                 required=False,
                 default="",
             )
@@ -340,12 +340,12 @@ FEATURES: List[FeatureTemplate] = [
         subcommand="create-file",
         title="Create New File",
         icon="📄",
-        description="Create a new blank file directly or via visual directory picker",
+        description="Create new blank file(s) directly or via visual directory picker",
         wrapped_commands=["create-file"],
         arguments=[
             ArgumentDef(
                 name="name",
-                help="Name of file to create with extension (or 'choose-directory' to pick location visually)",
+                help="File name(s) with extension separated by commas (in current directory), or 'choose-directory'",
                 required=False,
                 default="",
             )
@@ -439,6 +439,23 @@ FEATURES: List[FeatureTemplate] = [
             )
         ],
         renderer_name="run_search_file_cli",
+    ),
+    FeatureTemplate(
+        id="compress",
+        subcommand="compress",
+        title="Compress Files & Folders",
+        icon="🗜️",
+        description="Compress files or folders into .zip, .tar.gz, .tar.xz, .7z, or .tar.bz2 with live progress",
+        wrapped_commands=["zip", "tar", "7z"],
+        arguments=[
+            ArgumentDef(
+                name="targets",
+                help="Files (name.ext) or folders (folder/) in current directory, or 'choose-directory'",
+                required=False,
+                default="choose-directory",
+            )
+        ],
+        renderer_name="run_cli_compress",
     ),
 ]
 

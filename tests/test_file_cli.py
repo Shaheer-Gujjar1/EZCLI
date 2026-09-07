@@ -106,6 +106,7 @@ class TestFileCLIDirect(unittest.TestCase):
             mock_picker.assert_not_called()
             clip = get_clipboard()
             self.assertIsNotNone(clip)
+            assert clip is not None
             self.assertEqual(clip["action"], "copy")
             self.assertEqual(clip["items"], [self.sample_file])
 
@@ -116,6 +117,7 @@ class TestFileCLIDirect(unittest.TestCase):
             mock_picker.assert_not_called()
             clip = get_clipboard()
             self.assertIsNotNone(clip)
+            assert clip is not None
             self.assertEqual(clip["action"], "move")
             self.assertEqual(clip["items"], [self.sample_folder])
 
@@ -185,6 +187,22 @@ class TestFileCLIDirect(unittest.TestCase):
         mock_picker.assert_called_once()
         dest_file = os.path.join(paste_dir, "document.txt")
         self.assertTrue(os.path.exists(dest_file))
+
+    def test_stage_multiple_comma_separated(self):
+        """Test that multiple files specified with commas are properly staged."""
+        f2 = os.path.join(self.test_dir, "other.txt")
+        with open(f2, "w") as f:
+            f.write("other")
+
+        with patch("os.getcwd", return_value=self.test_dir):
+            run_cli_stage("copy", targets=["document.txt,", "other.txt"], console=self.console)
+            clip = get_clipboard()
+            self.assertIsNotNone(clip)
+            assert clip is not None
+            self.assertEqual(clip["action"], "copy")
+            self.assertEqual(len(clip["items"]), 2)
+            self.assertIn(self.sample_file, clip["items"])
+            self.assertIn(f2, clip["items"])
 
 
 if __name__ == "__main__":

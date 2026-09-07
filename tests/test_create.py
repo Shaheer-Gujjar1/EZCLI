@@ -161,6 +161,103 @@ class TestCreateCLI(unittest.TestCase):
             console=self.console,
         )
 
+    def test_create_folder_multi_comma_separated(self):
+        """Test creating multiple folders via comma-separated arguments."""
+        run_cli_create_folder(
+            raw_args=["proj_a,", "proj_b,", "proj_c"],
+            dest_dir=self.temp_dir,
+            console=self.console,
+        )
+        self.assertTrue(os.path.isdir(os.path.join(self.temp_dir, "proj_a")))
+        self.assertTrue(os.path.isdir(os.path.join(self.temp_dir, "proj_b")))
+        self.assertTrue(os.path.isdir(os.path.join(self.temp_dir, "proj_c")))
+        output = self.console.export_text()
+        self.assertIn("Created 3 folders successfully", output)
+
+    def test_create_folder_multi_trailing_slashes(self):
+        """Test creating multiple folders with trailing slashes."""
+        run_cli_create_folder(
+            raw_args=["assets/,", "components/"],
+            dest_dir=self.temp_dir,
+            console=self.console,
+        )
+        self.assertTrue(os.path.isdir(os.path.join(self.temp_dir, "assets")))
+        self.assertTrue(os.path.isdir(os.path.join(self.temp_dir, "components")))
+        output = self.console.export_text()
+        self.assertIn("Created 2 folders successfully", output)
+
+    def test_create_file_multi_comma_separated(self):
+        """Test creating multiple blank files via comma-separated arguments."""
+        run_cli_create_file(
+            name="README.md, app.py, styles.css",
+            dest_dir=self.temp_dir,
+            console=self.console,
+        )
+        p1 = os.path.join(self.temp_dir, "README.md")
+        p2 = os.path.join(self.temp_dir, "app.py")
+        p3 = os.path.join(self.temp_dir, "styles.css")
+        self.assertTrue(os.path.isfile(p1))
+        self.assertTrue(os.path.isfile(p2))
+        self.assertTrue(os.path.isfile(p3))
+        self.assertEqual(os.path.getsize(p1), 0)
+        self.assertEqual(os.path.getsize(p2), 0)
+        self.assertEqual(os.path.getsize(p3), 0)
+        output = self.console.export_text()
+        self.assertIn("Created 3 blank files successfully", output)
+
+    def test_create_folder_subfolder_path_rejected(self):
+        """Test that subfolder paths are rejected in direct mode."""
+        run_cli_create_folder(
+            raw_args=["sub/my_dir/"],
+            dest_dir=self.temp_dir,
+            console=self.console,
+        )
+        self.assertFalse(os.path.exists(os.path.join(self.temp_dir, "sub", "my_dir")))
+        output = self.console.export_text()
+        self.assertIn("Subfolder paths ('sub/my_dir/') are not permitted", output)
+
+    def test_create_file_subfolder_path_rejected(self):
+        """Test that subfolder paths for files are rejected in direct mode."""
+        run_cli_create_file(
+            raw_args=["sub/file.txt"],
+            dest_dir=self.temp_dir,
+            console=self.console,
+        )
+        self.assertFalse(os.path.exists(os.path.join(self.temp_dir, "sub", "file.txt")))
+        output = self.console.export_text()
+        self.assertIn("Subfolder paths ('sub/file.txt') are not permitted", output)
+
+    def test_create_multi_existing_item_blocks_all(self):
+        """Test that if an item already exists, all creation is blocked (atomic)."""
+        existing = os.path.join(self.temp_dir, "already_here.txt")
+        with open(existing, "w") as f:
+            f.write("data")
+        new1 = os.path.join(self.temp_dir, "new1.txt")
+        new2 = os.path.join(self.temp_dir, "new2.txt")
+
+        run_cli_create_file(
+            raw_args=["new1.txt,", "already_here.txt,", "new2.txt"],
+            dest_dir=self.temp_dir,
+            console=self.console,
+        )
+        self.assertFalse(os.path.exists(new1))
+        self.assertFalse(os.path.exists(new2))
+        output = self.console.export_text()
+        self.assertIn("already exists", output)
+
+    @patch("ezcli_app.explorer.explorer_app.ExplorerApp.run")
+    def test_create_multi_with_choose_directory(self, mock_explorer_run):
+        """Test creating multiple items with choose-directory destination."""
+        mock_explorer_run.return_value = self.temp_dir
+        run_cli_create_folder(
+            raw_args=["mod1, mod2"],
+            choose_dest=True,
+            console=self.console,
+        )
+        self.assertTrue(os.path.isdir(os.path.join(self.temp_dir, "mod1")))
+        self.assertTrue(os.path.isdir(os.path.join(self.temp_dir, "mod2")))
+
 
 if __name__ == "__main__":
     unittest.main()
+

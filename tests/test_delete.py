@@ -189,6 +189,25 @@ class TestDeleteCLI(unittest.TestCase):
         self.assertTrue(res_forced.get("success"))
         self.assertFalse(os.path.exists(folder))
 
+    def test_delete_multiple_files_comma_separated(self):
+        """Test that multiple files specified with commas are correctly deleted."""
+        f1 = os.path.join(self.temp_dir, "file1.txt")
+        f2 = os.path.join(self.temp_dir, "file2.txt")
+        with open(f1, "w") as f:
+            f.write("1")
+        with open(f2, "w") as f:
+            f.write("2")
+
+        orig_cwd = os.getcwd()
+        try:
+            os.chdir(self.temp_dir)
+            with patch("rich.prompt.Confirm.ask", return_value=True):
+                run_cli_delete(args=["file1.txt,", "file2.txt"], console=self.console)
+            self.assertFalse(os.path.exists(f1))
+            self.assertFalse(os.path.exists(f2))
+        finally:
+            os.chdir(orig_cwd)
+
 
 if __name__ == "__main__":
     unittest.main()

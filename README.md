@@ -152,14 +152,15 @@ ez help
 | 📥 | `ez paste [choose-directory]` | **v0.2** | `paste` | Paste staged items into current directory, or choose destination with `choose-directory`. |
 | ⏪ | `ez undo` | **v0.2** | `undo` | Revert the most recent paste operation with preview and confirmation. |
 | ⏩ | `ez redo` | **v0.2** | `redo` | Re-apply the most recently undone operation with preview and confirmation. |
-| 📁 | `ez create-folder <name> [choose-directory]` | **v0.3** | `create-folder` | Create a new folder directly or choose parent directory visually with mini explorer. Automatic privilege elevation. |
-| 📄 | `ez create-file <name> [choose-directory]` | **v0.3** | `create-file` | Create a new blank file directly or choose destination directory visually with mini explorer. Automatic privilege elevation. |
+| 📁 | `ez create-folder <names...> [choose-directory]` | **v0.3** | `create-folder` | Create one or more new folders directly (comma-separated, in current directory) or choose parent directory visually with mini explorer. Automatic privilege elevation. |
+| 📄 | `ez create-file <names...> [choose-directory]` | **v0.3** | `create-file` | Create one or more new blank files directly (comma-separated, in current directory) or choose destination directory visually with mini explorer. Automatic privilege elevation. |
 | 🗑️ | `ez delete [target \| choose-directory]` | **v0.3** | `delete` | Permanently delete file(s) or folder(s) with explicit consent, non-force-first safety, and automatic elevation. |
 | 📝 | `ez edit-file [target \| choose-directory]` | **v0.3** | `edit-file` | Modern terminal text and code editor with syntax highlighting, line numbers, visual search, and auto-elevation. |
 | ℹ️ | `ez version [name]` | **v0.4** | `which`, `dpkg`, `apt`, `snap`, `flatpak`, `python`, `node` | Universal version checker across PATH binaries, Debian packages, APT catalog, Snap, Flatpak, Python, and Node libraries. Dual mode: displays EasyCLI version with no argument, or inspects specified target. |
 | 📶 | `ez check-internet` | **v0.5** | `ping`, `ip route`, `socket` | 3-stage visual connectivity pipeline (`Router → DNS → Internet`) with latency (`✔`/`✖`) and an immediate "Why internet isn't working" one-line diagnostic verdict. |
 | 📶 | `ez connect-wifi` | **v0.5** | `nmcli`, `iw` | In-terminal graphical Wi-Fi manager with mouse support, signal strength bars, network scanning, password entry modal with show/hide toggle (`👁️`/`🙈`), and action buttons (`Connect`, `Cancel`, `Refresh`, `Disconnect`). |
 | 🔍 | `ez search-file <term>` | **v0.5** | `find`, `locate`, `ls` | Fast fuzzy file search starting from `/home`, rich results table with emoji icons, interactive selection to open, copy path, or edit, and optional system-wide (`'/'`) fallback with auto-elevation. |
+| 🗜️ | `ez compress [targets \| choose-directory]` | **v0.5** | `zip`, `tar`, `gzip`, `xz`, `7z` | Compress files and folders into `.zip`, `.tar.gz`, `.tar.xz`, `.7z`, or `.tar.bz2` with interactive TUI format selector, comma-separated targeting, `choose-directory` mini explorer, and live progress. |
 
 ---
 
@@ -279,25 +280,37 @@ ez redo
 
 EasyCLI v0.3 introduces pure, modern creation commands without needing to memorize legacy commands:
 
-### 1. Create a Folder Directly
+### 1. Create Folders Directly (Single or Multiple)
 ```bash
+# Single folder:
 ez create-folder my_project
+
+# Multiple folders in current directory (comma-separated):
+ez create-folder folder1, folder2, folder3
+ez create-folder assets/, components/, styles/
 ```
-Creates a new directory in your current location with an immediate summary card.
+Creates new directories in your current location with an immediate summary card.
 
 ### 2. Choose Where to Create Visually
 ```bash
 ez create-folder my_project choose-directory
-# Or simply:
+ez create-folder dir1, dir2 choose-directory
+# Or simply launch picker:
 ez create-folder choose-directory
 ```
 Opens the mini file explorer so you can navigate and pick your desired parent directory visually.
 
-### 3. Create Blank Files
+### 3. Create Blank Files (Single or Multiple)
 ```bash
+# Single file:
 ez create-file notes.txt
+
+# Multiple files in current directory (comma-separated):
+ez create-file README.md, app.py, styles.css
+
 # Or choose directory visually:
 ez create-file notes.txt choose-directory
+ez create-file index.html, main.js choose-directory
 ```
 
 ### 4. Create Directly Inside the File Explorer (`[n]`)
@@ -574,6 +587,23 @@ ez search-file <term>
   - `[3] ✏️ Edit`: Launches the file in EasyCLI's integrated code and text editor.
   - `[q] ❌ Quit`: Clean exit.
 
+### 9. `ez compress` — Multi-Format Archive Compression & Live Progress (v0.5)
+Compress files or directories into modern archive formats (`.zip`, `.tar.gz`, `.tar.xz`, `.7z`, `.tar.bz2`) with interactive format selection, live byte-accurate progress, and detailed success metrics:
+```bash
+# Direct mode in current directory (single, multiple, or comma-separated)
+ez compress folder1/ folder2/
+ez compress file1.txt, file2.txt, folder1/
+
+# Visual multi-selection mode across any directory
+ez compress choose-directory
+```
+- **Current Directory Scope**: Direct arguments are restricted to items in your current directory for safety. Accidental subfolder targeting is blocked, directing users to `choose-directory`.
+- **Comma & Space Separation**: Supports space-separated, comma-separated (`a.txt, b.txt`), and mixed argument lists across all direct file operations.
+- **Interactive TUI Format Selector**: Choose from `.zip`, `.tar.gz`, `.tar.xz`, `.7z`, or `.tar.bz2` with live item counts, estimated size, and auto-populated archive naming.
+- **Conflict Guard**: Prompts to `[O]verwrite`, `[R]ename`, or `[C]ancel` if an archive already exists.
+- **Live Progress System**: Real-time progress bar showing active file being packed, percent complete, bytes compressed, and remaining time.
+- **Success Summary Card**: Displays archive location, compression ratio, space saved, and elapsed execution time.
+
 ---
 
 ## 🎨 Icon & Font Policy
@@ -595,7 +625,7 @@ EZCLI/
 ├── setup.py               # Setup script (v0.5.0)
 ├── install.sh             # 1-step deployment script
 ├── README.md              # Documentation and guide
-├── tests/                 # Comprehensive unit test suite (260 tests)
+├── tests/                 # Comprehensive unit test suite (296 tests)
 │   ├── test_distro.py     # Distro parser and derivative detection tests
 │   ├── test_collectors.py # System inspection and installed package tests
 │   ├── test_file_ops.py   # Copy, move, cross-filesystem, and conflict tests
@@ -611,7 +641,8 @@ EZCLI/
 │   ├── test_version.py    # Universal version checker multi-source tests (v0.4)
 │   ├── test_internet_check.py # Internet connectivity & pipeline tests (v0.5)
 │   ├── test_wifi.py       # Wi-Fi scanner, password modal, and manager tests (v0.5)
-│   └── test_search_file.py # Fuzzy file search, action dispatcher & system fallback tests (v0.5)
+│   ├── test_search_file.py # Fuzzy file search, action dispatcher & system fallback tests (v0.5)
+│   └── test_compress.py   # Multi-format compression, TUI & comma-target tests (v0.5)
 └── ezcli_app/
     ├── __init__.py        # Package version (__version__ = "0.5.0")
     ├── config.py          # Declarative FeatureTemplate definitions (canonical commands only)
@@ -635,6 +666,9 @@ EZCLI/
     ├── version_checker.py # Universal multi-source version detector & renderer (v0.4)
     ├── internet_checker.py# Internet connectivity diagnostic engine & pipeline (v0.5)
     ├── search_file.py     # Fuzzy file search, interactive actions & elevated fallback (v0.5)
+    ├── compress_engine.py # Core compression engine (.zip, .tar.gz, .tar.xz, .7z) (v0.5)
+    ├── compress_tui.py    # Textual TUI & CLI fallback format & name selector (v0.5)
+    ├── compress_cli.py    # Multi-target validation, conflict & live progress CLI (v0.5)
     ├── wifi/              # Textual TUI In-Terminal Wi-Fi Manager with mouse support (v0.5)
     │   ├── __init__.py    # Wi-Fi package exports
     │   ├── wifi_engine.py # Network scanning, signal bars, security and connection engine
@@ -674,12 +708,13 @@ EZCLI/
   - Safe application uninstallation (`ez uninstall <name>`) across APT, Flatpak, and Snap with warning card, single consent, and zero-cache admin elevation.
   - Lite & modern terminal Task Manager (`ez task-manager`, `ez task-manager-pro`) with mouse support, real-time gauges, unresponsive process detection, and auto-elevation.
   - Universal Version Checker (`ez version [name]`) automatically inspecting binaries on PATH, Debian packages, APT catalog, Snap, Flatpak, Python, and Node libraries without flags.
-- **v0.5 — Internet Diagnostics, Visual Pipeline, In-Terminal Wi-Fi Manager & Fuzzy File Search**:
+- **v0.5 — Internet Diagnostics, Visual Pipeline, In-Terminal Wi-Fi Manager, Fuzzy File Search & Archive Compression**:
   - Universal internet connectivity checker (`ez check-internet`) testing Router ping, DNS resolution, and internet reachability.
   - High-contrast visual pipeline (`Router → DNS → Internet`) with latency indicators (`✔`/`✖`).
   - Immediate beginner-friendly one-line diagnostic reply explaining "Why internet isn't working" across all network failure modes.
   - In-terminal graphical Wi-Fi manager (`ez connect-wifi`) with full mouse support, real-time signal bars (`▂▄▆█ 85% 📶`), security detection, password entry modal with show/hide toggle (`👁️`/`🙈`), and action buttons (`Connect`, `Cancel`, `Refresh`, `Disconnect`).
   - Fast fuzzy file search (`ez search-file <term>`) starting from `/home`, rich results table with emoji icons, interactive selection to open, copy path, or edit, and optional system-wide (`'/'`) fallback with auto-elevation.
+  - Multi-format archive compression (`ez compress`) supporting `.zip`, `.tar.gz`, `.tar.xz`, `.7z`, and `.tar.bz2` with TUI format selector, comma-separated multi-item targeting in current directory, `choose-directory` mini explorer picker, live progress, and success summary.
 
 ---
 

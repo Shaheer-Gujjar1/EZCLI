@@ -425,6 +425,7 @@ class ExplorerApp(App[Optional[Any]]):
             "pick_dest": "Mode: Select Destination Directory",
             "pick_delete": "Mode: Select Items to Delete",
             "pick_file": "Mode: Select File to Edit",
+            "pick_compress": "Mode: Select Files/Folders to Compress",
         }.get(self.mode, "")
         return f"{sel_text}{mode_text} (Sort: {self.sort_mode.capitalize()} | Hidden: {'On' if self.show_hidden else 'Off'})"
 
@@ -677,8 +678,8 @@ class ExplorerApp(App[Optional[Any]]):
             self.load_directory(item["path"])
             return
 
-        # 2. In pick_source mode: selection confirms or toggles
-        if self.mode == "pick_source":
+        # 2. In pick_source / pick_compress mode: selection confirms or toggles
+        if self.mode in ("pick_source", "pick_compress"):
             if not self.selected_paths:
                 self.selected_paths.add(item["path"])
             self.exit(list(self.selected_paths))
@@ -805,7 +806,7 @@ class ExplorerApp(App[Optional[Any]]):
             self.confirm_chosen_directory()
         elif self.mode == "pick_dest":
             self.exit(self.current_dir)
-        elif self.mode in ("pick_source", "pick_delete"):
+        elif self.mode in ("pick_source", "pick_delete", "pick_compress"):
             if not self.selected_paths:
                 table = self.query_one(DataTable)
                 if self.filtered_entries and table.cursor_row is not None:
@@ -1022,3 +1023,21 @@ def run_file_picker(initial_dir: str = ".", is_admin: bool = False) -> Optional[
     setattr(ExplorerApp, "action_confirm_file_selection", action_confirm_file_selection)
     result = app.run()
     return result if isinstance(result, str) else None
+
+
+def run_compress_picker(initial_dir: str = ".", is_admin: bool = False) -> List[str]:
+    """Launch explorer specifically for picking file(s) or folder(s) to compress."""
+    app = ExplorerApp(mode="pick_compress", initial_dir=initial_dir, is_admin=is_admin)
+    app.BINDINGS.append(Binding("c", "confirm_compress_selection", "Select to Compress [c]", show=True))
+
+    def action_confirm_compress_selection(self: ExplorerApp) -> None:
+        table = self.query_one(DataTable)
+        if not self.selected_paths and self.filtered_entries and table.cursor_row is not None:
+            item = self.filtered_entries[table.cursor_row]
+            if not item.get("is_parent"):
+                self.selected_paths.add(item["path"])
+        self.exit(list(self.selected_paths))
+
+    setattr(ExplorerApp, "action_confirm_compress_selection", action_confirm_compress_selection)
+    result = app.run()
+    return result if isinstance(result, list) else []
