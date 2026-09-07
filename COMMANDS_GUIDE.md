@@ -55,6 +55,9 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 | 32 | `ez connect-wifi` | `nmcli dev wifi`, `nmtui`, `iwconfig`, `wpa_supplicant` | In-terminal graphical Wi-Fi manager with mouse support, signal bars, network scanning, password entry modal with show/hide toggle, and action buttons (`Connect`, `Cancel`, `Refresh`, `Disconnect`). |
 | 33 | `ez search-file <term>` | `find / -iname "*name*"`, `locate`, `fzf` | Fast fuzzy file search starting from `/home`, rich results table with emoji icons, interactive selection to open, copy path, or edit, and optional system-wide (`'/'`) fallback with auto-elevation. |
 | 34 | `ez compress [targets \| choose-directory]` | `zip`, `tar -czf`, `tar -cJf`, `7z a`, `gzip`, `bzip2` | Interactive multi-format archive creator (`.zip`, `.tar.gz`, `.tar.xz`, `.7z`, `.tar.bz2`) with comma-separated targeting in current directory, mini explorer picker, live progress, and space-saved metrics. |
+| 35 | `ez extract-here <file1.ext> ,..., <file n.ext>` | `unzip`, `tar -xf`, `tar -xzf`, `tar -xJf`, `7z x` | Extract one or more archives directly into current directory with comma/space separation, live progress bar, and Zip-Slip vulnerability prevention. Direct paths strictly restricted to CWD. |
+| 36 | `ez extract [archives...] [to <dest> \| choose-directory]` | `tar -x -C <dir>`, `unzip -d <dir>` | Extract archive(s) directly to a specified destination (`to <path>`), pick destination visually (`to choose-directory`), or launch two-stage mini explorer. Automatic elevation for protected destinations. |
+| 37 | `ez run [target \| choose-directory] [args...]` | `bash`, `python3`, `chmod +x && ./app`, `snap run`, `flatpak run`, `gio launch`, `./app.AppImage` | One universal command to execute any script, binary, AppImage, or launch apps. GUI apps launch detached keeping terminal free; CLI tools execute with flag-free Guided Mode and command preview. |
 
 ---
 
@@ -548,3 +551,80 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
   ez compress choose-directory
   ez compress
   ```
+
+---
+
+#### `ez extract-here <file1.ext> ,..., <file n.ext>` & `ez extract`
+- **Replaces:** `unzip <archive.zip>`, `tar -xvf <archive.tar>`, `tar -xzvf <archive.tar.gz>`, `tar -xJvf <archive.tar.xz>`, `tar -x -C <destination>`, `7z x <archive.7z>`, `unzip <archive.zip> -d <dir>`
+- **Why it's better:** Replaces confusing, non-standard unpacking syntax and flags across different archive tools with intuitive, flagless commands:
+  - **`ez extract-here` (Direct CWD Mode):** Extract single or multiple archives (comma- or space-separated) right where you are. Subfolder paths are rejected to avoid unpacking files into unexpected locations.
+  - **`ez extract ... to <destination>` (Targeted Mode):** Extract archives directly from your current directory to a specific destination folder. Missing destination folders are created automatically.
+  - **`ez extract ... to choose-directory` & Interactive `to`:** Select archives directly, then choose the destination folder visually via the mini explorer or interactive prompt.
+  - **`ez extract choose-directory` (Two-Stage Visual Mode):** Visual mini explorer launches to pick archive(s) from anywhere on your system, followed by mini explorer to select your target destination folder.
+  - **Zip-Slip & Traversal Guard:** Fully sanitizes member paths to block path traversal attacks (`../` or leading `/`).
+  - **Automatic Privilege Elevation:** Unpacking to system or root-owned directories triggers seamless, one-time admin elevation.
+  - **Universal Format Detection:** Seamlessly extracts `.zip`, `.tar.gz`, `.tgz`, `.tar.xz`, `.txz`, `.tar.bz2`, `.tbz2`, `.tar`, and `.7z`.
+  - **Live Progress & Success Card:** Real-time progress bar with active file display, followed by a clean summary card with item counts and destination path.
+- **Syntax:**
+  ```bash
+  # Direct extraction in current directory
+  ez extract-here backup.zip
+  ez extract-here package1.tar.gz, package2.7z, package3.tar.xz
+
+  # Extract archives to a specific destination folder
+  ez extract backup.zip to /path/to/destination
+  ez extract package1.tar.gz, package2.7z to ./extracted_files/
+
+  # Extract archives with visual destination selection via mini explorer
+  ez extract backup.zip to choose-directory
+
+  # Interactive destination prompt (or press Enter for visual destination picker)
+  ez extract backup.zip to
+
+  # Visual two-stage extraction across any directory
+  ez extract choose-directory
+  ez extract
+  ```
+
+---
+
+#### `ez run [target | choose-directory] [args...]`
+- **Replaces:** `bash script.sh`, `python3 script.py`, `chmod +x && ./bin`, `snap run <app>`, `flatpak run <id>`, `gio launch <desktop>`, `./app.AppImage`
+- **Why it's better:** Eliminates the confusion of having multiple incompatible ways to run scripts and applications on Linux:
+  - **Universal Target Resolution Hierarchy:**
+    1. *Local File:* Checks if the target exists in the current directory or filesystem. If it's a binary, runs it. If it's a script without executable permissions, prompts to `chmod +x` with consent or falls back to its detected interpreter (`python3`, `bash`, `node`, `ruby`, `perl`, `php`). If it's an AppImage, verifies permissions and catches missing FUSE libraries (`libfuse2`) with helpful installation guidance.
+    2. *Application Name:* Checks PATH binary, Snap application, Flatpak application, and desktop entries (`/usr/share/applications/`, `~/.local/share/applications/`).
+  - **GUI vs CLI Intelligence:**
+    - *GUI Applications:* Detected via desktop entry (`Terminal=false`), AppImage, or graphical Snap/Flatpak. Launches **detached in the background** (`subprocess.Popen(..., start_new_session=True)`). Your terminal stays immediately free, displaying a confirmation banner and a reminder pointing to `ez task-manager`.
+    - *CLI Tools:* Executed directly in the foreground, with a mandatory `▶ Running: <cmd>` summary line printed before execution.
+  - **Flag-Free Guided Mode:**
+    - When a CLI target is run without arguments, EasyCLI automatically discovers available options.
+    - *Static AST/Regex Inspection:* Analyzes Python scripts (AST `add_argument`) and Shell scripts (`getopts`, `case`) statically without executing them to prevent unwanted side-effects.
+    - *Safe Dynamic Help Probing:* Probes `--help` with `stdin=/dev/null` and timeout. Only probes `-h` if `--help` output specifically referenced it and contained standard help markers. Never triggers flags that do real work.
+    - *Interactive Form:* Questions are presented in sequence. Press **Enter** to skip any option and keep defaults. Select paths directly or pick them visually with `choose-directory`.
+    - *Mandatory Preview & Confirmation:* Displays the assembled command in a high-contrast preview panel and prompts for confirmation before running. Never skipped.
+  - **Ambiguous Flatpak Selection:** When a name matches multiple Flatpak packages (e.g. `firefox` matching stable and developer editions), displays an interactive numbered selection table.
+  - **Usage Error Fallback:** If a CLI tool run without arguments exits with an error code, offers to launch Guided Mode to configure required flags.
+  - **Automatic Privilege Elevation:** Prompts for administrator elevation if execution fails with permission errors (`PermissionError`, code 126/13).
+- **Syntax:**
+  ```bash
+  # Run local scripts, binaries, or AppImages directly
+  ez run script.py
+  ez run script.sh
+  ez run my_binary
+  ez run Cursor.AppImage
+
+  # Launch installed applications from any source
+  ez run vlc
+  ez run spotify
+  ez run gimp
+
+  # Pass arguments directly (skips guided mode)
+  ez run script.py --input data.csv --output out.csv
+  ez run curl -s https://example.com
+
+  # Pick an executable or script visually via mini explorer
+  ez run choose-directory
+  ```
+
+

@@ -161,6 +161,9 @@ ez help
 | 📶 | `ez connect-wifi` | **v0.5** | `nmcli`, `iw` | In-terminal graphical Wi-Fi manager with mouse support, signal strength bars, network scanning, password entry modal with show/hide toggle (`👁️`/`🙈`), and action buttons (`Connect`, `Cancel`, `Refresh`, `Disconnect`). |
 | 🔍 | `ez search-file <term>` | **v0.5** | `find`, `locate`, `ls` | Fast fuzzy file search starting from `/home`, rich results table with emoji icons, interactive selection to open, copy path, or edit, and optional system-wide (`'/'`) fallback with auto-elevation. |
 | 🗜️ | `ez compress [targets \| choose-directory]` | **v0.5** | `zip`, `tar`, `gzip`, `xz`, `7z` | Compress files and folders into `.zip`, `.tar.gz`, `.tar.xz`, `.7z`, or `.tar.bz2` with interactive TUI format selector, comma-separated targeting, `choose-directory` mini explorer, and live progress. |
+| 📂 | `ez extract-here <file1.ext> ,..., <file n.ext>` | **v0.5** | `unzip`, `tar -xvf`, `tar -xzf`, `tar -xJf`, `7z x` | Extract archives in current directory directly with comma/space separation, live byte-accurate progress, and Zip-Slip safety protection. |
+| 📦 | `ez extract [archives...] [to <dest> \| choose-directory]` | **v0.5** | `tar -C`, `unzip -d` | Extract archive(s) to a specific destination (`to <path>`), pick destination visually (`to choose-directory`), or launch two-stage mini explorer. Auto-elevation for protected paths. |
+| ▶️ | `ez run [target \| choose-directory] [args...]` | **v0.5** | `bash`, `python3`, `gio`, `snap`, `flatpak` | Universal runner for scripts, binaries, AppImages, and installed apps. Detached background launch for GUI apps; safe flag-free Guided Mode with preview confirmation for CLI tools. |
 
 ---
 
@@ -604,6 +607,70 @@ ez compress choose-directory
 - **Live Progress System**: Real-time progress bar showing active file being packed, percent complete, bytes compressed, and remaining time.
 - **Success Summary Card**: Displays archive location, compression ratio, space saved, and elapsed execution time.
 
+### 10. `ez extract-here` & `ez extract` — Safe Multi-Format Archive Extraction (v0.5)
+Extract any modern archive format (`.zip`, `.tar.gz`, `.tar.xz`, `.7z`, `.tar.bz2`, `.tar`, `.tgz`, `.txz`, `.tbz2`) without remembering cryptic command-line flags:
+```bash
+# Extract archives in current directory directly (comma or space separated)
+ez extract-here backup.zip
+ez extract-here package1.tar.gz, package2.7z, package3.tar.xz
+
+# Extract archives to a specific destination folder
+ez extract backup.zip to /path/to/destination
+ez extract package1.tar.gz, package2.7z to ./extracted_files/
+
+# Extract archive with visual destination selection via mini explorer
+ez extract backup.zip to choose-directory
+
+# Interactive destination prompt (or press Enter for visual destination picker)
+ez extract backup.zip to
+
+# Full two-stage visual extractor: pick archive(s) then pick destination folder
+ez extract choose-directory
+```
+- **`ez extract-here` (Direct CWD Mode)**: Strictly extracts within your current directory. Pointing to subfolder archives is blocked for safety, directing users to `ez extract choose-directory`.
+- **`ez extract ... to <destination>` (Targeted Mode)**: Extract one or multiple archives in the current directory to any destination folder on your system. Automatically creates non-existent destination directories.
+- **`to choose-directory` & Interactive `to`**: Allows selecting source archives directly from the current directory, while opening the mini explorer to pick the destination directory visually.
+- **Two-Stage Visual Explorer (`ez extract choose-directory`)**: Mini explorer opens first to choose archive(s), then opens again to select the destination directory.
+- **Auto-Elevation for Protected Destinations**: Extracting to root-protected directories (e.g. `/opt`, `/etc`) prompts for standard single elevation consent and unpacks safely via staging and the privileged helper.
+- **Zip-Slip & Path Traversal Protection**: Every archive entry is thoroughly sanitized against path traversal vulnerabilities (e.g. `../../etc/passwd` or absolute root paths).
+- **Live Progress & Success Summary**: Real-time progress bar tracking extracted files, byte volume, and percent, followed by a clean extraction summary card.
+
+### 11. `ez run` — Universal Runner & Flag-Free Guided Mode (v0.5)
+One single universal command to execute any file (script, binary, AppImage) or launch installed applications from any source (**PATH binaries**, **Snap**, **Flatpak**, or **Desktop entries**), with an interactive flag-free Guided Mode for beginners:
+```bash
+# Run local scripts or binaries directly
+ez run script.py
+ez run ./build/my_app
+ez run application.AppImage
+
+# Launch applications from any system source
+ez run vlc
+ez run spotify
+ez run gimp
+
+# Pass through flags and arguments directly (skips guided mode)
+ez run script.py --input data.csv --verbose
+ez run curl https://example.com -o page.html
+
+# Interactive visual file picker via mini explorer
+ez run choose-directory
+```
+- **Strict Resolution Hierarchy**:
+  1. *Local file path*: Executable binaries run directly; non-executable scripts run via detected interpreter (`.py` via `python3`, `.sh` via `bash`, `.js` via `node`) with consent to `chmod +x`; AppImages run with permissions check and FUSE guidance.
+  2. *Application name*: Resolves via PATH binary, Snap (`snap run`), Flatpak (`flatpak run`), or desktop entry (`gio launch`).
+- **GUI vs CLI Intelligence**:
+  - *GUI applications* (desktop entries with `Terminal=false`, AppImages, graphical Snaps/Flatpaks) launch **detached in the background**. The terminal stays immediately free with a confirmation card and a helpful tip pointing to `ez task-manager`.
+  - *CLI tools* execute in the foreground with a mandatory `▶ Running ...` summary line displayed before execution.
+- **Flag-Free Guided Mode**:
+  - When a CLI tool is invoked without arguments (`ez run <target>`), EasyCLI discovers configurable options safely.
+  - *Static script analysis first*: Parses Python `argparse` AST or Shell `getopts`/`case` branches without executing the script to avoid side-effects.
+  - *Safe dynamic help probe*: Probes `--help` safely (`stdin=/dev/null`, timeout=2.5s). Only probes `-h` if `--help` specifically suggested it and output contains standard help markers.
+  - *Interactive question form*: Prompts for boolean flags, choice selections, and paths (with visual mini explorer option picker). Users can press **Enter** to skip and keep defaults.
+  - *Mandatory Preview & Confirmation*: Always displays the assembled command in a high-contrast preview card and prompts for explicit user confirmation before running.
+- **Ambiguous Flatpak Selection**: If multiple Flatpak applications match a name (e.g. `firefox` matching stable and developer editions), an interactive Rich selection table is presented to choose the intended package.
+- **Automatic Privilege Elevation**: Commands or files failing due to `Permission denied` (EACCES / exit code 126 or 13) seamlessly prompt for elevation and run via the privileged helper with dot password feedback.
+- **Missing App Guidance**: If an application is not installed, displays a clean card suggesting: `ez package-search <target>`.
+
 ---
 
 ## 🎨 Icon & Font Policy
@@ -625,7 +692,7 @@ EZCLI/
 ├── setup.py               # Setup script (v0.5.0)
 ├── install.sh             # 1-step deployment script
 ├── README.md              # Documentation and guide
-├── tests/                 # Comprehensive unit test suite (296 tests)
+├── tests/                 # Comprehensive unit test suite (321 tests)
 │   ├── test_distro.py     # Distro parser and derivative detection tests
 │   ├── test_collectors.py # System inspection and installed package tests
 │   ├── test_file_ops.py   # Copy, move, cross-filesystem, and conflict tests
@@ -642,7 +709,9 @@ EZCLI/
 │   ├── test_internet_check.py # Internet connectivity & pipeline tests (v0.5)
 │   ├── test_wifi.py       # Wi-Fi scanner, password modal, and manager tests (v0.5)
 │   ├── test_search_file.py # Fuzzy file search, action dispatcher & system fallback tests (v0.5)
-│   └── test_compress.py   # Multi-format compression, TUI & comma-target tests (v0.5)
+│   ├── test_compress.py   # Multi-format compression, TUI & comma-target tests (v0.5)
+│   ├── test_extract.py    # Extraction engine, formats, Zip-Slip & CLI tests (v0.5)
+│   └── test_run.py        # Universal runner, detector, safe guided mode & CLI tests (v0.5)
 └── ezcli_app/
     ├── __init__.py        # Package version (__version__ = "0.5.0")
     ├── config.py          # Declarative FeatureTemplate definitions (canonical commands only)
@@ -669,6 +738,11 @@ EZCLI/
     ├── compress_engine.py # Core compression engine (.zip, .tar.gz, .tar.xz, .7z) (v0.5)
     ├── compress_tui.py    # Textual TUI & CLI fallback format & name selector (v0.5)
     ├── compress_cli.py    # Multi-target validation, conflict & live progress CLI (v0.5)
+    ├── extract_engine.py  # Core extraction engine (.zip, .tar.*, .7z, Zip-Slip guard) (v0.5)
+    ├── extract_cli.py     # Direct extract-here, two-stage picker & elevation CLI (v0.5)
+    ├── run_detector.py    # Target resolution hierarchy, desktop/snap/flatpak engine (v0.5)
+    ├── run_guide.py       # Safe help probe, static AST script parser & guided form (v0.5)
+    ├── run_cli.py         # Universal runner orchestrator, GUI detachment & elevation (v0.5)
     ├── wifi/              # Textual TUI In-Terminal Wi-Fi Manager with mouse support (v0.5)
     │   ├── __init__.py    # Wi-Fi package exports
     │   ├── wifi_engine.py # Network scanning, signal bars, security and connection engine
@@ -708,13 +782,15 @@ EZCLI/
   - Safe application uninstallation (`ez uninstall <name>`) across APT, Flatpak, and Snap with warning card, single consent, and zero-cache admin elevation.
   - Lite & modern terminal Task Manager (`ez task-manager`, `ez task-manager-pro`) with mouse support, real-time gauges, unresponsive process detection, and auto-elevation.
   - Universal Version Checker (`ez version [name]`) automatically inspecting binaries on PATH, Debian packages, APT catalog, Snap, Flatpak, Python, and Node libraries without flags.
-- **v0.5 — Internet Diagnostics, Visual Pipeline, In-Terminal Wi-Fi Manager, Fuzzy File Search & Archive Compression**:
+- **v0.5 — Internet Diagnostics, Visual Pipeline, In-Terminal Wi-Fi Manager, Fuzzy File Search, Compression, Extraction & Universal Runner**:
   - Universal internet connectivity checker (`ez check-internet`) testing Router ping, DNS resolution, and internet reachability.
   - High-contrast visual pipeline (`Router → DNS → Internet`) with latency indicators (`✔`/`✖`).
   - Immediate beginner-friendly one-line diagnostic reply explaining "Why internet isn't working" across all network failure modes.
   - In-terminal graphical Wi-Fi manager (`ez connect-wifi`) with full mouse support, real-time signal bars (`▂▄▆█ 85% 📶`), security detection, password entry modal with show/hide toggle (`👁️`/`🙈`), and action buttons (`Connect`, `Cancel`, `Refresh`, `Disconnect`).
   - Fast fuzzy file search (`ez search-file <term>`) starting from `/home`, rich results table with emoji icons, interactive selection to open, copy path, or edit, and optional system-wide (`'/'`) fallback with auto-elevation.
   - Multi-format archive compression (`ez compress`) supporting `.zip`, `.tar.gz`, `.tar.xz`, `.7z`, and `.tar.bz2` with TUI format selector, comma-separated multi-item targeting in current directory, `choose-directory` mini explorer picker, live progress, and success summary.
+  - Safe archive extraction (`ez extract-here` and `ez extract choose-directory`) supporting `.zip`, `.tar.gz`, `.tar.xz`, `.7z`, `.tar.bz2`, `.tar` with Zip-Slip path traversal protection, live extraction progress, multi-file comma targeting, two-stage visual picker, and automatic elevated destination support.
+  - Universal Application & Script Runner (`ez run <target> [args...]`) executing local scripts, binaries, AppImages, and installed applications (PATH, Snap, Flatpak, Desktop entries). Features detached background launch for GUI apps, foreground execution for CLI tools, safe flag-free Guided Mode with preview confirmation, and automatic privilege elevation.
 
 ---
 
@@ -725,4 +801,5 @@ To run the automated unit test suite:
 python3 -m unittest discover tests/
 ```
 
-All 235 unit tests validate distro detection, collector safety, file operations, conflict policies, cross-filesystem moves, undo engine, command parsing, file/folder creation, safe deletion with force prompts, mini text editor validation, binary file protection, permission-denied simulations, live stats metrics, privileged catalog updates, multi-source system upgrade simulations, safe application uninstallation, Windows-style task manager, universal version checking, internet connectivity diagnostics, and in-terminal Wi-Fi management.
+All 352 unit tests validate distro detection, collector safety, file operations, conflict policies, cross-filesystem moves, undo engine, command parsing, file/folder creation, safe deletion with force prompts, mini text editor validation, binary file protection, permission-denied simulations, live stats metrics, privileged catalog updates, multi-source system upgrade simulations, safe application uninstallation, Windows-style task manager, universal version checking, internet connectivity diagnostics, in-terminal Wi-Fi management, multi-format compression, safe archive extraction, and universal application execution with safe guided mode.
+

@@ -457,6 +457,57 @@ FEATURES: List[FeatureTemplate] = [
         ],
         renderer_name="run_cli_compress",
     ),
+    FeatureTemplate(
+        id="extract_here",
+        subcommand="extract-here",
+        title="Extract Archives (Current Directory)",
+        icon="📂",
+        description="Extract archive file(s) directly into current directory only",
+        wrapped_commands=["unzip", "tar", "7z"],
+        arguments=[
+            ArgumentDef(
+                name="archives",
+                help="Archive file(s) in current directory separated by commas",
+                required=False,
+                default="",
+            )
+        ],
+        renderer_name="run_cli_extract_here",
+    ),
+    FeatureTemplate(
+        id="extract",
+        subcommand="extract",
+        title="Extract Archives (Custom Location)",
+        icon="📦",
+        description="Extract archive file(s) to a specific destination ('to <folder>') or choose visually via mini explorer",
+        wrapped_commands=["unzip", "tar", "7z"],
+        arguments=[
+            ArgumentDef(
+                name="targets",
+                help="Archive file(s) [to <destination>] or 'choose-directory'",
+                required=False,
+                default="choose-directory",
+            )
+        ],
+        renderer_name="run_cli_extract",
+    ),
+    FeatureTemplate(
+        id="run",
+        subcommand="run",
+        title="Universal Application & Script Runner",
+        icon="▶️",
+        description="Run scripts, binaries, AppImages, or launch apps with guided flag-free mode",
+        wrapped_commands=["bash", "python3", "gio", "snap", "flatpak"],
+        arguments=[
+            ArgumentDef(
+                name="target",
+                help="File path or application name [args...]",
+                required=False,
+                default="",
+            )
+        ],
+        renderer_name="run_cli_run",
+    ),
 ]
 
 # Lookup map by subcommand

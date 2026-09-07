@@ -426,6 +426,7 @@ class ExplorerApp(App[Optional[Any]]):
             "pick_delete": "Mode: Select Items to Delete",
             "pick_file": "Mode: Select File to Edit",
             "pick_compress": "Mode: Select Files/Folders to Compress",
+            "pick_extract": "Mode: Select Archive(s) to Extract",
         }.get(self.mode, "")
         return f"{sel_text}{mode_text} (Sort: {self.sort_mode.capitalize()} | Hidden: {'On' if self.show_hidden else 'Off'})"
 
@@ -678,8 +679,8 @@ class ExplorerApp(App[Optional[Any]]):
             self.load_directory(item["path"])
             return
 
-        # 2. In pick_source / pick_compress mode: selection confirms or toggles
-        if self.mode in ("pick_source", "pick_compress"):
+        # 2. In pick_source / pick_compress / pick_extract mode: selection confirms or toggles
+        if self.mode in ("pick_source", "pick_compress", "pick_extract"):
             if not self.selected_paths:
                 self.selected_paths.add(item["path"])
             self.exit(list(self.selected_paths))
@@ -806,7 +807,7 @@ class ExplorerApp(App[Optional[Any]]):
             self.confirm_chosen_directory()
         elif self.mode == "pick_dest":
             self.exit(self.current_dir)
-        elif self.mode in ("pick_source", "pick_delete", "pick_compress"):
+        elif self.mode in ("pick_source", "pick_delete", "pick_compress", "pick_extract"):
             if not self.selected_paths:
                 table = self.query_one(DataTable)
                 if self.filtered_entries and table.cursor_row is not None:
@@ -1041,3 +1042,22 @@ def run_compress_picker(initial_dir: str = ".", is_admin: bool = False) -> List[
     setattr(ExplorerApp, "action_confirm_compress_selection", action_confirm_compress_selection)
     result = app.run()
     return result if isinstance(result, list) else []
+
+
+def run_extract_picker(initial_dir: str = ".", is_admin: bool = False) -> List[str]:
+    """Launch explorer specifically for picking archive file(s) to extract."""
+    app = ExplorerApp(mode="pick_extract", initial_dir=initial_dir, is_admin=is_admin)
+    app.BINDINGS.append(Binding("c", "confirm_extract_selection", "Select to Extract [c]", show=True))
+
+    def action_confirm_extract_selection(self: ExplorerApp) -> None:
+        table = self.query_one(DataTable)
+        if not self.selected_paths and self.filtered_entries and table.cursor_row is not None:
+            item = self.filtered_entries[table.cursor_row]
+            if not item.get("is_parent"):
+                self.selected_paths.add(item["path"])
+        self.exit(list(self.selected_paths))
+
+    setattr(ExplorerApp, "action_confirm_extract_selection", action_confirm_extract_selection)
+    result = app.run()
+    return result if isinstance(result, list) else []
+

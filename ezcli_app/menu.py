@@ -139,6 +139,19 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
                 from .compress_cli import run_cli_compress
                 run_cli_compress(targets=args_values, console=console)
                 return
+            elif feature.id == "extract_here":
+                from .extract_cli import run_cli_extract_here
+                run_cli_extract_here(raw_args=args_values, console=console)
+                return
+            elif feature.id == "extract":
+                from .extract_cli import run_cli_extract
+                choose_dest = any(a.lower() == "choose-directory" for a in args_values)
+                run_cli_extract(raw_args=args_values, choose_dest=choose_dest, console=console)
+                return
+            elif feature.id == "run":
+                from .run_cli import run_cli_run
+                run_cli_run(raw_args=args_values, console=console)
+                return
             elif renderer_fn is not None:
                 if feature.subcommand == "big_files" or feature.id == "big_files":
                     raw_folder = args_values[0] if args_values else "~"

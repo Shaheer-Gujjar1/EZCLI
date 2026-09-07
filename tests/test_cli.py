@@ -38,6 +38,9 @@ class TestCLI(unittest.TestCase):
         self.assertIn("service-status", res.stdout)
         self.assertIn("network-info", res.stdout)
         self.assertIn("logs", res.stdout)
+        self.assertIn("compress", res.stdout)
+        self.assertIn("extract-here", res.stdout)
+        self.assertIn("extract", res.stdout)
         self.assertIn("ez <subcommand>", res.stdout)
 
     def test_version_subcommand(self):

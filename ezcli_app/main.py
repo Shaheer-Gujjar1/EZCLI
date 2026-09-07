@@ -1,6 +1,8 @@
 import importlib
 import os
 import sys
+from typing import Sequence
+
 from rich import box
 from rich.console import Console
 from rich.panel import Panel
@@ -98,6 +100,177 @@ def print_custom_help(console: Console) -> None:
     console.print("[dim]💡 Tip: Never run 'sudo ez'. EasyCLI always runs safely as your normal user\n   and elevates only the specific underlying action through a small privileged helper.[/dim]\n")
 
 
+def dispatch_subcommand(feature, sub_args: list[str], console: Console) -> None:
+    """Route subcommand to the appropriate feature handler."""
+    if feature.id == "system_info":
+        renderers.render_system_info(console)
+    elif feature.id == "stats":
+        if not sys.stdout.isatty():
+            renderers.render_stats(console)
+        else:
+            if not check_textual_installed(console):
+                renderers.render_stats(console)
+            else:
+                from .stats import run_live_stats
+                run_live_stats()
+    elif feature.id == "task_manager":
+        if not check_textual_installed(console):
+            sys.exit(1)
+        from .task_manager import run_task_manager
+        run_task_manager(mode="normal")
+    elif feature.id == "task_manager_pro":
+        if not check_textual_installed(console):
+            sys.exit(1)
+        from .task_manager import run_task_manager
+        run_task_manager(mode="pro")
+    elif feature.id == "disk_info":
+        renderers.render_disk_info(console)
+    elif feature.id == "big_files":
+        raw_folder = sub_args[0] if sub_args else "~"
+        if raw_folder.lower() == "choose-directory":
+            if not check_textual_installed(console):
+                sys.exit(1)
+            from .explorer.explorer_app import ExplorerApp
+            app = ExplorerApp(mode="pick_dest", initial_dir="~")
+            chosen_dir = app.run()
+            if not chosen_dir or not isinstance(chosen_dir, str):
+                console.print("[dim]Directory selection cancelled.[/dim]")
+                return
+            folder = chosen_dir
+        else:
+            folder = raw_folder
+        renderers.render_big_files(console, folder)
+    elif feature.id == "package_search":
+        term = " ".join(sub_args)
+        renderers.render_package_search(console, term)
+    elif feature.id == "package":
+        pkg_name = sub_args[0]
+        renderers.render_package(console, pkg_name)
+    elif feature.id == "available_updates":
+        renderers.render_available_updates(console)
+    elif feature.id == "update":
+        from .upgrade_cli import run_cli_update
+        run_cli_update(console=console)
+    elif feature.id == "upgrade":
+        from .upgrade_cli import run_cli_upgrade
+        run_cli_upgrade(console=console)
+    elif feature.id == "uninstall":
+        from .uninstall_cli import run_cli_uninstall
+        target_app = sub_args[0] if sub_args else None
+        run_cli_uninstall(app_name=target_app, console=console)
+    elif feature.id == "service_status":
+        svc_name = sub_args[0]
+        renderers.render_service_status(console, svc_name)
+    elif feature.id == "network_info":
+        renderers.render_network_info(console)
+    elif feature.id == "logs":
+        lines = 50
+        if sub_args:
+            try:
+                lines = int(sub_args[0])
+            except ValueError:
+                console.print(f"[bold red]Error:[/bold red] Invalid line count '{sub_args[0]}'. Must be an integer.")
+                sys.exit(1)
+        renderers.render_logs(console, lines)
+    elif feature.id == "installed_packages":
+        renderers.render_installed_packages(console)
+    elif feature.id == "installed_package_search":
+        term = " ".join(sub_args)
+        renderers.render_installed_package_search(console, term)
+    elif feature.id == "choose_directory":
+        if not check_textual_installed(console):
+            sys.exit(1)
+        from .explorer.explorer_app import run_choose_directory
+        initial_dir = sub_args[0] if sub_args else "~"
+        run_choose_directory(initial_dir)
+    elif feature.id == "copy":
+        from .file_cli import run_cli_stage
+        choose_dir = any(a.lower() == "choose-directory" for a in sub_args)
+        clean_sub = [a for a in sub_args if a.lower() != "choose-directory"]
+        if choose_dir or not sub_args:
+            if not check_textual_installed(console):
+                sys.exit(1)
+            run_cli_stage("copy", targets=None, console=console)
+        else:
+            run_cli_stage("copy", targets=clean_sub, console=console)
+    elif feature.id == "move":
+        from .file_cli import run_cli_stage
+        choose_dir = any(a.lower() == "choose-directory" for a in sub_args)
+        clean_sub = [a for a in sub_args if a.lower() != "choose-directory"]
+        if choose_dir or not sub_args:
+            if not check_textual_installed(console):
+                sys.exit(1)
+            run_cli_stage("move", targets=None, console=console)
+        else:
+            run_cli_stage("move", targets=clean_sub, console=console)
+    elif feature.id == "paste":
+        from .file_cli import run_cli_paste
+        choose_dir = any(a.lower() == "choose-directory" for a in sub_args)
+        if choose_dir:
+            if not check_textual_installed(console):
+                sys.exit(1)
+            run_cli_paste(choose_dest=True, console=console)
+        else:
+            run_cli_paste(choose_dest=False, console=console)
+    elif feature.id == "undo":
+        from .file_cli import run_cli_undo
+        run_cli_undo(console=console)
+    elif feature.id == "redo":
+        from .file_cli import run_cli_redo
+        run_cli_redo(console=console)
+    elif feature.id == "create_folder":
+        from .create_cli import run_cli_create_folder
+        choose_dest = any(a.lower() == "choose-directory" for a in sub_args)
+        clean_sub = [a for a in sub_args if a.lower() != "choose-directory"]
+        run_cli_create_folder(raw_args=clean_sub, choose_dest=choose_dest, console=console)
+    elif feature.id == "create_file":
+        from .create_cli import run_cli_create_file
+        choose_dest = any(a.lower() == "choose-directory" for a in sub_args)
+        clean_sub = [a for a in sub_args if a.lower() != "choose-directory"]
+        run_cli_create_file(raw_args=clean_sub, choose_dest=choose_dest, console=console)
+    elif feature.id == "delete":
+        from .delete_cli import run_cli_delete
+        run_cli_delete(args=sub_args, console=console)
+    elif feature.id == "edit_file":
+        if not check_textual_installed(console):
+            sys.exit(1)
+        from .edit_cli import run_cli_edit_file
+        target_arg = sub_args[0] if sub_args else ""
+
+        class EditArgs:
+            target = target_arg
+
+        run_cli_edit_file(args=EditArgs(), console=console)
+    elif feature.id == "version":
+        from .version_checker import run_version_command
+        target_arg = sub_args[0] if sub_args else None
+        run_version_command(name=target_arg, console=console)
+    elif feature.id == "check_internet":
+        renderers.render_internet_check(console)
+    elif feature.id == "connect_wifi":
+        if not check_textual_installed(console):
+            sys.exit(1)
+        from .wifi import run_wifi_app
+        run_wifi_app()
+    elif feature.id == "search_file":
+        from .search_file import run_search_file_cli
+        search_term = " ".join(sub_args).strip() if sub_args else None
+        run_search_file_cli(term=search_term, console=console)
+    elif feature.id == "compress":
+        from .compress_cli import run_cli_compress
+        run_cli_compress(targets=sub_args, console=console)
+    elif feature.id == "extract_here":
+        from .extract_cli import run_cli_extract_here
+        run_cli_extract_here(raw_args=sub_args, console=console)
+    elif feature.id == "extract":
+        from .extract_cli import run_cli_extract
+        choose_dest = any(a.lower() == "choose-directory" for a in sub_args)
+        run_cli_extract(raw_args=sub_args, choose_dest=choose_dest, console=console)
+    elif feature.id == "run":
+        from .run_cli import run_cli_run
+        run_cli_run(raw_args=sub_args, console=console)
+
+
 def main() -> None:
     """Main CLI execution routine."""
     # Ensure stdout & terminal can render emoji and check emoji font capability
@@ -127,39 +300,25 @@ def main() -> None:
     for a in args:
         if a.startswith("-"):
             console.print(
-                f"[bold red]Error:[/bold red] EasyCLI is completely flagless — flags like '[cyan]{a}[/cyan]' are not supported."
+                f"[bold red]Error:[/bold red] EasyCLI is completely flagless — flags like '[cyan]{a}[/cyan]' are not supported.\n"
+                "EasyCLI uses clean canonical subcommands without flags:\n"
+                "  • View all commands: [bold green]ez help[/bold green]\n"
+                "  • Check versions:    [bold green]ez version[/bold green]\n"
+                "  • Explore features:  [bold green]ez[/bold green] (interactive menu)"
             )
-            if a in ("-h", "--help"):
-                console.print("Use the [bold green]ez help[/bold green] command to view all available commands.")
-            elif a in ("-v", "--version"):
-                console.print("Use the [bold green]ez version[/bold green] command to check the application version.")
-            else:
-                console.print("Run [bold green]ez help[/bold green] to view all available commands.")
             sys.exit(1)
 
-    first_arg = args[0].strip().lower()
+    first_arg = args[0].lower()
 
-    # 3. Subcommand 'help'
+    # 3. Canonical Help Subcommand
     if first_arg == "help":
         print_custom_help(console)
-        sys.exit(0)
+        return
 
-    # 4. Subcommand 'version'
-    if first_arg == "version":
-        sub_args = args[1:]
-        if not sub_args:
-            console.print(f"EasyCLI (ez) v{__version__} [dim](Safe Automatic Elevation)[/dim]")
-            console.print("[dim]💡 Tip: Check the version of any app, package, or library with '[bold cyan]ez version <name>[/bold cyan]'[/dim]")
-            sys.exit(0)
-        else:
-            from .version_checker import run_version_command
-            run_version_command(name=sub_args[0], console=console)
-            sys.exit(0)
-
-    # 4. Check if subcommand matches a registered feature
+    # 4. Validate canonical subcommand
     if first_arg not in FEATURES_BY_SUBCOMMAND:
-        console.print(f"[bold red]Unknown subcommand:[/bold red] '{first_arg}'\n")
-        console.print("Run [cyan]ez help[/cyan] to view available subcommands, or launch [cyan]ez[/cyan] for the menu.")
+        console.print(f"[bold red]Error:[/bold red] Unknown subcommand '[cyan]{args[0]}[/cyan]'.")
+        console.print("Run '[bold green]ez help[/bold green]' to see all available subcommands, or run '[bold green]ez[/bold green]' for the interactive menu.")
         sys.exit(1)
 
     feature = FEATURES_BY_SUBCOMMAND[first_arg]
@@ -177,163 +336,7 @@ def main() -> None:
 
     # Dispatch to appropriate renderer
     try:
-        if feature.id == "system_info":
-            renderers.render_system_info(console)
-        elif feature.id == "stats":
-            if not sys.stdout.isatty():
-                renderers.render_stats(console)
-            else:
-                if not check_textual_installed(console):
-                    renderers.render_stats(console)
-                else:
-                    from .stats import run_live_stats
-                    run_live_stats()
-        elif feature.id == "task_manager":
-            if not check_textual_installed(console):
-                sys.exit(1)
-            from .task_manager import run_task_manager
-            run_task_manager(mode="normal")
-        elif feature.id == "task_manager_pro":
-            if not check_textual_installed(console):
-                sys.exit(1)
-            from .task_manager import run_task_manager
-            run_task_manager(mode="pro")
-        elif feature.id == "disk_info":
-            renderers.render_disk_info(console)
-        elif feature.id == "big_files":
-            raw_folder = sub_args[0] if sub_args else "~"
-            if raw_folder.lower() == "choose-directory":
-                if not check_textual_installed(console):
-                    sys.exit(1)
-                from .explorer.explorer_app import ExplorerApp
-                app = ExplorerApp(mode="pick_dest", initial_dir="~")
-                chosen_dir = app.run()
-                if not chosen_dir or not isinstance(chosen_dir, str):
-                    console.print("[dim]Directory selection cancelled.[/dim]")
-                    return
-                folder = chosen_dir
-            else:
-                folder = raw_folder
-            renderers.render_big_files(console, folder)
-        elif feature.id == "package_search":
-            term = " ".join(sub_args)
-            renderers.render_package_search(console, term)
-        elif feature.id == "package":
-            pkg_name = sub_args[0]
-            renderers.render_package(console, pkg_name)
-        elif feature.id == "available_updates":
-            renderers.render_available_updates(console)
-        elif feature.id == "update":
-            from .upgrade_cli import run_cli_update
-            run_cli_update(console=console)
-        elif feature.id == "upgrade":
-            from .upgrade_cli import run_cli_upgrade
-            run_cli_upgrade(console=console)
-        elif feature.id == "uninstall":
-            from .uninstall_cli import run_cli_uninstall
-            target_app = sub_args[0] if sub_args else None
-            run_cli_uninstall(app_name=target_app, console=console)
-        elif feature.id == "service_status":
-            svc_name = sub_args[0]
-            renderers.render_service_status(console, svc_name)
-        elif feature.id == "network_info":
-            renderers.render_network_info(console)
-        elif feature.id == "logs":
-            lines = 50
-            if sub_args:
-                try:
-                    lines = int(sub_args[0])
-                except ValueError:
-                    console.print(f"[bold red]Error:[/bold red] Invalid line count '{sub_args[0]}'. Must be an integer.")
-                    sys.exit(1)
-            renderers.render_logs(console, lines)
-        elif feature.id == "installed_packages":
-            renderers.render_installed_packages(console)
-        elif feature.id == "installed_package_search":
-            term = " ".join(sub_args)
-            renderers.render_installed_package_search(console, term)
-        elif feature.id == "choose_directory":
-            if not check_textual_installed(console):
-                sys.exit(1)
-            from .explorer.explorer_app import run_choose_directory
-            initial_dir = sub_args[0] if sub_args else "~"
-            run_choose_directory(initial_dir)
-        elif feature.id == "copy":
-            from .file_cli import run_cli_stage
-            choose_dir = any(a.lower() == "choose-directory" for a in sub_args)
-            clean_sub = [a for a in sub_args if a.lower() != "choose-directory"]
-            if choose_dir or not sub_args:
-                if not check_textual_installed(console):
-                    sys.exit(1)
-                run_cli_stage("copy", targets=None, console=console)
-            else:
-                run_cli_stage("copy", targets=clean_sub, console=console)
-        elif feature.id == "move":
-            from .file_cli import run_cli_stage
-            choose_dir = any(a.lower() == "choose-directory" for a in sub_args)
-            clean_sub = [a for a in sub_args if a.lower() != "choose-directory"]
-            if choose_dir or not sub_args:
-                if not check_textual_installed(console):
-                    sys.exit(1)
-                run_cli_stage("move", targets=None, console=console)
-            else:
-                run_cli_stage("move", targets=clean_sub, console=console)
-        elif feature.id == "paste":
-            from .file_cli import run_cli_paste
-            choose_dir = any(a.lower() == "choose-directory" for a in sub_args)
-            if choose_dir:
-                if not check_textual_installed(console):
-                    sys.exit(1)
-                run_cli_paste(choose_dest=True, console=console)
-            else:
-                run_cli_paste(choose_dest=False, console=console)
-        elif feature.id == "undo":
-            from .file_cli import run_cli_undo
-            run_cli_undo(console=console)
-        elif feature.id == "redo":
-            from .file_cli import run_cli_redo
-            run_cli_redo(console=console)
-        elif feature.id == "create_folder":
-            from .create_cli import run_cli_create_folder
-            choose_dest = any(a.lower() == "choose-directory" for a in sub_args)
-            clean_sub = [a for a in sub_args if a.lower() != "choose-directory"]
-            run_cli_create_folder(raw_args=clean_sub, choose_dest=choose_dest, console=console)
-        elif feature.id == "create_file":
-            from .create_cli import run_cli_create_file
-            choose_dest = any(a.lower() == "choose-directory" for a in sub_args)
-            clean_sub = [a for a in sub_args if a.lower() != "choose-directory"]
-            run_cli_create_file(raw_args=clean_sub, choose_dest=choose_dest, console=console)
-        elif feature.id == "delete":
-            from .delete_cli import run_cli_delete
-            run_cli_delete(args=sub_args, console=console)
-        elif feature.id == "edit_file":
-            if not check_textual_installed(console):
-                sys.exit(1)
-            from .edit_cli import run_cli_edit_file
-            target_arg = sub_args[0] if sub_args else ""
-
-            class EditArgs:
-                target = target_arg
-
-            run_cli_edit_file(args=EditArgs(), console=console)
-        elif feature.id == "version":
-            from .version_checker import run_version_command
-            target_arg = sub_args[0] if sub_args else None
-            run_version_command(name=target_arg, console=console)
-        elif feature.id == "check_internet":
-            renderers.render_internet_check(console)
-        elif feature.id == "connect_wifi":
-            if not check_textual_installed(console):
-                sys.exit(1)
-            from .wifi import run_wifi_app
-            run_wifi_app()
-        elif feature.id == "search_file":
-            from .search_file import run_search_file_cli
-            search_term = " ".join(sub_args).strip() if sub_args else None
-            run_search_file_cli(term=search_term, console=console)
-        elif feature.id == "compress":
-            from .compress_cli import run_cli_compress
-            run_cli_compress(targets=sub_args, console=console)
+        dispatch_subcommand(feature, sub_args, console)
     except BrokenPipeError:
         try:
             devnull = os.open(os.devnull, os.O_WRONLY)
