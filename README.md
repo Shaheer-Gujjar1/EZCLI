@@ -109,6 +109,37 @@ ez
 
 ---
 
+## 🗑️ Uninstallation
+
+To completely uninstall EasyCLI from your system:
+
+### Option 1: Automated Uninstaller (Recommended)
+Run the uninstaller script from the repository:
+```bash
+cd /path/to/EZCLI
+./uninstall.sh
+```
+This interactively prompts and safely removes:
+- The command symlink (`/usr/local/bin/ez`)
+- User data, bookmarks, undo history, and local virtualenv (`~/.local/share/ez/`)
+- Optional emoji font priority override (`~/.config/fontconfig/conf.d/99-noto-color-emoji.conf`)
+
+### Option 2: Manual Removal
+Run the following commands:
+```bash
+# 1. Remove the binary symlink
+sudo rm -f /usr/local/bin/ez /usr/local/bin/ezcli
+
+# 2. Remove user data, bookmarks, and local virtualenv
+rm -rf ~/.local/share/ez ~/.local/share/ezcli
+
+# 3. (Optional) Remove font priority override if applied
+rm -f ~/.config/fontconfig/conf.d/99-noto-color-emoji.conf
+fc-cache -fv ~/.config/fontconfig/conf.d
+```
+
+---
+
 ## 🖥️ Hybrid User Experience
 
 EasyCLI offers two distinct ways to interact:
@@ -132,16 +163,16 @@ ez help
 | 💻 | `ez system-info` | **v0.1** | `hostnamectl`, `uptime -p`, `/etc/os-release` | Key-value card with OS name/version, hostname, kernel, architecture, and uptime. |
 | ⚡ | `ez stats` | **v0.3** | `/proc`, `ps`, `free`, `uptime` | Live-updating system & process monitor (modern `htop` alternative with per-core CPU bars, RAM/Swap gauges, search filtering, and safe process termination). |
 | 📋 | `ez task-manager` | **v0.4** | *(Windows Task Manager)*, `ps`, `kill` | Lite & modern Windows-style task manager for user apps with mouse support, emoji icons, unresponsive detection, and instant termination. |
-| 🛡️ | `ez task-manager-pro` | **v0.4** | `ps aux`, `top`, `sudo kill` | Comprehensive pro task manager with user apps, background daemons, system services, category tabs, and auto admin elevation. |
+| 🔒 | `ez task-manager-pro` | **v0.4** | `ps aux`, `top`, `sudo kill` | Comprehensive pro task manager with user apps, background daemons, system services, category tabs, and auto admin elevation. |
 | 💽 | `ez disk-info` | **v0.1** | `df -h` | Table of storage mounts, sizes, used/available space, and inline usage bars (filters out pseudo-filesystems). |
 | 📁 | `ez big-files [path \| choose-directory]` | **v0.1** | `du -h --max-depth=1`, `find` | Table of largest files and folders. Provide a path or use `choose-directory` to pick visually via the mini explorer. Defaults to `~`. |
 | 🔍 | `ez package-search <term>` | **v0.1** | `apt search`, `flathub`, `snapcraft` | Universal search across **APT 📦**, **Flatpak 🟣**, and **Snap 🟢** with interactive platform selection & installation commands. |
 | 📦 | `ez package <name>` | **v0.1** | `apt show`, `dpkg -s` | Card showing package version, size, homepage, description, and installed status. |
 | 🔄 | `ez available-updates` | **v0.1** | `apt list --upgradable` | Table of upgradable packages and versions using existing lists only (never runs `apt update`). |
 | 🔄 | `ez update` | **v0.4** | `apt update`, `apt-get update` | Refresh package catalog from repositories without installing or modifying software. Safe elevation. |
-| ⬆️ | `ez upgrade` | **v0.4** | `apt upgrade`, `snap refresh`, `flatpak update` | Comprehensive upgrade across APT, Flatpak, and Snap with impact simulation, Timeshift restore point prompt, and reboot check. |
-| 🗑️ | `ez uninstall <name>` | **v0.4** | `apt remove`, `snap remove`, `flatpak uninstall` | Safe application uninstallation across APT, Flatpak, and Snap with warning card, single consent, and zero-cache admin elevation. |
-| ⚙️ | `ez service-status <name>` | **v0.1** | `systemctl is-active`, `systemctl is-enabled` | Status card with running state and boot enablement indicators. |
+| 🚀 | `ez upgrade` | **v0.4** | `apt upgrade`, `snap refresh`, `flatpak update` | Comprehensive upgrade across APT, Flatpak, and Snap with impact simulation, Timeshift restore point prompt, and reboot check. |
+| 🧹 | `ez uninstall <name>` | **v0.4** | `apt remove`, `snap remove`, `flatpak uninstall` | Safe application uninstallation across APT, Flatpak, and Snap with warning card, single consent, and zero-cache admin elevation. |
+| 🔧 | `ez service-status <name>` | **v0.1** | `systemctl is-active`, `systemctl is-enabled` | Status card with running state and boot enablement indicators. |
 | 🌐 | `ez network-info` | **v0.1** | `ip addr`, `ip route`, `/etc/resolv.conf` | Overview card and table of network interfaces, IP addresses, gateway, DNS, and online status. |
 | 📄 | `ez logs [N]` | **v0.1** | `journalctl -n N --no-pager` | Color-coded system logs by severity (errors red, warnings yellow, ok green). Defaults to 50 lines. |
 | 📋 | `ez installed-packages` | **v0.1** | `apt list --installed`, `dpkg-query`, `flatpak list`, `snap list` | List all installed packages across system and desktop platforms (wraps `apt list --installed`). |
@@ -154,16 +185,15 @@ ez help
 | ⏩ | `ez redo` | **v0.2** | `redo` | Re-apply the most recently undone operation with preview and confirmation. |
 | 📁 | `ez create-folder <names...> [choose-directory]` | **v0.3** | `create-folder` | Create one or more new folders directly (comma-separated, in current directory) or choose parent directory visually with mini explorer. Automatic privilege elevation. |
 | 📄 | `ez create-file <names...> [choose-directory]` | **v0.3** | `create-file` | Create one or more new blank files directly (comma-separated, in current directory) or choose destination directory visually with mini explorer. Automatic privilege elevation. |
-| 🗑️ | `ez delete [target \| choose-directory]` | **v0.3** | `delete` | Permanently delete file(s) or folder(s) with explicit consent, non-force-first safety, and automatic elevation. |
+| 🧹 | `ez delete [target \| choose-directory]` | **v0.3** | `delete` | Permanently delete file(s) or folder(s) with explicit consent, non-force-first safety, and automatic elevation. |
 | 📝 | `ez edit-file [target \| choose-directory]` | **v0.3** | `edit-file` | Modern terminal text and code editor with syntax highlighting, line numbers, visual search, and auto-elevation. |
-| ℹ️ | `ez version [name]` | **v0.4** | `which`, `dpkg`, `apt`, `snap`, `flatpak`, `python`, `node` | Universal version checker across PATH binaries, Debian packages, APT catalog, Snap, Flatpak, Python, and Node libraries. Dual mode: displays EasyCLI version with no argument, or inspects specified target. |
+| 💡 | `ez version [name]` | **v0.4** | `which`, `dpkg`, `apt`, `snap`, `flatpak`, `python`, `node` | Universal version checker across PATH binaries, Debian packages, APT catalog, Snap, Flatpak, Python, and Node libraries. Dual mode: displays EasyCLI version with no argument, or inspects specified target. |
 | 📶 | `ez check-internet` | **v0.5** | `ping`, `ip route`, `socket` | 3-stage visual connectivity pipeline (`Router → DNS → Internet`) with latency (`✔`/`✖`) and an immediate "Why internet isn't working" one-line diagnostic verdict. |
 | 📶 | `ez connect-wifi` | **v0.5** | `nmcli`, `iw` | In-terminal graphical Wi-Fi manager with mouse support, signal strength bars, network scanning, password entry modal with show/hide toggle (`👁️`/`🙈`), and action buttons (`Connect`, `Cancel`, `Refresh`, `Disconnect`). |
 | 🔍 | `ez search-file <term>` | **v0.5** | `find`, `locate`, `ls` | Fast fuzzy file search starting from `/home`, rich results table with emoji icons, interactive selection to open, copy path, or edit, and optional system-wide (`'/'`) fallback with auto-elevation. |
-| 🗜️ | `ez compress [targets \| choose-directory]` | **v0.5** | `zip`, `tar`, `gzip`, `xz`, `7z` | Compress files and folders into `.zip`, `.tar.gz`, `.tar.xz`, `.7z`, or `.tar.bz2` with interactive TUI format selector, comma-separated targeting, `choose-directory` mini explorer, and live progress. |
-| 📂 | `ez extract-here <file1.ext> ,..., <file n.ext>` | **v0.5** | `unzip`, `tar -xvf`, `tar -xzf`, `tar -xJf`, `7z x` | Extract archives in current directory directly with comma/space separation, live byte-accurate progress, and Zip-Slip safety protection. |
-| 📦 | `ez extract [archives...] [to <dest> \| choose-directory]` | **v0.5** | `tar -C`, `unzip -d` | Extract archive(s) to a specific destination (`to <path>`), pick destination visually (`to choose-directory`), or launch two-stage mini explorer. Auto-elevation for protected paths. |
-| ▶️ | `ez run [target \| choose-directory] [args...]` | **v0.5** | `bash`, `python3`, `gio`, `snap`, `flatpak` | Universal runner for scripts, binaries, AppImages, and installed apps. Detached background launch for GUI apps; safe flag-free Guided Mode with preview confirmation for CLI tools. |
+| 📦 | `ez compress [targets \| choose-directory]` | **v0.5** | `zip`, `tar`, `gzip`, `xz`, `7z` | Compress files and folders into `.zip`, `.tar.gz`, `.tar.xz`, `.7z`, or `.tar.bz2` with interactive TUI format selector, comma-separated targeting, `choose-directory` mini explorer, and live progress. |
+| 📂 | `ez extract [archives...] [to <dest> \| choose-directory]` | **v0.5** | `unzip`, `tar`, `7z` | Extract archive(s) into current directory, specific destination (`to <path>`), visual picker (`to choose-directory`), or launch two-stage mini explorer. Auto-elevation for protected paths. |
+| 🎯 | `ez run [target \| choose-directory] [args...]` | **v0.5** | `bash`, `python3`, `gio`, `snap`, `flatpak` | Universal runner for scripts, binaries, AppImages, and installed apps. Detached background launch for GUI apps; safe flag-free Guided Mode with preview confirmation for CLI tools. |
 
 ---
 
@@ -607,12 +637,12 @@ ez compress choose-directory
 - **Live Progress System**: Real-time progress bar showing active file being packed, percent complete, bytes compressed, and remaining time.
 - **Success Summary Card**: Displays archive location, compression ratio, space saved, and elapsed execution time.
 
-### 10. `ez extract-here` & `ez extract` — Safe Multi-Format Archive Extraction (v0.5)
+### 10. `ez extract` — Safe Multi-Format Archive Extraction (v0.5)
 Extract any modern archive format (`.zip`, `.tar.gz`, `.tar.xz`, `.7z`, `.tar.bz2`, `.tar`, `.tgz`, `.txz`, `.tbz2`) without remembering cryptic command-line flags:
 ```bash
-# Extract archives in current directory directly (comma or space separated)
-ez extract-here backup.zip
-ez extract-here package1.tar.gz, package2.7z, package3.tar.xz
+# Extract archives (prompts: press Enter for current directory, or type 'choose-directory')
+ez extract backup.zip
+ez extract package1.tar.gz, package2.7z, package3.tar.xz
 
 # Extract archives to a specific destination folder
 ez extract backup.zip to /path/to/destination
@@ -627,7 +657,7 @@ ez extract backup.zip to
 # Full two-stage visual extractor: pick archive(s) then pick destination folder
 ez extract choose-directory
 ```
-- **`ez extract-here` (Direct CWD Mode)**: Strictly extracts within your current directory. Pointing to subfolder archives is blocked for safety, directing users to `ez extract choose-directory`.
+- **Unified Extraction**: Directly extract in your current working directory (press <kbd>Enter</kbd>), specify a destination path (`to <folder>`), or choose visually (`choose-directory`).
 - **`ez extract ... to <destination>` (Targeted Mode)**: Extract one or multiple archives in the current directory to any destination folder on your system. Automatically creates non-existent destination directories.
 - **`to choose-directory` & Interactive `to`**: Allows selecting source archives directly from the current directory, while opening the mini explorer to pick the destination directory visually.
 - **Two-Stage Visual Explorer (`ez extract choose-directory`)**: Mini explorer opens first to choose archive(s), then opens again to select the destination directory.

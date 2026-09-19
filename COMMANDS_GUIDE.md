@@ -55,9 +55,8 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 | 32 | `ez connect-wifi` | `nmcli dev wifi`, `nmtui`, `iwconfig`, `wpa_supplicant` | In-terminal graphical Wi-Fi manager with mouse support, signal bars, network scanning, password entry modal with show/hide toggle, and action buttons (`Connect`, `Cancel`, `Refresh`, `Disconnect`). |
 | 33 | `ez search-file <term>` | `find / -iname "*name*"`, `locate`, `fzf` | Fast fuzzy file search starting from `/home`, rich results table with emoji icons, interactive selection to open, copy path, or edit, and optional system-wide (`'/'`) fallback with auto-elevation. |
 | 34 | `ez compress [targets \| choose-directory]` | `zip`, `tar -czf`, `tar -cJf`, `7z a`, `gzip`, `bzip2` | Interactive multi-format archive creator (`.zip`, `.tar.gz`, `.tar.xz`, `.7z`, `.tar.bz2`) with comma-separated targeting in current directory, mini explorer picker, live progress, and space-saved metrics. |
-| 35 | `ez extract-here <file1.ext> ,..., <file n.ext>` | `unzip`, `tar -xf`, `tar -xzf`, `tar -xJf`, `7z x` | Extract one or more archives directly into current directory with comma/space separation, live progress bar, and Zip-Slip vulnerability prevention. Direct paths strictly restricted to CWD. |
-| 36 | `ez extract [archives...] [to <dest> \| choose-directory]` | `tar -x -C <dir>`, `unzip -d <dir>` | Extract archive(s) directly to a specified destination (`to <path>`), pick destination visually (`to choose-directory`), or launch two-stage mini explorer. Automatic elevation for protected destinations. |
-| 37 | `ez run [target \| choose-directory] [args...]` | `bash`, `python3`, `chmod +x && ./app`, `snap run`, `flatpak run`, `gio launch`, `./app.AppImage` | One universal command to execute any script, binary, AppImage, or launch apps. GUI apps launch detached keeping terminal free; CLI tools execute with flag-free Guided Mode and command preview. |
+| 35 | `ez extract [archives...] [to <dest> \| choose-directory]` | `unzip`, `tar`, `7z` | Extract archive(s) into current directory (press Enter), specific destination (`to <path>`), visual picker (`to choose-directory`), or launch two-stage mini explorer. Automatic elevation for protected destinations. |
+| 36 | `ez run [target \| choose-directory] [args...]` | `bash`, `python3`, `chmod +x && ./app`, `snap run`, `flatpak run`, `gio launch`, `./app.AppImage` | One universal command to execute any script, binary, AppImage, or launch apps. GUI apps launch detached keeping terminal free; CLI tools execute with flag-free Guided Mode and command preview. |
 
 ---
 
@@ -554,22 +553,22 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 
 ---
 
-#### `ez extract-here <file1.ext> ,..., <file n.ext>` & `ez extract`
+#### `ez extract [archives...] [to <dest> | choose-directory]`
 - **Replaces:** `unzip <archive.zip>`, `tar -xvf <archive.tar>`, `tar -xzvf <archive.tar.gz>`, `tar -xJvf <archive.tar.xz>`, `tar -x -C <destination>`, `7z x <archive.7z>`, `unzip <archive.zip> -d <dir>`
-- **Why it's better:** Replaces confusing, non-standard unpacking syntax and flags across different archive tools with intuitive, flagless commands:
-  - **`ez extract-here` (Direct CWD Mode):** Extract single or multiple archives (comma- or space-separated) right where you are. Subfolder paths are rejected to avoid unpacking files into unexpected locations.
-  - **`ez extract ... to <destination>` (Targeted Mode):** Extract archives directly from your current directory to a specific destination folder. Missing destination folders are created automatically.
-  - **`ez extract ... to choose-directory` & Interactive `to`:** Select archives directly, then choose the destination folder visually via the mini explorer or interactive prompt.
-  - **`ez extract choose-directory` (Two-Stage Visual Mode):** Visual mini explorer launches to pick archive(s) from anywhere on your system, followed by mini explorer to select your target destination folder.
+- **Why it's better:** Replaces confusing, non-standard unpacking syntax and flags across different archive tools with one intuitive, flagless command:
+  - **Direct CWD Extraction:** Running `ez extract <archive>` prompts for destination, defaulting directly to your current working directory upon pressing <kbd>Enter</kbd>.
+  - **Targeted Mode (`to <destination>`):** Extract archives directly from your current directory to a specific destination folder. Missing destination folders are created automatically.
+  - **Visual Destination Selection (`to choose-directory`):** Select archives directly, then choose the destination folder visually via the mini explorer or interactive prompt.
+  - **Two-Stage Visual Mode (`ez extract choose-directory`):** Visual mini explorer launches to pick archive(s) from anywhere on your system, followed by mini explorer to select your target destination folder.
   - **Zip-Slip & Traversal Guard:** Fully sanitizes member paths to block path traversal attacks (`../` or leading `/`).
   - **Automatic Privilege Elevation:** Unpacking to system or root-owned directories triggers seamless, one-time admin elevation.
   - **Universal Format Detection:** Seamlessly extracts `.zip`, `.tar.gz`, `.tgz`, `.tar.xz`, `.txz`, `.tar.bz2`, `.tbz2`, `.tar`, and `.7z`.
   - **Live Progress & Success Card:** Real-time progress bar with active file display, followed by a clean summary card with item counts and destination path.
 - **Syntax:**
   ```bash
-  # Direct extraction in current directory
-  ez extract-here backup.zip
-  ez extract-here package1.tar.gz, package2.7z, package3.tar.xz
+  # Extract archive (press Enter for current directory, or type 'choose-directory')
+  ez extract backup.zip
+  ez extract package1.tar.gz, package2.7z, package3.tar.xz
 
   # Extract archives to a specific destination folder
   ez extract backup.zip to /path/to/destination

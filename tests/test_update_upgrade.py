@@ -291,7 +291,7 @@ class TestUpdateUpgradeCLI(unittest.TestCase):
 
         feat_upgrade = FEATURES_BY_SUBCOMMAND["upgrade"]
         self.assertEqual(feat_upgrade.subcommand, "upgrade")
-        self.assertEqual(feat_upgrade.icon, "⬆️")
+        self.assertEqual(feat_upgrade.icon, "🚀")
 
     def test_assess_upgrade_risk(self):
         # Medium risk for regular packages

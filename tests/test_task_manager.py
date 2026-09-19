@@ -26,7 +26,7 @@ class TestProcessEngine(unittest.TestCase):
         self.assertIn("task-manager-pro", FEATURES_BY_SUBCOMMAND)
         feat_pro = FEATURES_BY_SUBCOMMAND["task-manager-pro"]
         self.assertEqual(feat_pro.subcommand, "task-manager-pro")
-        self.assertEqual(feat_pro.icon, "🛡️")
+        self.assertEqual(feat_pro.icon, "🔒")
 
     def test_resolve_app_name_and_icon(self):
         # Browsers

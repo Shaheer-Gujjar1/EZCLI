@@ -125,7 +125,7 @@ class TestUninstallCLI(unittest.TestCase):
         self.assertIn("uninstall", FEATURES_BY_SUBCOMMAND)
         feat = FEATURES_BY_SUBCOMMAND["uninstall"]
         self.assertEqual(feat.subcommand, "uninstall")
-        self.assertEqual(feat.icon, "🗑️")
+        self.assertEqual(feat.icon, "🧹")
         self.assertIn("apt remove", feat.wrapped_commands)
 
     @patch("ezcli_app.uninstall_cli.collect_installed_packages")

@@ -259,9 +259,6 @@ def dispatch_subcommand(feature, sub_args: list[str], console: Console) -> None:
     elif feature.id == "compress":
         from .compress_cli import run_cli_compress
         run_cli_compress(targets=sub_args, console=console)
-    elif feature.id == "extract_here":
-        from .extract_cli import run_cli_extract_here
-        run_cli_extract_here(raw_args=sub_args, console=console)
     elif feature.id == "extract":
         from .extract_cli import run_cli_extract
         choose_dest = any(a.lower() == "choose-directory" for a in sub_args)
@@ -313,6 +310,12 @@ def main() -> None:
     # 3. Canonical Help Subcommand
     if first_arg == "help":
         print_custom_help(console)
+        return
+
+    # Backwards-compatible alias for direct extraction
+    if first_arg == "extract-here":
+        from .extract_cli import run_cli_extract_here
+        run_cli_extract_here(raw_args=args[1:], console=console)
         return
 
     # 4. Validate canonical subcommand

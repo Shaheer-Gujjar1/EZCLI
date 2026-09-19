@@ -39,7 +39,6 @@ class TestCLI(unittest.TestCase):
         self.assertIn("network-info", res.stdout)
         self.assertIn("logs", res.stdout)
         self.assertIn("compress", res.stdout)
-        self.assertIn("extract-here", res.stdout)
         self.assertIn("extract", res.stdout)
         self.assertIn("ez <subcommand>", res.stdout)
 
