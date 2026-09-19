@@ -193,6 +193,23 @@ FEATURES: List[FeatureTemplate] = [
         renderer_name="render_logs",
     ),
     FeatureTemplate(
+        id="list",
+        subcommand="list",
+        title="Directory List & Tree",
+        icon="🗂️",
+        description="Instant directory listing with progressive folder sizing or interactive TUI inspector (choose-directory)",
+        wrapped_commands=["ls", "tree", "du", "stat"],
+        arguments=[
+            ArgumentDef(
+                name="mode",
+                help="'choose-directory' to pick visually and inspect in TUI (omit for instant current directory listing)",
+                required=False,
+                default="",
+            )
+        ],
+        renderer_name="render_list_directory",
+    ),
+    FeatureTemplate(
         id="list_installed_packages",
         subcommand="list-installed-packages",
         title="List Installed Packages",

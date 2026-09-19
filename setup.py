@@ -2,7 +2,8 @@ from setuptools import setup, find_packages
 
 setup(
     name="ezcli",
-    version="0.5.0",
+    version="0.6.0",
+
     packages=find_packages(),
     install_requires=[
         "rich>=12.0.0",

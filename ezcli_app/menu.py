@@ -146,7 +146,11 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
         # Dispatch feature
         renderer_fn = getattr(renderers, feature.renderer_name, None)
         try:
-            if feature.id == "choose_directory":
+            if feature.id == "list":
+                from .list_cli import run_cli_list
+                run_cli_list(raw_args=args_values, console=console)
+                return
+            elif feature.id == "choose_directory":
                 from .explorer.explorer_app import run_choose_directory
                 run_choose_directory("~")
             elif feature.id == "copy":
@@ -359,13 +363,13 @@ def interactive_menu(console: Console) -> None:
                 # Redraw immediately with new dimensions.
                 continue
             except (KeyboardInterrupt, EOFError):
-                console.print("\n[dim]Exiting EasyCLI.[/dim]")
+                console.print("\n[dim]Good bye![/dim]")
                 sys.exit(0)
             finally:
                 _in_menu_prompt = False
 
             if choice == "q":
-                console.print("\n[dim]Exiting EasyCLI.[/dim]")
+                console.print("\n[dim]Good bye![/dim]")
                 sys.exit(0)
             elif choice == "r":
                 continue

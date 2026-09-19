@@ -55,6 +55,8 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 | 32 | `ez compress [targets \| choose-directory]` | `zip`, `tar -czf`, `tar -cJf`, `7z a`, `gzip`, `bzip2` | Interactive multi-format archive creator (`.zip`, `.tar.gz`, `.tar.xz`, `.7z`, `.tar.bz2`) with comma-separated targeting in current directory, mini explorer picker, live progress, and space-saved metrics. |
 | 33 | `ez extract [archives...] [to <dest> \| choose-directory]` | `unzip`, `tar`, `7z` | Extract archive(s) into current directory (press Enter), specific destination (`to <path>`), visual picker (`to choose-directory`), or launch two-stage mini explorer. Automatic elevation for protected destinations. |
 | 34 | `ez run [target \| choose-directory] [args...]` | `bash`, `python3`, `chmod +x && ./app`, `snap run`, `flatpak run`, `gio launch`, `./app.AppImage` | One universal command to execute any script, binary, AppImage, or launch apps. GUI apps launch detached keeping terminal free; CLI tools execute with flag-free Guided Mode and command preview. |
+| 35 | `ez list [choose-directory]` | `ls`, `tree`, `du`, `stat` | Flagless and pathless unified directory listing and inspector. Instant pretty listing with background folder size streaming (Form 1) or visual directory picker with interactive TUI flat/tree toggle, sorting, hidden toggle, and plain English permissions details modal (Form 2). |
+
 
 ---
 
@@ -199,6 +201,31 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
   ```
 
 ---
+
+#### `ez list [choose-directory]`
+- **Replaces:** `ls`, `ls -la`, `tree`, `du -sh *`, `stat <file>`
+- **Why it's better:** Modern, flagless, and pathless directory inspection. Form 1 provides an instant, non-interactive pretty listing in your current directory with file emojis, human sizes, and non-blocking background folder sizing. Form 2 visually picks any directory across your filesystem, instantly prints its pretty listing directly to your terminal shell, and provides an optional hotkey (`i`) to open the full interactive TUI inspector (tree view, sort cycles, and stat replacement details modal).
+- **Strictly Flagless & Pathless:** Does **not** accept path arguments (`ez list /var` is rejected). Folder selection is always done visually.
+- **Syntax:**
+  ```bash
+  # Form 1: Instant Pretty Listing of Current Directory (Non-Interactive)
+  ez list
+
+  # Form 2: Visual Folder Selection + Terminal Listing & Optional TUI Inspector
+  ez list choose-directory
+  ```
+- **Form 2 Features:**
+  - **Instant Shell Listing**: Prints the selected directory's Rich table directly to stdout.
+  - **Interactive TUI Option (`i`)**: Opens full Textual inspector with:
+    - `[t]`: Toggle between flat list table and collapsible tree view.
+    - `[s]`: Cycle sorting: Name (A–Z) $\rightarrow$ Size (largest first) $\rightarrow$ Date (newest first).
+    - `[h]`: Toggle hidden files and folders.
+    - `[Enter]`: Open details modal card with plain English permissions, created/modified dates, exact bytes, and ownership.
+    - `[q]` / `[Esc]`: Quit inspector back to shell.
+
+
+---
+
 
 #### `ez copy [target | choose-directory]`
 - **Replaces:** `cp -r <src> <dest>`
@@ -502,11 +529,8 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 ---
 
 #### Retired: `ez version [name]` (Consolidated into `ez package-info`)
-- **Status:** Retired in favor of `ez package-info <name>`.
-- **Reason:** `ez package-info` provides a comprehensive App-Store card that includes version detection across binaries on PATH, Debian packages, APT catalog, Snaps, Flatpaks, Python libraries, and Node.js modules alongside size, nature, and actions.
-- **Backward Compatibility:**
-  - `ez version <name>` automatically routes to `ez package-info <name>`.
-  - `ez version` without arguments prints the EasyCLI version.
+- **Status:** Completely retired.
+- **Reason:** `ez package-info` provides a comprehensive App-Store card that includes version detection across binaries on PATH, Debian packages, APT catalog, Snaps, Flatpaks, Python libraries, and Node.js modules alongside size, nature, and safe actions.
 
 ---
 

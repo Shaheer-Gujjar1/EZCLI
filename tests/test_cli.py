@@ -42,20 +42,14 @@ class TestCLI(unittest.TestCase):
         self.assertIn("extract", res.stdout)
         self.assertIn("ez <subcommand>", res.stdout)
 
-    def test_version_subcommand(self):
-        from ezcli_app import __version__
+    def test_version_command_retired(self):
+        # 'ez version' is completely retired; running it returns unknown subcommand
         res = self.run_ez("version")
-        self.assertEqual(res.returncode, 0)
-        self.assertIn(f"v{__version__}", res.stdout)
-        self.assertIn("EasyCLI (ez)", res.stdout)
-        self.assertIn("ez version", res.stdout)
-
-    def test_version_subcommand_with_target(self):
-        res = self.run_ez("version", "bash")
-        self.assertEqual(res.returncode, 0)
-        self.assertIn("bash", res.stdout)
-        self.assertIn("Version", res.stdout)
-        self.assertIn("Binary", res.stdout)
+        self.assertEqual(res.returncode, 1)
+        self.assertIn("Unknown subcommand", res.stdout)
+        res_target = self.run_ez("version", "bash")
+        self.assertEqual(res_target.returncode, 1)
+        self.assertIn("Unknown subcommand", res_target.stdout)
 
     def test_version_retired_from_features(self):
         from ezcli_app.config import FEATURES
@@ -71,7 +65,7 @@ class TestCLI(unittest.TestCase):
 
     def test_aliases_rejected(self):
         # All aliases must be rejected; only canonical subcommands are supported
-        aliases = ["installed", "choose", "explorer", "new-folder", "new-file", "del", "remove"]
+        aliases = ["installed", "choose", "explorer", "new-folder", "new-file", "del", "remove", "version"]
         for alias in aliases:
             res = self.run_ez(alias)
             self.assertEqual(res.returncode, 1, f"Alias '{alias}' should be rejected")
@@ -260,7 +254,23 @@ class TestCLI(unittest.TestCase):
             menu._sigwinch_handler(0, None)
         self.assertFalse(menu._in_menu_prompt)
 
+    def test_list_subcommand_direct(self):
+        res = self.run_ez("list")
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("Name", res.stdout)
+        self.assertIn("Size", res.stdout)
+        self.assertIn("Modified", res.stdout)
+        # Should include items from the repo
+        self.assertIn("README.md", res.stdout)
+
+    def test_list_subcommand_rejects_paths(self):
+        res = self.run_ez("list", "/var")
+        self.assertEqual(res.returncode, 1)
+        self.assertIn("Path Arguments Not Allowed", res.stdout)
+        self.assertIn("ez list choose-directory", res.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

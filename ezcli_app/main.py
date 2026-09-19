@@ -53,6 +53,104 @@ def check_textual_installed(console: Console) -> bool:
     return False
 
 
+COMMAND_INTENT_MAP: dict = {
+    "list": ["list"],
+    "ls": ["list"],
+    "tree": ["list"],
+    "du": ["list", "big-files"],
+    "stat": ["list"],
+    "version": ["package-info"],
+    "versions": ["package-info"],
+    "ver": ["package-info"],
+    "vers": ["package-info"],
+    "install": ["package-info"],
+    "get": ["package-info"],
+    "pkg": ["package-info", "list-installed-packages"],
+    "pkgs": ["package-info", "list-installed-packages"],
+    "package": ["package-info"],
+    "remove": ["uninstall", "delete"],
+    "rm": ["delete", "uninstall"],
+    "del": ["delete", "uninstall"],
+    "kill": ["task-manager", "stats"],
+    "pro": ["task-manager-pro", "task-manager"],
+    "task": ["task-manager"],
+    "tasks": ["task-manager", "task-manager-pro"],
+    "process": ["task-manager", "task-manager-pro"],
+    "processes": ["task-manager", "task-manager-pro"],
+    "top": ["task-manager", "stats"],
+    "ps": ["task-manager"],
+    "wifi": ["connect-wifi"],
+    "wlan": ["connect-wifi"],
+    "internet": ["check-internet"],
+    "search": ["search-file", "installed-package-search"],
+    "find": ["search-file"],
+    "files": ["choose-directory", "search-file"],
+    "file": ["search-file", "choose-directory"],
+    "dir": ["choose-directory"],
+    "folder": ["choose-directory", "create-folder"],
+    "explorer": ["choose-directory"],
+    "monitor": ["stats", "task-manager"],
+    "cpu": ["stats", "task-manager"],
+    "ram": ["stats", "task-manager"],
+    "mem": ["stats", "task-manager"],
+    "zip": ["compress", "extract"],
+    "unzip": ["extract"],
+    "tar": ["compress", "extract"],
+    "archive": ["compress", "extract"],
+    "exec": ["run"],
+    "start": ["run"],
+    "status": ["service-status"],
+    "service": ["service-status"],
+    "services": ["service-status"],
+    "log": ["logs"],
+    "journal": ["logs"],
+    "net": ["network-info", "check-internet"],
+    "ip": ["network-info"],
+    "update": ["update"],
+    "upgrade": ["upgrade"],
+}
+
+
+def find_subcommand_suggestions(query: str) -> list[str]:
+    """
+    Find relevant, high-confidence subcommand suggestions for an unknown command or typo.
+    Eliminates spurious/unrelated suggestions by checking intents, exact prefix matches,
+    hyphenated subtoken matches, and strict fuzzy matching (cutoff >= 0.75).
+    """
+    q = query.lower().strip()
+    if not q:
+        return []
+
+    # 1. Intent / synonym mapping
+    if q in COMMAND_INTENT_MAP:
+        return [cmd for cmd in COMMAND_INTENT_MAP[q] if cmd in FEATURES_BY_SUBCOMMAND]
+
+    available = list(FEATURES_BY_SUBCOMMAND.keys())
+    results: list[str] = []
+
+    # 2. Exact prefix matches (e.g. 'stat' -> 'stats', 'comp' -> 'compress')
+    for cmd in available:
+        if cmd.startswith(q) and cmd not in results:
+            results.append(cmd)
+
+    # 3. Substring in hyphenated token (e.g. 'wifi' in 'connect-wifi', 'disk' in 'disk-info')
+    if len(q) >= 3:
+        for cmd in available:
+            parts = cmd.split("-")
+            if any(p == q or p.startswith(q) for p in parts) and cmd not in results:
+                results.append(cmd)
+
+    # 4. Strict fuzzy match (only for typos with high similarity, cutoff=0.75)
+    if len(q) >= 4:
+        import difflib
+        fuzzy_matches = difflib.get_close_matches(q, available, n=2, cutoff=0.75)
+        for m in fuzzy_matches:
+            if m not in results:
+                results.append(m)
+
+    return results[:2]
+
+
 def print_custom_help(console: Console) -> None:
     """Print formatted help listing all subcommands, icons, and descriptions."""
     distro = detect_distro()
@@ -209,6 +307,9 @@ def dispatch_subcommand(feature, sub_args: list[str], console: Console) -> None:
     elif feature.id == "installed_package_search":
         term = " ".join(sub_args)
         renderers.render_installed_package_search(console, term)
+    elif feature.id == "list":
+        from .list_cli import run_cli_list
+        run_cli_list(raw_args=sub_args, console=console)
     elif feature.id == "choose_directory":
         if not check_textual_installed(console):
             sys.exit(1)
@@ -317,19 +418,30 @@ def main() -> None:
         try:
             interactive_menu(console)
         except (KeyboardInterrupt, EOFError):
-            console.print("\n[dim]Exiting EasyCLI.[/dim]")
+            console.print("\n[dim]Exiting!.[/dim]")
             sys.exit(0)
         return
 
     # 2. EasyCLI is strictly flagless — reject any flags starting with '-'
     for a in args:
         if a.startswith("-"):
+            panel_width = max(45, min(console.width, 85))
+            body = (
+                f"[bold red]Error: Flags like '[white]{escape(a)}[/white]' are not supported.[/bold red]\n\n"
+                "EasyCLI is completely [bold yellow]flagless[/bold yellow] and uses clean canonical subcommands without flags:\n"
+                "  • View all commands:  [bold green]ez help[/bold green]\n"
+                "  • Package info:       [bold green]ez package-info <name>[/bold green]\n"
+                "  • Explore features:   [bold green]ez[/bold green] (interactive menu)"
+            )
             console.print(
-                f"[bold red]Error:[/bold red] EasyCLI is completely flagless — flags like '[cyan]{a}[/cyan]' are not supported.\n"
-                "EasyCLI uses clean canonical subcommands without flags:\n"
-                "  • View all commands: [bold green]ez help[/bold green]\n"
-                "  • Package info:      [bold green]ez package-info <name>[/bold green]\n"
-                "  • Explore features:  [bold green]ez[/bold green] (interactive menu)"
+                Panel(
+                    body,
+                    title="❌ [bold red]Flagless Frontend[/bold red]",
+                    border_style="red",
+                    box=box.ROUNDED,
+                    padding=(1, 2),
+                    width=panel_width,
+                )
             )
             sys.exit(1)
 
@@ -358,21 +470,43 @@ def main() -> None:
         first_arg = "list-installed-packages"
         args[0] = "list-installed-packages"
 
-    # Backwards-compatible alias for retired version command
-    if first_arg == "version":
-        target = " ".join(args[1:]).strip() if len(args) > 1 else ""
-        if target:
-            from .package_info import run_cli_package_info
-            run_cli_package_info(target, console=console)
-        else:
-            console.print(f"EasyCLI (ez) v{__version__} [dim](Safe Automatic Elevation)[/dim]")
-            console.print("[dim]💡 Note: 'ez version' has been retired. Target version inspection is now part of '[bold cyan]ez package-info <name>[/bold cyan]'.[/dim]")
-        return
-
     # 4. Validate canonical subcommand
     if first_arg not in FEATURES_BY_SUBCOMMAND:
-        console.print(f"[bold red]Error:[/bold red] Unknown subcommand '[cyan]{args[0]}[/cyan]'.")
-        console.print("Run '[bold green]ez help[/bold green]' to see all available subcommands, or run '[bold green]ez[/bold green]' for the interactive menu.")
+        panel_width = max(45, min(console.width, 85))
+        body_parts = [
+            f"[bold red]Error: Unknown subcommand '[white]{escape(args[0])}[/white]'.[/bold red]"
+        ]
+
+        if first_arg == "version":
+            body_parts.append(
+                "[bold yellow]💡 Looking for version information?[/bold yellow]\n"
+                "  Software version inspection has been consolidated into:\n"
+                "    [bold cyan]ez package-info <name>[/bold cyan]\n"
+                "  To view EasyCLI's version, run:\n"
+                "    [bold cyan]ez help[/bold cyan]"
+            )
+        else:
+            suggestions = find_subcommand_suggestions(first_arg)
+            if suggestions:
+                formatted = ", ".join(f"[bold cyan]ez {m}[/bold cyan]" for m in suggestions)
+                body_parts.append(f"[bold yellow]💡 Did you mean?[/bold yellow] {formatted}")
+
+        body_parts.append(
+            "[dim]Need help finding a command?[/dim]\n"
+            "  • Run '[bold green]ez help[/bold green]' to see all available subcommands.\n"
+            "  • Run '[bold green]ez[/bold green]' for the interactive menu."
+        )
+
+        console.print(
+            Panel(
+                "\n\n".join(body_parts),
+                title="❌ [bold red]Unknown Subcommand[/bold red]",
+                border_style="red",
+                box=box.ROUNDED,
+                padding=(1, 2),
+                width=panel_width,
+            )
+        )
         sys.exit(1)
 
     feature = FEATURES_BY_SUBCOMMAND[first_arg]
@@ -382,9 +516,26 @@ def main() -> None:
     required_args = [a for a in feature.arguments if a.required]
     if len(sub_args) < len(required_args):
         missing = [a.name for a in required_args[len(sub_args):]]
+        panel_width = max(45, min(console.width, 85))
+        usage_syntax = f"ez {feature.subcommand}"
+        for a in feature.arguments:
+            usage_syntax += f" <{a.name}>" if a.required else f" [{a.name}]"
+
+        missing_str = ", ".join(f"[bold red]<{m}>[/bold red]" for m in missing)
+        body = (
+            f"[bold red]Error: Subcommand '[white]{feature.subcommand}[/white]' requires argument(s):[/bold red] {missing_str}\n\n"
+            f"[bold white]Usage:[/bold white] [bold green]{escape(usage_syntax)}[/bold green]\n\n"
+            f"[dim]Run '[bold green]ez help[/bold green]' to see syntax details.[/dim]"
+        )
         console.print(
-            f"[bold red]Error:[/bold red] Subcommand '[cyan]{feature.subcommand}[/cyan]' requires argument(s): "
-            + ", ".join(f"<{m}>" for m in missing)
+            Panel(
+                body,
+                title="❌ [bold red]Missing Required Argument[/bold red]",
+                border_style="red",
+                box=box.ROUNDED,
+                padding=(1, 2),
+                width=panel_width,
+            )
         )
         sys.exit(1)
 

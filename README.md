@@ -175,7 +175,9 @@ ez help
 | 🌐 | `ez network-info` | **v0.1** | `ip addr`, `ip route`, `/etc/resolv.conf` | Overview card and table of network interfaces, IP addresses, gateway, DNS, and online status. |
 | 📄 | `ez logs [N]` | **v0.1** | `journalctl -n N --no-pager` | Color-coded system logs by severity (errors red, warnings yellow, ok green). Defaults to 50 lines. |
 | 📋 | `ez list-installed-packages [apps\|packages\|both]` | **v0.5** | `apt list --installed`, `dpkg-query`, `flatpak`, `snap`, `pip`, `npm` | List installed software with interactive filter (Installed Applications Only, Packages Only like npm/node/nala/php/pip, or Both). |
+| 🗂️ | `ez list [choose-directory]` | **v0.6** | `ls`, `tree`, `du`, `stat` | Modern visual listing & inspector: instant emoji listing of current dir with streaming background folder sizing (Form 1), or visual picker + interactive TUI with flat/tree views, sorting, hidden toggle, and plain English permissions card (Form 2). Strictly no path arguments. |
 | 🔎 | `ez installed-package-search <name>` | **v0.1** | `apt list --installed \| grep -i <name>`, `dpkg-query` | Search installed packages and applications by name (wraps `apt list --installed \| grep -i <name>`). |
+
 | 📁 | `ez choose-directory [path]` | **v0.2** | `explorer` | Graphical terminal file explorer with mouse navigation, file-type emojis, bookmarks, and subshell launcher. |
 | 📋 | `ez copy [target \| choose-directory]` | **v0.2** | `cp` | Copy file/folder in current directory directly or choose visually with `choose-directory`. |
 | 🚚 | `ez move [target \| choose-directory]` | **v0.2** | `mv` | Move file/folder in current directory directly or choose visually with `choose-directory`. |
@@ -564,7 +566,7 @@ ez package-info         # Interactive search hub across APT, Flathub, Snap, Pip,
 ```
 - **Unified Multi-Source Detection**: Inspects binaries on PATH, Debian packages (`dpkg`/`apt`), Flathub/Flatpak, Snap Store, Python (`pip`), and Node.js (`npm`), reporting installed version, store version, install size, and desktop launcher nature.
 - **Safe Actions**: Run, Install, or Uninstall directly from the card.
-- **Retired `ez version`**: The standalone subcommand `ez version` has been retired. Running `ez version <name>` automatically routes to `ez package-info <name>`, while running `ez version` without arguments displays EasyCLI's own version.
+- **Unified Version & Package Inspection**: Standalone `ez version` is completely retired; all version checking and package inspection is handled by `ez package-info <name>`.
 
 ### 6. `ez check-internet` — Universal Internet Connectivity Checker (v0.5)
 Instant 3-stage connectivity diagnosis and visual pipeline:
@@ -691,6 +693,49 @@ ez run choose-directory
 
 ---
 
+## 🗂️ Unified Directory Listing & Inspector (v0.6: `ez list`)
+
+`ez list` is a modern, unified replacement for `ls`, `tree`, `du`, and `stat`. It eliminates cryptic flags (`ls -la`, `tree -L 2`, `du -sh *`, `stat <file>`) in favor of clear, visual feedback and an interactive inspector.
+
+> ⚠️ **Strictly Flagless and Pathless**: `ez list` accepts **no path argument anywhere**. You never type raw paths like `ez list /var` or `ez list my_folder`. Directories are always selected visually.
+
+### Form 1: Instant Non-Interactive Pretty Listing (`ez list`)
+Run `ez list` with no arguments for an instant pretty listing of your current directory:
+```bash
+ez list
+```
+- **Instant shell output**: Prints formatted Rich table and returns immediately to the shell (not a persistent viewer).
+- **Rich file badges & emoji icons**: Every file and folder displays its contextual file-type emoji (e.g. 📁 folders, 🐍 Python, 📦 archives, 📄 documents).
+- **Human-readable sizes**: Clean size formatting (`B`, `KB`, `MB`, `GB`).
+- **Progressive background folder sizing**: Folder sizes are computed concurrently in the background and streamed live into the output table without blocking or delaying the initial directory listing.
+- **Subtle hidden files**: Hidden dotfiles and dotfolders are visible by default with a distinct, subtle dim styling.
+
+### Form 2: Visual Explorer + Directory Listing (`ez list choose-directory`)
+To inspect any folder across your system:
+```bash
+ez list choose-directory
+```
+1. **Visual Picker**: Launches the mini file manager to visually navigate and select any directory across your filesystem (with places shortcuts, bookmarks, and search).
+2. **Instant Shell Output**: Prints the pretty listing table of the chosen directory directly to your terminal shell (with file emojis, human sizes, subtle hidden items, and progressive background folder sizing).
+3. **Optional Interactive TUI Inspector**: At the bottom of the listing, a prompt allows pressing `[i]` to open the full Textual TUI inspector (or pressing `Enter` to return to the shell):
+   - `[t]`: **Toggle View**: Switch seamlessly between flat table list view and hierarchical collapsible tree view.
+   - `[s]`: **Cycle Sorting**: Re-sort entries instantly by **Name** (A–Z) $\rightarrow$ **Size** (largest first) $\rightarrow$ **Date** (newest first).
+   - `[h]`: **Toggle Hidden**: Show or hide dotfiles and dotfolders on the fly.
+   - `[Enter]`: **Stat Details Modal**: Opens a comprehensive details card displaying:
+
+     - Full path and filename with emoji icon
+     - Creation timestamp and Last Modified timestamp
+     - **Plain English permissions** (e.g. `You: read+write · Others: read-only` or `You: read+write+exec · Others: read+exec`)
+     - Exact byte count alongside human-readable size
+     - Owner username and group name
+   - `[q]` / `[Esc]`: Exit inspector and return to your terminal shell.
+- **Friendly Empty State**: If a directory contains no items, displays a clean, friendly notification card.
+- **Loading Spinner**: Large directories display an animated loading indicator while indexing.
+- **Automatic Privilege Elevation**: If an unreadable or protected folder is selected (e.g. `/root` or `/etc/ssl/private`), EasyCLI seamlessly triggers its consent elevation dialog.
+
+---
+
+
 ## 🎨 Icon & Font Policy
 
 - **Emoji Icons:** Single-character inline emoji icons are used throughout the application without adding extra lines or disrupting grid alignment.
@@ -706,12 +751,13 @@ EasyCLI is designed with a layered, decoupled architecture:
 ```
 EZCLI/
 ├── ez                     # Executable entrypoint script
-├── pyproject.toml         # Packaging configuration (v0.5.0)
-├── setup.py               # Setup script (v0.5.0)
+├── pyproject.toml         # Packaging configuration (v0.6.0)
+├── setup.py               # Setup script (v0.6.0)
 ├── install.sh             # 1-step deployment script
 ├── README.md              # Documentation and guide
-├── tests/                 # Comprehensive unit test suite (321 tests)
+├── tests/                 # Comprehensive unit test suite (384 tests)
 │   ├── test_distro.py     # Distro parser and derivative detection tests
+
 │   ├── test_collectors.py # System inspection and installed package tests
 │   ├── test_file_ops.py   # Copy, move, cross-filesystem, and conflict tests
 │   ├── test_undo.py       # Reversible undo engine verification
@@ -729,9 +775,10 @@ EZCLI/
 │   ├── test_search_file.py # Fuzzy file search, action dispatcher & system fallback tests (v0.5)
 │   ├── test_compress.py   # Multi-format compression, TUI & comma-target tests (v0.5)
 │   ├── test_extract.py    # Extraction engine, formats, Zip-Slip & CLI tests (v0.5)
-│   └── test_run.py        # Universal runner, detector, safe guided mode & CLI tests (v0.5)
+│   ├── test_run.py        # Universal runner, detector, safe guided mode & CLI tests (v0.5)
+│   └── test_list.py       # Unified listing, tree, permissions & inspector tests (v0.6)
 └── ezcli_app/
-    ├── __init__.py        # Package version (__version__ = "0.5.0")
+    ├── __init__.py        # Package version (__version__ = "0.6.0")
     ├── config.py          # Declarative FeatureTemplate definitions (canonical commands only)
     ├── distro.py          # /etc/os-release parsing and Debian validation
     ├── emoji.py           # Font capability and UTF-8 detection
@@ -739,6 +786,9 @@ EZCLI/
     ├── renderers.py       # Rich visual layout and box-drawing renderers
     ├── menu.py            # Interactive TUI menu and keyboard navigation
     ├── main.py            # Subcommand parser, visual choose-directory dispatcher
+    ├── list_cli.py        # Instant listing (Form 1) & background size streaming (v0.6)
+    ├── list_tui.py        # Textual TUI inspector, tree/flat toggle & stat modal (v0.6)
+
     ├── elevation.py       # Shared privilege-elevation layer & password UX (v0.3)
     ├── privileged_helper.py# Minimal privileged helper for elevated tasks
     ├── file_engine.py     # Safe file operations, SHA256 checks, conflict policies
@@ -750,7 +800,6 @@ EZCLI/
     ├── update_upgrade.py  # Catalog refresh, simulation & system upgrade (v0.4)
     ├── uninstall_cli.py   # Multi-source safe application uninstallation (v0.4)
     ├── task_manager.py    # Lite Windows-style terminal task manager (v0.4)
-    ├── version_checker.py # Universal multi-source version detector & renderer (v0.4)
     ├── internet_checker.py# Internet connectivity diagnostic engine & pipeline (v0.5)
     ├── search_file.py     # Fuzzy file search, interactive actions & elevated fallback (v0.5)
     ├── compress_engine.py # Core compression engine (.zip, .tar.gz, .tar.xz, .7z) (v0.5)

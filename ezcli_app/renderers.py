@@ -994,12 +994,6 @@ def render_installed_package_search(console: Console, term: str, is_admin: bool 
     render_list_installed_packages(console, filter_arg=term, category="both", is_admin=is_admin)
 
 
-def render_version_info(console: Console, name: str = "") -> None:
-    """Universal version checker renderer (wraps ez version [name])."""
-    from .version_checker import run_version_command
-    run_version_command(name=name, console=console)
-
-
 def render_internet_check(console: Console) -> None:
     """Internet connectivity diagnostics renderer (wraps ez check-internet)."""
     from .internet_checker import render_internet_check as run_render
@@ -1010,4 +1004,11 @@ def run_wifi_app(console: Console) -> None:
     """Launch interactive Wi-Fi manager (wraps ez connect-wifi)."""
     from .wifi import run_wifi_app as start_wifi_app
     start_wifi_app()
+
+
+def render_list_directory(console: Console, mode: str = "") -> None:
+    """Directory listing and interactive inspector renderer (wraps ez list)."""
+    from .list_cli import run_cli_list
+    args = [mode] if mode else []
+    run_cli_list(raw_args=args, console=console)
 
