@@ -17,6 +17,7 @@ class TestCLI(unittest.TestCase):
         proc = subprocess.run(
             cmd,
             input=input_str,
+            stdin=subprocess.DEVNULL if input_str is None else None,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -32,8 +33,7 @@ class TestCLI(unittest.TestCase):
         self.assertIn("stats", res.stdout)
         self.assertIn("disk-info", res.stdout)
         self.assertIn("big-files", res.stdout)
-        self.assertIn("package-search", res.stdout)
-        self.assertIn("package", res.stdout)
+        self.assertIn("package-info", res.stdout)
         self.assertIn("available-updates", res.stdout)
         self.assertIn("service-status", res.stdout)
         self.assertIn("network-info", res.stdout)
@@ -53,8 +53,14 @@ class TestCLI(unittest.TestCase):
     def test_version_subcommand_with_target(self):
         res = self.run_ez("version", "bash")
         self.assertEqual(res.returncode, 0)
-        self.assertIn("Version Information: bash", res.stdout)
+        self.assertIn("bash", res.stdout)
+        self.assertIn("Version", res.stdout)
         self.assertIn("Binary", res.stdout)
+
+    def test_version_retired_from_features(self):
+        from ezcli_app.config import FEATURES
+        self.assertNotIn("version", [f.subcommand for f in FEATURES])
+        self.assertNotIn("version", [f.id for f in FEATURES])
 
     def test_flags_rejected(self):
         # EasyCLI is completely flagless — all flags must be rejected
@@ -78,7 +84,7 @@ class TestCLI(unittest.TestCase):
         self.assertIn("ez help", res.stdout)
 
     def test_missing_required_argument(self):
-        res = self.run_ez("package")
+        res = self.run_ez("service-status")
         self.assertEqual(res.returncode, 1)
         self.assertIn("requires argument", res.stdout)
 
@@ -100,7 +106,33 @@ class TestCLI(unittest.TestCase):
         self.assertIn("Storage Partitions", res.stdout)
 
     def test_installed_packages_direct(self):
+        # Backward compatibility alias
         res = self.run_ez("installed-packages")
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("Installed", res.stdout)
+
+    def test_list_installed_packages_direct(self):
+        res = self.run_ez("list-installed-packages")
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("Installed", res.stdout)
+
+    def test_list_installed_packages_apps_filter(self):
+        res = self.run_ez("list-installed-packages", "apps")
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("Installed Applications", res.stdout)
+
+    def test_list_installed_packages_packages_filter(self):
+        res = self.run_ez("list-installed-packages", "packages")
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("Installed Packages", res.stdout)
+
+    def test_list_installed_packages_interactive_apps(self):
+        res = self.run_ez("list-installed-packages", input_str="1\n")
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("Installed Applications", res.stdout)
+
+    def test_list_installed_packages_interactive_packages(self):
+        res = self.run_ez("list-installed-packages", input_str="2\n")
         self.assertEqual(res.returncode, 0)
         self.assertIn("Installed Packages", res.stdout)
 
@@ -169,6 +201,66 @@ class TestCLI(unittest.TestCase):
         self.assertEqual(res.returncode, 0)
         self.assertIn("compress", res.stdout)
 
+    def test_features_sorted_alphabetically(self):
+        from ezcli_app.config import FEATURES
+        subcommands = [f.subcommand for f in FEATURES]
+        self.assertEqual(subcommands, sorted(subcommands))
+
+    def test_adaptive_features_table(self):
+        from rich.console import Console
+        from ezcli_app.menu import build_features_table
+
+        for w in (120, 85, 65, 45):
+            c = Console(width=w, height=40, record=True)
+            table = build_features_table(w)
+            c.print(table)
+            output = c.export_text()
+            lines = [l for l in output.splitlines() if l.strip()]
+            self.assertTrue(len(lines) > 0)
+            max_len = max(len(l) for l in lines)
+            self.assertLessEqual(
+                max_len,
+                w,
+                f"Table rendered at width {w} exceeded boundary with line length {max_len}",
+            )
+            # Verify rounded borders intact on top and bottom
+            self.assertTrue(any("╭" in l and "╮" in l for l in lines))
+            self.assertTrue(any("╰" in l and "╯" in l for l in lines))
+
+    def test_adaptive_header_panel(self):
+        from rich.console import Console
+        from ezcli_app.distro import detect_distro
+        from ezcli_app.menu import build_header_panel
+
+        distro = detect_distro()
+        for w in (120, 80, 60, 45):
+            c = Console(width=w, height=40, record=True)
+            panel = build_header_panel(w, distro)
+            c.print(panel)
+            output = c.export_text()
+            lines = [l for l in output.splitlines() if l.strip()]
+            self.assertTrue(len(lines) > 0)
+            max_len = max(len(l) for l in lines)
+            self.assertLessEqual(
+                max_len,
+                w,
+                f"Header panel rendered at width {w} exceeded boundary with line length {max_len}",
+            )
+
+    def test_terminal_resize_handler(self):
+        import ezcli_app.menu as menu
+
+        # When not in menu prompt, handler should be silent
+        menu._in_menu_prompt = False
+        menu._sigwinch_handler(0, None)
+
+        # When in menu prompt, handler should raise TerminalResizeInterrupt
+        menu._in_menu_prompt = True
+        with self.assertRaises(menu.TerminalResizeInterrupt):
+            menu._sigwinch_handler(0, None)
+        self.assertFalse(menu._in_menu_prompt)
+
 
 if __name__ == "__main__":
     unittest.main()
+

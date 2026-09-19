@@ -38,25 +38,23 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 | 15 | `ez create-file [names...] [choose-directory]` | `touch <name>` | Validates file extensions, prevents accidental overwrites, supports single or comma-separated multiple blank files in current directory, or picking visually. |
 | 16 | `ez delete [target \| choose-directory]` | `rm -rf <target>`, `rmdir <target>` | Prevents catastrophic mistakes: non-force check first, displays item summary, requires explicit confirmation, and handles safe auto-elevation. |
 | 17 | `ez edit-file [target \| choose-directory]` | `nano`, `vim`, `micro`, `gedit`, `sudoedit` | Modern code & text editor with syntax highlighting for 15+ languages, visual find & replace (`Ctrl+F`), and automatic elevated saving for protected system files. |
-| 18 | `ez package-search <kw>` | `apt search`, `flatpak search`, `snap find` | Unified search across **APT 📦**, **Flatpak 🟣**, and **Snap 🟢**; merges duplicates into one item with source badges and directly installs selected packages with automated elevation. |
-| 19 | `ez package <name>` | `apt show <name>`, `dpkg -s <name>` | Clean summary card showing version, size, homepage, description, and installed status without walls of text. |
-| 20 | `ez available-updates` | `apt list --upgradable` | Read-only summary table of available upgrades without modifying system lists or running unexpected updates. |
-| 21 | `ez update` | `apt update`, `apt-get update` | Refresh package catalog only, with consent, dot password feedback, warning tolerance, and anti-panic reminders. |
-| 22 | `ez upgrade` | `apt upgrade`, `flatpak update`, `snap refresh` | Multi-source safe system upgrade under single elevation consent with simulation preview, risk badge, Timeshift restore point, and reboot check. |
-| 23 | `ez uninstall <name>` | `apt remove`, `flatpak uninstall`, `snap remove` | Safe application uninstallation across APT, Flatpak, and Snap with pre-removal warning card, single consent, and zero-cache admin elevation. |
-| 24 | `ez installed-packages` | `apt list --installed`, `dpkg-query -l`, `flatpak list`, `snap list` | Comprehensive list of installed software across system packages and desktop applications without truncation. |
-| 25 | `ez installed-package-search <kw>` | `apt list --installed \| grep -i <kw>` | Fast case-insensitive search through installed system software without complex bash regex. |
-| 26 | `ez service-status <name>` | `systemctl status <name>`, `is-active`, `is-enabled` | Compact card with clear running state (Active/Inactive) and boot startup state (Enabled/Disabled). |
-| 27 | `ez network-info` | `ip -br addr`, `ip route`, `/etc/resolv.conf`, `ping` | Consolidates IP addresses, interfaces, default gateway, DNS servers, and Internet connectivity into one card. |
-| 28 | `ez` *(no args)* | *(Manual CLI navigation)* | Full interactive TUI menu with searchable categories, emoji icons, and hotkey navigation. |
-| 29 | `ez help` | `man <tool>`, `<tool> --help` | Formatted overview of all subcommands, arguments, and safety guidelines. |
-| 30 | `ez version [name]` | `<tool> --version`, `dpkg -s`, `apt-cache policy`, `snap list`, `flatpak info`, `pip show`, `npm list` | Universal version checker: without arguments, prints EasyCLI version + hint; with `<name>`, auto-detects version across binary on PATH, Debian package, APT catalog, Snap, Flatpak, Python library, and Node.js library in a single clean card. |
-| 31 | `ez check-internet` | `ping`, `traceroute`, `host`, `dig`, `curl -I` | 3-stage connectivity test across local router, DNS resolvers, and internet reachability. Shows a visual pipeline with latency (`✔`/`✖`) and an immediate "Why internet isn't working" one-line diagnostic reply. |
-| 32 | `ez connect-wifi` | `nmcli dev wifi`, `nmtui`, `iwconfig`, `wpa_supplicant` | In-terminal graphical Wi-Fi manager with mouse support, signal bars, network scanning, password entry modal with show/hide toggle, and action buttons (`Connect`, `Cancel`, `Refresh`, `Disconnect`). |
-| 33 | `ez search-file <term>` | `find / -iname "*name*"`, `locate`, `fzf` | Fast fuzzy file search starting from `/home`, rich results table with emoji icons, interactive selection to open, copy path, or edit, and optional system-wide (`'/'`) fallback with auto-elevation. |
-| 34 | `ez compress [targets \| choose-directory]` | `zip`, `tar -czf`, `tar -cJf`, `7z a`, `gzip`, `bzip2` | Interactive multi-format archive creator (`.zip`, `.tar.gz`, `.tar.xz`, `.7z`, `.tar.bz2`) with comma-separated targeting in current directory, mini explorer picker, live progress, and space-saved metrics. |
-| 35 | `ez extract [archives...] [to <dest> \| choose-directory]` | `unzip`, `tar`, `7z` | Extract archive(s) into current directory (press Enter), specific destination (`to <path>`), visual picker (`to choose-directory`), or launch two-stage mini explorer. Automatic elevation for protected destinations. |
-| 36 | `ez run [target \| choose-directory] [args...]` | `bash`, `python3`, `chmod +x && ./app`, `snap run`, `flatpak run`, `gio launch`, `./app.AppImage` | One universal command to execute any script, binary, AppImage, or launch apps. GUI apps launch detached keeping terminal free; CLI tools execute with flag-free Guided Mode and command preview. |
+| 18 | `ez package-info [name]` | `apt show`, `apt search`, `flatpak search`, `snap find`, `pip`, `npm` | App-Store package inspector: checks local machine & stores simultaneously, loose matching, nature classification, safe actions (Run/Install/Uninstall), and App Hub menu when run without arguments. |
+| 19 | `ez available-updates` | `apt list --upgradable` | Read-only summary table of available upgrades without modifying system lists or running unexpected updates. |
+| 20 | `ez update` | `apt update`, `apt-get update` | Refresh package catalog only, with consent, dot password feedback, warning tolerance, and anti-panic reminders. |
+| 21 | `ez upgrade` | `apt upgrade`, `flatpak update`, `snap refresh` | Multi-source safe system upgrade under single elevation consent with simulation preview, risk badge, Timeshift restore point, and reboot check. |
+| 22 | `ez uninstall <name>` | `apt remove`, `flatpak uninstall`, `snap remove` | Safe application uninstallation across APT, Flatpak, and Snap with pre-removal warning card, single consent, and zero-cache admin elevation. |
+| 23 | `ez list-installed-packages [apps\|packages\|both]` | `apt list --installed`, `dpkg-query -l`, `flatpak list`, `snap list`, `pip`, `npm` | List installed software with interactive filter (Installed Applications Only, Packages Only like npm/node/nala/php/pip, or Both). |
+| 24 | `ez installed-package-search <kw>` | `apt list --installed \| grep -i <kw>` | Fast case-insensitive search through installed system software without complex bash regex. |
+| 25 | `ez service-status <name>` | `systemctl status <name>`, `is-active`, `is-enabled` | Compact card with clear running state (Active/Inactive) and boot startup state (Enabled/Disabled). |
+| 26 | `ez network-info` | `ip -br addr`, `ip route`, `/etc/resolv.conf`, `ping` | Consolidates IP addresses, interfaces, default gateway, DNS servers, and Internet connectivity into one card. |
+| 27 | `ez` *(no args)* | *(Manual CLI navigation)* | Full interactive TUI menu with searchable categories, emoji icons, and hotkey navigation. |
+| 28 | `ez help` | `man <tool>`, `<tool> --help` | Formatted overview of all subcommands, arguments, and safety guidelines. |
+| 29 | `ez check-internet` | `ping`, `traceroute`, `host`, `dig`, `curl -I` | 3-stage connectivity test across local router, DNS resolvers, and internet reachability. Shows a visual pipeline with latency (`✔`/`✖`) and an immediate "Why internet isn't working" one-line diagnostic reply. |
+| 30 | `ez connect-wifi` | `nmcli dev wifi`, `nmtui`, `iwconfig`, `wpa_supplicant` | In-terminal graphical Wi-Fi manager with mouse support, signal bars, network scanning, password entry modal with show/hide toggle, and action buttons (`Connect`, `Cancel`, `Refresh`, `Disconnect`). |
+| 31 | `ez search-file <term>` | `find / -iname "*name*"`, `locate`, `fzf` | Fast fuzzy file search starting from `/home`, rich results table with emoji icons, interactive selection to open, copy path, or edit, and optional system-wide (`'/'`) fallback with auto-elevation. |
+| 32 | `ez compress [targets \| choose-directory]` | `zip`, `tar -czf`, `tar -cJf`, `7z a`, `gzip`, `bzip2` | Interactive multi-format archive creator (`.zip`, `.tar.gz`, `.tar.xz`, `.7z`, `.tar.bz2`) with comma-separated targeting in current directory, mini explorer picker, live progress, and space-saved metrics. |
+| 33 | `ez extract [archives...] [to <dest> \| choose-directory]` | `unzip`, `tar`, `7z` | Extract archive(s) into current directory (press Enter), specific destination (`to <path>`), visual picker (`to choose-directory`), or launch two-stage mini explorer. Automatic elevation for protected destinations. |
+| 34 | `ez run [target \| choose-directory] [args...]` | `bash`, `python3`, `chmod +x && ./app`, `snap run`, `flatpak run`, `gio launch`, `./app.AppImage` | One universal command to execute any script, binary, AppImage, or launch apps. GUI apps launch detached keeping terminal free; CLI tools execute with flag-free Guided Mode and command preview. |
 
 ---
 
@@ -65,34 +63,52 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 ### 1. System Monitoring & Diagnostics
 
 #### `ez system-info`
-- **Replaces:** `hostnamectl`, `uptime -p`, `/etc/os-release`, `uname -r`, `arch`
-- **Why it's better:** Aggregates OS release, version, codename, desktop environment, kernel release, machine architecture, hostname, and human-readable uptime into a single formatted card.
+- **Replaces:** `hostnamectl`, `uptime -p`, `/etc/os-release`, `uname -r`, `arch`, `neofetch`, `fastfetch`
+- **Why it's better:** Aggregates a comprehensive system dashboard including OS distribution, kernel, uptime, desktop environment, display server/resolution, shell, terminal, package counts, CPU specs, GPU(s), motherboard/BIOS, battery status, and inline RAM/Swap/Disk resource usage bars.
 - **Syntax:**
   ```bash
   ez system-info
   ```
 - **Example Output:**
   ```
-  ╭─────────────────────── 💻 System Information ────────────────────────╮
-  │   OS Distribution     Deepin 25 (rolling)                           │
-  │   Kernel Version      6.18.38-amd64-desktop                         │
-  │   Hostname            shaheer-PC                                    │
-  │   Architecture        x86_64                                        │
-  │   System Uptime       up 9 hours, 14 minutes                        │
-  ╰─────────────────────────────────────────────────────────────────────╯
+  ╭─────────────────────────── 💻 System Information ────────────────────────────╮
+  │                                                                              │
+  │  ── OS & Session ──                                                          │
+  │  Distribution            Deepin 25 (crimson) (Debian-based)                  │
+  │  Hostname                shaheer-PC                                          │
+  │  Kernel                  Linux 6.18.48-amd64-desktop-rolling (x86-64)        │
+  │  System Uptime           4 hours, 42 minutes                                 │
+  │  Desktop Environment     DDE (Deepin Desktop Environment)                    │
+  │  Display Server          X11 - 1366x768                                      │
+  │  Shell & Terminal        Bash 5.2.37                                         │
+  │  Software Packages       2,161 (dpkg), 3 (flatpak)                           │
+  │                                                                              │
+  │  ── Hardware Specs ──                                                        │
+  │  Computer / Board        Dell Inc. Precision 3520 (BIOS 1.17.1, 01/07/2020)  │
+  │  Chassis Type            Laptop 💻                                           │
+  │  Processor (CPU)         Intel(R) Core(TM) i7-7700HQ CPU @ 2.80GHz (8 vCPUs) │
+  │  Graphics (GPU)          Intel Kaby Lake-H GT2 [HD Graphics 630] (rev 04)    │
+  │  Battery & Power         100% (Full, AC Connected 🔌)                        │
+  │                                                                              │
+  │  ── Memory & Disk ──                                                         │
+  │  Memory (RAM)            5.1 GB / 7.3 GB  ██████░░ 70.0%                     │
+  │  Swap Space              1.1 GB / 10.0 GB  █░░░░░░░ 10.9%                    │
+  │  Root Storage (/)        8.9 GB / 29.3 GB  ██░░░░░░ 30.2%                    │
+  │                                                                              │
+  ╰──────────────────────────────────────────────────────────────────────────────╯
   ```
 
 ---
 
 #### `ez stats`
-- **Replaces:** `htop`, `top`, `free -h`, `uptime`, `nproc`, `ps aux`, `kill`
-- **Why it's better:** Launches a modern, live-updating Textual TUI system and process monitor. Features per-core visual CPU bars, RAM/Swap gauge meters, instant search filtering (`/`), column sorting (`s`), process inspection (`i`), and safe process termination (`k`) with automatic admin elevation for system daemons.
+- **Replaces:** `htop`, `btop`, `top`, `free -h`, `uptime`, `nproc`, `/proc/stat`
+- **Why it's better:** Launches a modern, live-updating Textual TUI system metrics and telemetry monitor. Features per-core visual CPU bars, RAM/Swap gauge meters, instant search filtering (`/`), column sorting (`s`), and detailed process inspection (`i`). Seamlessly transitions into `ez task-manager` (`t`) when you want to terminate or manage apps.
 - **Interactive Controls:**
-  - `k` / `x`: Terminate process (Safe `SIGTERM` or Force `SIGKILL`).
+  - `t`: Open Task Manager to manage active applications, unresponsive apps, and terminate tasks with auto-elevation.
   - `i` / `Enter`: Detailed process inspection (CWD, open files, binary path, cmdline).
   - `/` or `Ctrl+F`: Search / filter processes in real-time.
   - `s`: Open Sort Picker (Sort by CPU%, Memory%, PID, Resident RAM, or Name).
-  - `Space`: Pause / Resume live stats updating.
+  - `Space`: Pause / Resume live telemetry updating.
   - `+` / `-`: Speed up or slow down refresh rate (0.5s to 5.0s).
   - `q` / `Esc`: Exit monitor.
 - **Syntax:**
@@ -318,24 +334,22 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 
 ### 3. Package & Software Management
 
-#### `ez package-search <keyword>`
-- **Replaces:** `apt search <kw>`, `flatpak search <kw>`, `snap find <kw>`
-- **Why it's better:** Searches across **APT**, **Flatpak**, and **Snap** simultaneously. Automatically merges results sharing the same name into a single entry with multi-source badges (`📦 APT  🟣 Flatpak  🟢 Snap`), lets you pick which source to install from, and installs the software directly with automated elevation.
+#### `ez package-info [name]`
+- **Replaces:** `apt show <name>`, `apt search <name>`, `flatpak search <name>`, `snap find <name>`, `pip show`, `npm list -g`
+- **Why it's better:** Follows modern app-store design principles by simultaneously checking your local machine (offline: dpkg/apt, snap, flatpak, pip, npm global, PATH binaries) and remote store catalogs (online: apt repository, Flathub, Snap Store).
+  - **Loose Name Resolution**: Prioritizes exact matches, then substring and fuzzy matching across all sources. If multiple candidates match, presents an interactive chooser menu. If nothing is found, provides friendly guidance and closest name suggestions.
+  - **Nature Badge**: Automatically identifies and categorizes software into `Desktop App`, `CLI Tool`, `Library`, or `Service`.
+  - **Installed Card**: Shows installed status, source badges, version, installed size, summary, and offers safe actions (`Run` via `ez run`, `Uninstall` with dry-run dependency impact preview, and `Details`).
+  - **Store Card (Not Installed)**: Shows available provider badges (`[📦 APT Repository]`, `[🟣 Flathub]`, `[🟢 Snap Store]`), latest version, description, and one-click installation via safe elevation.
+  - **Offline-First Resilience**: If the internet or stores are unavailable, local findings are immediately displayed alongside a friendly "Store unavailable" notice without crashing.
+  - **App Hub Menu (No Argument)**: Running `ez package-info` without arguments opens the EasyCLI Package & App Hub menu with options to inspect installed apps, review pending updates, or search the store.
 - **Syntax:**
   ```bash
-  ez package-search vlc
-  ez package-search vscode
-  ```
-
----
-
-#### `ez package <name>`
-- **Replaces:** `apt show <name>`, `dpkg -s <name>`
-- **Why it's better:** Parses the noisy multiline output of `apt show` into a clean, structured package summary card showing installed status, version, download size, architecture, homepage, and description.
-- **Syntax:**
-  ```bash
-  ez package curl
-  ez package nginx
+  ez package-info                  # Opens the App Hub interactive menu
+  ez package-info curl             # Inspect installed CLI tool with safe run/uninstall actions
+  ez package-info vlc              # Inspect desktop application across local and store sources
+  ez package-info requests         # Inspect Python library across pip and APT
+  ez package-info cowsay           # Inspect store package and install with safe elevation
   ```
 
 ---
@@ -381,12 +395,18 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 
 ---
 
-#### `ez installed-packages`
-- **Replaces:** `apt list --installed`, `dpkg-query -l`, `flatpak list`, `snap list`
-- **Why it's better:** Lists all installed system software across APT and desktop sandboxes without truncating names or requiring complex piping.
+#### `ez list-installed-packages [apps|packages|both]`
+- **Replaces:** `apt list --installed`, `dpkg-query -l`, `flatpak list`, `snap list`, `pip list`, `npm list -g`
+- **Why it's better:** Provides an interactive filter so you can view:
+  - **[1] 🖥️ Installed Applications Only**: Focus on actual desktop and GUI applications (browsers, media players, editors, etc.) without wading through 2,000 system libraries.
+  - **[2] 📦 Packages Only**: System packages, CLI utilities, developer libraries, and runtimes (like npm, node, nala, php, pip, etc.).
+  - **[3] 🌟 Both**: Complete inventory of all installed software across APT, Flatpak, Snap, Pip, and global npm.
 - **Syntax:**
   ```bash
-  ez installed-packages
+  ez list-installed-packages           # Interactively asks: Apps, Packages, or Both
+  ez list-installed-packages apps      # Directly lists installed applications
+  ez list-installed-packages packages  # Directly lists packages & developer libraries
+  ez list-installed-packages both      # Lists all installed applications and packages
   ```
 
 ---
@@ -481,28 +501,12 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 
 ---
 
-#### `ez version [name]`
-- **Replaces:** `<tool> --version`, `dpkg -s`, `apt-cache policy`, `snap list`, `flatpak info`, `pip show`, `npm list`
-- **Why it's better:** One single, fully automatic, beginner-friendly version checker for any app, package, or library without needing any flags or type specifiers.
-  - **No argument (`ez version`)**: Displays EasyCLI's own version and a one-line tip on how to check other items.
-  - **With argument (`ez version <name>`)**: Automatically scans 7 sources in exact order:
-    1. 🖥️ **Binary on PATH**: Quietly tries common version arguments and parses the first sane version string.
-    2. 📦 **Debian Package (`dpkg`)**: Queries installed packages and installation timestamp.
-    3. 📋 **APT Catalog**: Checks available repository candidate version.
-    4. 🟢 **Snap Package**: Inspects installed Snap revisions and timestamps.
-    5. 🟣 **Flatpak App**: Checks Flatpak application metadata and version.
-    6. 🐍 **Python Library**: Queries Python package metadata via `importlib.metadata`.
-    7. 📦 **Node.js Library**: Inspects global and local `package.json` files.
-  - **Multi-Source Consolidation**: If a tool is installed via multiple systems (e.g. `curl` as both binary, Debian package, and Snap), all matches are displayed together in one clean card.
-  - **Actionable Not-Found Guidance**: If nothing is found, provides friendly suggestions pointing to `ez package-search <name>` and `ez installed-packages`.
-- **Syntax:**
-  ```bash
-  ez version            # Show EasyCLI version and usage hint
-  ez version curl       # Inspect system app / binary / package
-  ez version python3    # Check compiler or runtime version
-  ez version rich       # Inspect Python library version
-  ez version express    # Inspect Node.js library version
-  ```
+#### Retired: `ez version [name]` (Consolidated into `ez package-info`)
+- **Status:** Retired in favor of `ez package-info <name>`.
+- **Reason:** `ez package-info` provides a comprehensive App-Store card that includes version detection across binaries on PATH, Debian packages, APT catalog, Snaps, Flatpaks, Python libraries, and Node.js modules alongside size, nature, and actions.
+- **Backward Compatibility:**
+  - `ez version <name>` automatically routes to `ez package-info <name>`.
+  - `ez version` without arguments prints the EasyCLI version.
 
 ---
 

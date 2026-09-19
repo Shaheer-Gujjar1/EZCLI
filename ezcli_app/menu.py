@@ -1,16 +1,120 @@
 """Interactive terminal menu for EasyCLI."""
 
+import os
+import signal
 import sys
 from typing import Optional
 from rich import box
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Prompt
+from rich.rule import Rule
 from rich.table import Table
 
 from . import __version__, renderers
 from .config import FEATURES, FeatureTemplate
 from .distro import detect_distro
+
+
+class TerminalResizeInterrupt(Exception):
+    """Internal exception raised when SIGWINCH interrupts Prompt.ask."""
+    pass
+
+
+_in_menu_prompt = False
+
+
+def _sigwinch_handler(signum, frame):
+    """Handle window resize signal gracefully by interrupting input prompt."""
+    global _in_menu_prompt
+    if _in_menu_prompt:
+        _in_menu_prompt = False
+        raise TerminalResizeInterrupt()
+
+
+def build_header_panel(term_width: int, distro) -> Panel:
+    """Build a responsive header panel that adapts cleanly to terminal width."""
+    distro_badge = f"{distro.pretty_name}"
+    if distro.is_debian_based:
+        distro_badge += " (Debian-based)"
+
+    if term_width >= 80:
+        header_text = (
+            f"[bold cyan]EasyCLI (ez) v{__version__}[/bold cyan] [dim]─ Friendly Linux Terminal Frontend[/dim]\n"
+            f"[dim]Detected Distribution:[/dim] [bold green]{distro_badge}[/bold green] | [dim]Mode:[/dim] [bold yellow]Safe & Elevated[/bold yellow]"
+        )
+    elif term_width >= 55:
+        header_text = (
+            f"[bold cyan]EasyCLI (ez) v{__version__}[/bold cyan]\n"
+            f"[dim]Distro:[/dim] [bold green]{distro_badge}[/bold green]\n"
+            f"[dim]Mode:[/dim] [bold yellow]Safe & Elevated[/bold yellow]"
+        )
+    else:
+        header_text = (
+            f"[bold cyan]EasyCLI v{__version__}[/bold cyan]\n"
+            f"[bold green]{distro.pretty_name}[/bold green]"
+        )
+
+    return Panel(header_text, box=box.ROUNDED, border_style="cyan", width=term_width)
+
+
+def build_features_table(term_width: int) -> Table:
+    """Build an adaptive features table styled cleanly for any terminal width."""
+    table = Table(
+        width=term_width,
+        box=box.ROUNDED,
+        border_style="cyan",
+        padding=(0, 1),
+        header_style="bold cyan",
+        title="[bold]Available Features[/bold]",
+        show_lines=True,
+        expand=True,
+    )
+    if term_width >= 105:
+        table.add_column("#", justify="right", style="bold yellow", width=3, no_wrap=True)
+        table.add_column("Icon", justify="center", width=4, no_wrap=True)
+        table.add_column("Feature", style="bold white", ratio=3)
+        table.add_column("Full Command", style="bold cyan", ratio=3, overflow="fold")
+        table.add_column("Description", style="white", ratio=5)
+        for idx, feat in enumerate(FEATURES, 1):
+            table.add_row(
+                str(idx),
+                feat.icon,
+                feat.title,
+                f"ez {feat.subcommand}",
+                feat.description,
+            )
+    elif term_width >= 75:
+        table.add_column("#", justify="right", style="bold yellow", width=3, no_wrap=True)
+        table.add_column("Feature", style="bold white", ratio=3)
+        table.add_column("Full Command", style="bold cyan", ratio=3, overflow="fold")
+        table.add_column("Description", style="white", ratio=4)
+        for idx, feat in enumerate(FEATURES, 1):
+            table.add_row(
+                str(idx),
+                f"{feat.icon} {feat.title}",
+                f"ez {feat.subcommand}",
+                feat.description,
+            )
+    elif term_width >= 52:
+        table.add_column("#", justify="right", style="bold yellow", width=3, no_wrap=True)
+        table.add_column("Feature", style="bold white", ratio=1)
+        table.add_column("Full Command", style="bold cyan", ratio=1, overflow="fold")
+        for idx, feat in enumerate(FEATURES, 1):
+            table.add_row(
+                str(idx),
+                f"{feat.icon} {feat.title}",
+                f"ez {feat.subcommand}",
+            )
+    else:
+        table.add_column("#", justify="right", style="bold yellow", width=3, no_wrap=True)
+        table.add_column("Command", style="bold cyan", ratio=1, overflow="fold")
+        for idx, feat in enumerate(FEATURES, 1):
+            table.add_row(
+                str(idx),
+                f"{feat.icon} ez {feat.subcommand}",
+            )
+    return table
 
 
 def run_feature(console: Console, feature: FeatureTemplate) -> None:
@@ -116,10 +220,6 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
                 from .task_manager import run_task_manager
                 run_task_manager(mode="pro")
                 return
-            elif feature.id == "version":
-                from .version_checker import run_version_command
-                target_app = args_values[0] if args_values else None
-                run_version_command(name=target_app, console=console)
             elif feature.id == "check_internet":
                 from .internet_checker import render_internet_check
                 render_internet_check(console=console)
@@ -162,11 +262,8 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
                     else:
                         folder = raw_folder
                     renderer_fn(console, folder)
-                elif feature.subcommand == "package_search" or feature.id == "package_search":
-                    term = args_values[0] if args_values else ""
-                    renderer_fn(console, term)
-                elif feature.subcommand == "package" or feature.id == "package":
-                    pkg_name = args_values[0] if args_values else ""
+                elif feature.subcommand == "package-info" or feature.id == "package_info":
+                    pkg_name = args_values[0] if (args_values and args_values[0]) else None
                     renderer_fn(console, pkg_name)
                 elif feature.subcommand == "service_status" or feature.id == "service_status":
                     svc_name = args_values[0] if args_values else ""
@@ -174,7 +271,7 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
                 elif feature.subcommand == "logs" or feature.id == "logs":
                     lines = int(args_values[0]) if (args_values and args_values[0].isdigit()) else 50
                     renderer_fn(console, lines)
-                elif feature.subcommand == "installed-packages" or feature.id == "installed_packages":
+                elif feature.subcommand in ("list-installed-packages", "installed-packages") or feature.id in ("list_installed_packages", "installed_packages"):
                     renderer_fn(console)
                 elif feature.subcommand == "installed-package-search" or feature.id == "installed_package_search":
                     term = args_values[0] if args_values else ""
@@ -197,13 +294,21 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
             console.print(f"[bold red]Unexpected error executing feature:[/bold red] {e}")
 
         console.print()
-        console.print("[dim]─[/dim]" * 60)
-        action = Prompt.ask(
-            "[bold cyan]Actions[/bold cyan]: [bold][b][/bold] Back to Menu | [bold][r][/bold] Refresh | [bold][q][/bold] Quit",
-            choices=["b", "r", "q", ""],
-            default="b",
-            show_choices=False,
-        )
+        console.print(Rule(style="dim"))
+        try:
+            global _in_menu_prompt
+            _in_menu_prompt = True
+            action = Prompt.ask(
+                "[bold cyan]Actions[/bold cyan]: [bold][b][/bold] Back to Menu | [bold][r][/bold] Refresh | [bold][q][/bold] Quit",
+                choices=["b", "r", "q", ""],
+                default="b",
+                show_choices=False,
+                console=console,
+            )
+        except TerminalResizeInterrupt:
+            continue
+        finally:
+            _in_menu_prompt = False
 
         if action.lower() == "r":
             continue
@@ -216,74 +321,84 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
 
 
 def interactive_menu(console: Console) -> None:
-    """Main interactive menu loop."""
+    """Main interactive menu loop with adaptive layout and dynamic resize handling."""
     distro = detect_distro()
 
-    while True:
-        console.clear()
-
-        # Header
-        distro_badge = f"{distro.pretty_name}"
-        if distro.is_debian_based:
-            distro_badge += " (Debian-based)"
-        header_text = (
-            f"[bold cyan]EasyCLI (ez) v{__version__}[/bold cyan] [dim]─ Friendly Linux Terminal Frontend[/dim]\n"
-            f"[dim]Detected Distribution:[/dim] [bold green]{distro_badge}[/bold green] | [dim]Mode:[/dim] [bold yellow]Safe & Elevated[/bold yellow]"
-        )
-        console.print(Panel(header_text, box=box.ROUNDED, border_style="cyan"))
-
-        # Features Table
-        table = Table(
-            box=box.ROUNDED,
-            border_style="cyan",
-            padding=(0, 1),
-            header_style="bold cyan",
-            title="[bold]Available Features[/bold]",
-        )
-        table.add_column("#", justify="right", style="bold yellow", width=3)
-        table.add_column("Icon", justify="center", width=4)
-        table.add_column("Feature", style="bold white", width=24)
-        table.add_column("Subcommand", style="dim cyan", width=19)
-        table.add_column("Description", style="white")
-
-        for idx, feat in enumerate(FEATURES, 1):
-            table.add_row(
-                str(idx),
-                feat.icon,
-                feat.title,
-                feat.subcommand,
-                feat.description,
-            )
-
-        console.print(table)
-        console.print()
-
+    old_handler = None
+    sigwinch_available = hasattr(signal, "SIGWINCH") and sys.stdin.isatty()
+    if sigwinch_available:
         try:
-            choice = Prompt.ask(
-                f"[bold cyan]Select a feature [1-{len(FEATURES)}][/bold cyan] (or [bold]r[/bold]efresh, [bold]q[/bold]uit)",
-                default="1",
-            ).strip().lower()
-        except (KeyboardInterrupt, EOFError):
-            console.print("\n[dim]Exiting EasyCLI.[/dim]")
-            sys.exit(0)
+            old_handler = signal.signal(signal.SIGWINCH, _sigwinch_handler)
+        except (ValueError, OSError):
+            sigwinch_available = False
 
-        if choice == "q":
-            console.print("\n[dim]Exiting EasyCLI.[/dim]")
-            sys.exit(0)
-        elif choice == "r":
-            continue
-        elif choice.isdigit():
-            idx = int(choice)
-            if 1 <= idx <= len(FEATURES):
-                run_feature(console, FEATURES[idx - 1])
+    try:
+        while True:
+            # Dynamically fetch current terminal dimensions
+            term_width = console.size.width or 80
+            console.clear()
+
+            # Responsive header panel
+            console.print(build_header_panel(term_width, distro))
+
+            # Responsive features table
+            table = build_features_table(term_width)
+            console.print(table)
+            console.print()
+
+            global _in_menu_prompt
+            try:
+                _in_menu_prompt = True
+                choice = Prompt.ask(
+                    f"[bold cyan]Select a feature [1-{len(FEATURES)}][/bold cyan] (or [bold]r[/bold]efresh, [bold]q[/bold]uit)",
+                    default="1",
+                    console=console,
+                ).strip().lower()
+            except TerminalResizeInterrupt:
+                # Terminal was resized while waiting for prompt input.
+                # Redraw immediately with new dimensions.
+                continue
+            except (KeyboardInterrupt, EOFError):
+                console.print("\n[dim]Exiting EasyCLI.[/dim]")
+                sys.exit(0)
+            finally:
+                _in_menu_prompt = False
+
+            if choice == "q":
+                console.print("\n[dim]Exiting EasyCLI.[/dim]")
+                sys.exit(0)
+            elif choice == "r":
+                continue
+            elif choice.isdigit():
+                idx = int(choice)
+                if 1 <= idx <= len(FEATURES):
+                    run_feature(console, FEATURES[idx - 1])
+                else:
+                    console.print(f"[bold red]Please enter a number between 1 and {len(FEATURES)}[/bold red]")
+                    try:
+                        _in_menu_prompt = True
+                        Prompt.ask("[dim]Press Enter to continue...[/dim]", default="", console=console)
+                    except TerminalResizeInterrupt:
+                        continue
+                    finally:
+                        _in_menu_prompt = False
             else:
-                console.print(f"[bold red]Please enter a number between 1 and {len(FEATURES)}[/bold red]")
-                Prompt.ask("[dim]Press Enter to continue...[/dim]", default="")
-        else:
-            # Check if subcommand was typed directly
-            matched = next((f for f in FEATURES if f.subcommand == choice), None)
-            if matched:
-                run_feature(console, matched)
-            else:
-                console.print("[bold red]Invalid option. Please choose 1-10, r, or q.[/bold red]")
-                Prompt.ask("[dim]Press Enter to continue...[/dim]", default="")
+                # Check if subcommand was typed directly
+                matched = next((f for f in FEATURES if f.subcommand == choice), None)
+                if matched:
+                    run_feature(console, matched)
+                else:
+                    console.print(f"[bold red]Invalid option. Please choose 1-{len(FEATURES)}, r, or q.[/bold red]")
+                    try:
+                        _in_menu_prompt = True
+                        Prompt.ask("[dim]Press Enter to continue...[/dim]", default="", console=console)
+                    except TerminalResizeInterrupt:
+                        continue
+                    finally:
+                        _in_menu_prompt = False
+    finally:
+        if sigwinch_available and old_handler is not None:
+            try:
+                signal.signal(signal.SIGWINCH, old_handler)
+            except (ValueError, OSError):
+                pass

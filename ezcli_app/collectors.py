@@ -1,6 +1,7 @@
 """Defensive, 100% read-only system collectors for EasyCLI."""
 
 import datetime
+import glob
 import json
 import os
 import pathlib
@@ -51,11 +52,30 @@ def run_command_safe(
         return -4, "", f"Execution error: {str(e)}"
 
 
+def format_bytes(num_bytes: float) -> str:
+    """Format bytes into human-readable string."""
+    size = float(num_bytes)
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
+        if size < 1024.0 or unit == "TB":
+            return f"{size:.1f} {unit}" if unit != "B" else f"{int(size)} B"
+        size /= 1024.0
+    return f"{size:.1f} PB"
+
+
+def _read_sysfs(path: str) -> str:
+    """Safely read a single-line sysfs/procfs file."""
+    try:
+        with open(path, "r", encoding="utf-8", errors="ignore") as f:
+            return f.read().strip()
+    except Exception:
+        return ""
+
+
 # ==============================================================================
 # 1. System Info
 # ==============================================================================
 def collect_system_info() -> Dict[str, Any]:
-    """Collect OS, hostname, kernel, architecture, and uptime."""
+    """Collect comprehensive OS, session, hardware, CPU, GPU, memory, disk, and battery info."""
     distro = detect_distro()
     info: Dict[str, Any] = {
         "os_name": distro.pretty_name or distro.name,
@@ -69,10 +89,32 @@ def collect_system_info() -> Dict[str, Any]:
         "uptime": "Unknown",
         "hardware_model": "",
         "chassis": "",
+        "motherboard": "",
+        "cpu": "Unknown",
+        "gpus": [],
+        "desktop": "",
+        "session_type": "",
+        "resolution": "",
+        "shell": "",
+        "terminal": "",
+        "packages": "",
+        "ram_total": 0,
+        "ram_used": 0,
+        "ram_percent": 0.0,
+        "ram_str": "",
+        "swap_total": 0,
+        "swap_used": 0,
+        "swap_percent": 0.0,
+        "swap_str": "",
+        "disk_total": 0,
+        "disk_used": 0,
+        "disk_percent": 0.0,
+        "disk_str": "",
+        "battery": "",
     }
 
     # Query hostnamectl
-    rc, out, _ = run_command_safe(["hostnamectl"], timeout=5)
+    rc, out, _ = run_command_safe(["hostnamectl"], timeout=4)
     if rc == 0 and out:
         for line in out.splitlines():
             if ":" in line:
@@ -101,17 +143,17 @@ def collect_system_info() -> Dict[str, Any]:
             pass
 
     if info["kernel"] == "Unknown":
-        rc_u, out_u, _ = run_command_safe(["uname", "-sr"], timeout=3)
+        rc_u, out_u, _ = run_command_safe(["uname", "-sr"], timeout=2)
         if rc_u == 0 and out_u:
             info["kernel"] = out_u
 
     if info["arch"] == "Unknown":
-        rc_m, out_m, _ = run_command_safe(["uname", "-m"], timeout=3)
+        rc_m, out_m, _ = run_command_safe(["uname", "-m"], timeout=2)
         if rc_m == 0 and out_m:
             info["arch"] = out_m
 
     # Query uptime -p
-    rc_up, out_up, _ = run_command_safe(["uptime", "-p"], timeout=3)
+    rc_up, out_up, _ = run_command_safe(["uptime", "-p"], timeout=2)
     if rc_up == 0 and out_up:
         info["uptime"] = out_up.replace("up ", "")
     else:
@@ -132,6 +174,191 @@ def collect_system_info() -> Dict[str, Any]:
             info["uptime"] = " ".join(parts) or "< 1m"
         except Exception:
             info["uptime"] = "Unknown"
+
+    # Motherboard / Model & BIOS
+    sys_vendor = _read_sysfs("/sys/class/dmi/id/sys_vendor")
+    product_name = _read_sysfs("/sys/class/dmi/id/product_name")
+    bios_ver = _read_sysfs("/sys/class/dmi/id/bios_version")
+    bios_date = _read_sysfs("/sys/class/dmi/id/bios_date")
+    if sys_vendor and product_name and sys_vendor.lower() not in product_name.lower():
+        mb_model = f"{sys_vendor} {product_name}".strip()
+    else:
+        mb_model = product_name or sys_vendor or info.get("hardware_model", "")
+    if not info["hardware_model"]:
+        info["hardware_model"] = mb_model
+    if bios_ver:
+        mb_model += f" (BIOS {bios_ver}" + (f", {bios_date})" if bios_date else ")")
+    info["motherboard"] = mb_model
+
+    # Chassis Form Factor & Emoji
+    raw_chassis = info["chassis"].lower()
+    if "laptop" in raw_chassis or "notebook" in raw_chassis:
+        info["chassis"] = "Laptop 💻"
+    elif "desktop" in raw_chassis:
+        info["chassis"] = "Desktop 🖥️"
+    elif "server" in raw_chassis:
+        info["chassis"] = "Server 🖧"
+    elif not info["chassis"]:
+        ctype = _read_sysfs("/sys/class/dmi/id/chassis_type")
+        if ctype in ("8", "9", "10", "11", "14", "30", "31", "32"):
+            info["chassis"] = "Laptop 💻"
+        elif ctype in ("3", "4", "6", "7", "15", "16"):
+            info["chassis"] = "Desktop 🖥️"
+        elif ctype in ("17", "23"):
+            info["chassis"] = "Server 🖧"
+
+    # CPU
+    cpu_model = "Unknown"
+    try:
+        with open("/proc/cpuinfo", "r") as f:
+            for l in f:
+                if l.startswith("model name"):
+                    cpu_model = l.split(":", 1)[1].strip()
+                    break
+    except Exception:
+        pass
+    cpu_model = re.sub(r"\s+", " ", cpu_model).strip()
+    vcpus = os.cpu_count() or 1
+    info["cpu"] = f"{cpu_model} ({vcpus} vCPUs)"
+
+    # GPU(s)
+    gpus: List[str] = []
+    try:
+        rc_pci, pci_out, _ = run_command_safe(["lspci"], timeout=2)
+        if rc_pci == 0 and pci_out:
+            for l in pci_out.splitlines():
+                if any(k in l.lower() for k in ["vga compatible controller", "3d controller", "display controller"]):
+                    parts = l.split(":", 2)
+                    name = parts[2].strip() if len(parts) > 2 else l
+                    name = (
+                        name.replace("Corporation ", "")
+                        .replace("Advanced Micro Devices, Inc. [AMD/ATI]", "AMD")
+                        .replace("NVIDIA Corporation", "NVIDIA")
+                    )
+                    gpus.append(name)
+    except Exception:
+        pass
+    info["gpus"] = gpus
+
+    # Memory (RAM) & Swap
+    mem: Dict[str, int] = {}
+    try:
+        with open("/proc/meminfo", "r") as f:
+            for l in f:
+                p = l.split(":")
+                if len(p) == 2:
+                    mem[p[0].strip()] = int(p[1].strip().split()[0])
+    except Exception:
+        pass
+
+    mem_total = mem.get("MemTotal", 0) * 1024
+    mem_avail = mem.get("MemAvailable", mem.get("MemFree", 0)) * 1024
+    mem_used = max(0, mem_total - mem_avail)
+    ram_pct = (mem_used / mem_total * 100.0) if mem_total else 0.0
+    info["ram_total"] = mem_total
+    info["ram_used"] = mem_used
+    info["ram_percent"] = ram_pct
+    info["ram_str"] = f"{format_bytes(mem_used)} / {format_bytes(mem_total)}"
+
+    swap_total = mem.get("SwapTotal", 0) * 1024
+    swap_free = mem.get("SwapFree", 0) * 1024
+    swap_used = max(0, swap_total - swap_free)
+    swap_pct = (swap_used / swap_total * 100.0) if swap_total else 0.0
+    info["swap_total"] = swap_total
+    info["swap_used"] = swap_used
+    info["swap_percent"] = swap_pct
+    info["swap_str"] = f"{format_bytes(swap_used)} / {format_bytes(swap_total)}" if swap_total else "Not configured"
+
+    # Root Storage (/)
+    try:
+        du = shutil.disk_usage("/")
+        disk_pct = (du.used / du.total * 100.0) if du.total else 0.0
+        info["disk_total"] = du.total
+        info["disk_used"] = du.used
+        info["disk_percent"] = disk_pct
+        info["disk_str"] = f"{format_bytes(du.used)} / {format_bytes(du.total)}"
+    except Exception:
+        info["disk_total"] = 0
+        info["disk_used"] = 0
+        info["disk_percent"] = 0.0
+        info["disk_str"] = "Unknown"
+
+    # Desktop Environment & Session
+    de = os.environ.get("XDG_CURRENT_DESKTOP") or os.environ.get("DESKTOP_SESSION") or ""
+    if de == "DDE":
+        de = "DDE (Deepin Desktop Environment)"
+    elif de.startswith("KDE"):
+        de = "KDE Plasma"
+    info["desktop"] = de
+
+    session_type = os.environ.get("XDG_SESSION_TYPE", "")
+    info["session_type"] = session_type.upper() if session_type else ""
+
+    # Screen Resolution
+    modes: List[str] = []
+    for p in glob.glob("/sys/class/drm/card*-*/modes"):
+        c = _read_sysfs(p)
+        if c:
+            modes.append(c.splitlines()[0])
+    info["resolution"] = ", ".join(dict.fromkeys(modes)) if modes else ""
+
+    # Shell & Terminal
+    shell_path = os.environ.get("SHELL", "")
+    shell_name = os.path.basename(shell_path) if shell_path else "sh"
+    shell_str = shell_name
+    try:
+        rc_s, s_out, _ = run_command_safe([shell_path, "--version"], timeout=1)
+        if rc_s == 0 and s_out:
+            m = re.search(r"version\s+([0-9\.]+)", s_out.splitlines()[0], re.I)
+            if m:
+                shell_str = f"{shell_name.capitalize()} {m.group(1)}"
+    except Exception:
+        pass
+    info["shell"] = shell_str
+    info["terminal"] = os.environ.get("TERM_PROGRAM") or os.environ.get("COLORTERM") or os.environ.get("TERM", "")
+
+    # Package counts
+    pkgs: List[str] = []
+    try:
+        rc_dpkg, dpkg_out, _ = run_command_safe(["dpkg-query", "-f", ".\n", "-W"], timeout=2)
+        if rc_dpkg == 0 and dpkg_out:
+            pkgs.append(f"{dpkg_out.count(chr(10)):,} (dpkg)")
+    except Exception:
+        pass
+
+    if shutil.which("flatpak"):
+        try:
+            rc_fp, fp_out, _ = run_command_safe(["flatpak", "list", "--app"], timeout=2)
+            if rc_fp == 0 and fp_out.strip():
+                pkgs.append(f"{len(fp_out.strip().splitlines())} (flatpak)")
+        except Exception:
+            pass
+
+    if shutil.which("snap"):
+        try:
+            rc_sp, sp_out, _ = run_command_safe(["snap", "list"], timeout=2)
+            if rc_sp == 0 and sp_out.strip():
+                c = max(0, len(sp_out.strip().splitlines()) - 1)
+                if c > 0:
+                    pkgs.append(f"{c} (snap)")
+        except Exception:
+            pass
+    info["packages"] = ", ".join(pkgs)
+
+    # Battery & Power
+    bat_parts: List[str] = []
+    for b in glob.glob("/sys/class/power_supply/BAT*"):
+        cap = _read_sysfs(f"{b}/capacity")
+        stat = _read_sysfs(f"{b}/status")
+        if cap:
+            ac_on = False
+            for ac in glob.glob("/sys/class/power_supply/AC*/online"):
+                if _read_sysfs(ac) == "1":
+                    ac_on = True
+                    break
+            status_text = f"{stat}, AC Connected 🔌" if (ac_on and stat != "Discharging") else stat
+            bat_parts.append(f"{cap}% ({status_text})")
+    info["battery"] = ", ".join(bat_parts)
 
     return info
 
@@ -737,25 +964,187 @@ def merge_search_packages(packages: List[Dict[str, Any]]) -> List[Dict[str, Any]
 # ==============================================================================
 # 5b. Installed Packages Collector
 # ==============================================================================
-def collect_installed_packages(filter_term: str = "") -> Dict[str, Any]:
+def collect_installed_packages(filter_term: str = "", category: str = "both") -> Dict[str, Any]:
     """
-    Collect installed packages across APT, Flatpak, and Snap.
+    Collect installed applications and/or packages across APT, Flatpak, Snap, Pip, and npm.
     Supports optional case-insensitive keyword filtering (like apt list --installed | grep -i <app>).
+    category can be 'apps', 'packages', or 'both'.
     """
+    term_lower = filter_term.strip().lower()
+    cat_clean = category.strip().lower() if category else "both"
+    if cat_clean in ("1", "app", "apps", "applications"):
+        cat_mode = "apps"
+    elif cat_clean in ("2", "pkg", "pkgs", "package", "packages"):
+        cat_mode = "packages"
+    else:
+        cat_mode = "both"
+
     result: Dict[str, Any] = {
         "filter": filter_term.strip(),
+        "category": cat_mode,
+        "total_apps": 0,
+        "total_packages": 0,
         "total_apt": 0,
         "total_flatpak": 0,
         "total_snap": 0,
+        "total_pip": 0,
+        "total_npm": 0,
         "total_count": 0,
         "matches": [],
         "error": "",
     }
 
-    term_lower = filter_term.strip().lower()
-    all_items: List[Dict[str, Any]] = []
+    apps_items: List[Dict[str, Any]] = []
+    seen_app_names: set = set()
+    packages_items: List[Dict[str, Any]] = []
 
-    # 1. Collect installed APT packages via fast dpkg-query
+    # 1. Collect desktop applications
+    try:
+        from .run_detector import get_all_desktop_dirs, parse_desktop_file
+        for d in get_all_desktop_dirs():
+            if not os.path.isdir(d):
+                continue
+            for f in sorted(os.listdir(d)):
+                if not f.endswith(".desktop"):
+                    continue
+                fp = os.path.join(d, f)
+                meta = parse_desktop_file(fp)
+                if not meta or meta.get("nodisplay", False) or not meta.get("name"):
+                    continue
+                app_name = meta["name"]
+                app_lower = app_name.lower()
+                if app_lower in seen_app_names:
+                    continue
+                seen_app_names.add(app_lower)
+
+                ex = meta.get("exec", "")
+                desc = meta.get("comment") or meta.get("genericname") or "Desktop application"
+                if "flatpak" in ex or "flatpak" in d:
+                    plat = "flatpak"
+                    pname = "Flatpak"
+                    picon = "🟣"
+                elif "snap" in d or "/snap/" in ex:
+                    plat = "snap"
+                    pname = "Snap"
+                    picon = "🟢"
+                else:
+                    plat = "apt"
+                    pname = "APT"
+                    picon = "📦"
+
+                apps_items.append({
+                    "name": app_name,
+                    "app_id": f.replace(".desktop", ""),
+                    "version": "-",
+                    "size": "-",
+                    "description": desc,
+                    "platform": plat,
+                    "platform_name": pname,
+                    "platform_icon": picon,
+                    "kind": "app",
+                    "kind_name": "Application",
+                    "kind_icon": "🖥️",
+                })
+    except Exception:
+        pass
+
+    # Enrich Flatpak applications
+    if shutil.which("flatpak"):
+        rc_fl, out_fl, _ = run_command_safe(
+            ["flatpak", "list", "--app", "--columns=name,application,version,size,description"],
+            timeout=5,
+        )
+        if rc_fl == 0 and out_fl:
+            lines = out_fl.splitlines()
+            if len(lines) > 1:
+                for line in lines[1:]:
+                    parts = line.split("\t")
+                    if len(parts) < 2:
+                        parts = line.split()
+                    if not parts:
+                        continue
+                    fname = parts[0].strip()
+                    fapp_id = parts[1].strip() if len(parts) > 1 else fname
+                    fver = parts[2].strip() if len(parts) > 2 else ""
+                    fsize = parts[3].strip() if len(parts) > 3 else ""
+                    fdesc = parts[4].strip() if len(parts) > 4 else ""
+
+                    matched = False
+                    for app in apps_items:
+                        if app["platform"] == "flatpak" and (app["name"].lower() == fname.lower() or app["app_id"].lower() == fapp_id.lower()):
+                            if fver:
+                                app["version"] = fver
+                            if fsize:
+                                app["size"] = fsize
+                            if fdesc:
+                                app["description"] = fdesc
+                            matched = True
+                            break
+                    if not matched and fname.lower() not in seen_app_names:
+                        seen_app_names.add(fname.lower())
+                        apps_items.append({
+                            "name": fname,
+                            "app_id": fapp_id,
+                            "version": fver or "-",
+                            "size": fsize or "-",
+                            "description": fdesc or "Flatpak application",
+                            "platform": "flatpak",
+                            "platform_name": "Flatpak",
+                            "platform_icon": "🟣",
+                            "kind": "app",
+                            "kind_name": "Application",
+                            "kind_icon": "🖥️",
+                        })
+
+    # Enrich Snap applications
+    if shutil.which("snap"):
+        rc_sn, out_sn, _ = run_command_safe(["snap", "list"], timeout=4)
+        if rc_sn == 0 and out_sn:
+            lines = out_sn.splitlines()
+            if len(lines) > 1:
+                for line in lines[1:]:
+                    parts = line.split()
+                    if len(parts) >= 3:
+                        sname = parts[0].strip()
+                        sver = parts[1].strip()
+                        matched = False
+                        for app in apps_items:
+                            if app["platform"] == "snap" and app["name"].lower() == sname.lower():
+                                app["version"] = sver
+                                matched = True
+                                break
+                        if not matched:
+                            if sname in ("core", "core18", "core20", "core22", "core24", "bare", "snapd"):
+                                packages_items.append({
+                                    "name": sname,
+                                    "app_id": sname,
+                                    "version": sver,
+                                    "size": "-",
+                                    "description": "Snap runtime environment",
+                                    "platform": "snap",
+                                    "platform_name": "Snap",
+                                    "platform_icon": "🟢",
+                                    "kind": "package",
+                                    "kind_name": "Package",
+                                    "kind_icon": "📦",
+                                })
+                            elif sname.lower() not in seen_app_names:
+                                seen_app_names.add(sname.lower())
+                                apps_items.append({
+                                    "name": sname,
+                                    "app_id": sname,
+                                    "version": sver,
+                                    "size": "-",
+                                    "description": "Snap application",
+                                    "platform": "snap",
+                                    "platform_name": "Snap",
+                                    "platform_icon": "🟢",
+                                    "kind": "app",
+                                    "kind_name": "Application",
+                                    "kind_icon": "🖥️",
+                                })
+
+    # 2. Collect installed APT packages via fast dpkg-query
     rc, out, _ = run_command_safe(
         ["dpkg-query", "-W", "-f", "${Package}\t${Version}\t${Installed-Size}\t${binary:Summary}\n"],
         timeout=8,
@@ -773,21 +1162,19 @@ def collect_installed_packages(filter_term: str = "") -> Dict[str, Any]:
             if not pkg_name:
                 continue
 
-            result["total_apt"] += 1
-
-            # Check filter if provided
-            if term_lower:
-                if term_lower not in pkg_name.lower() and term_lower not in desc.lower():
-                    continue
-
-            # Format installed size
             try:
                 kb = int(size_kb_str)
                 size_formatted = format_bytes(kb * 1024)
             except ValueError:
                 size_formatted = size_kb_str or "-"
 
-            all_items.append({
+            for app in apps_items:
+                if app["platform"] == "apt" and app["version"] == "-":
+                    if app["app_id"].lower() == pkg_name.lower() or app["name"].lower() == pkg_name.lower():
+                        app["version"] = version
+                        app["size"] = size_formatted
+
+            packages_items.append({
                 "name": pkg_name,
                 "app_id": pkg_name,
                 "version": version,
@@ -796,78 +1183,84 @@ def collect_installed_packages(filter_term: str = "") -> Dict[str, Any]:
                 "platform": "apt",
                 "platform_name": "APT",
                 "platform_icon": "📦",
+                "kind": "package",
+                "kind_name": "Package",
+                "kind_icon": "📦",
             })
 
-    # 2. Collect installed Flatpak applications
-    if shutil.which("flatpak"):
-        rc_fl, out_fl, _ = run_command_safe(
-            ["flatpak", "list", "--app", "--columns=name,application,version,size,description"],
-            timeout=5,
-        )
-        if rc_fl == 0 and out_fl:
-            lines = out_fl.splitlines()
-            if len(lines) > 1:
-                # skip header
-                for line in lines[1:]:
-                    parts = line.split("\t")
-                    if len(parts) < 2:
-                        parts = line.split()
-                    if not parts:
-                        continue
-                    name = parts[0].strip()
-                    app_id = parts[1].strip() if len(parts) > 1 else name
-                    version = parts[2].strip() if len(parts) > 2 else ""
-                    size = parts[3].strip() if len(parts) > 3 else ""
-                    desc = parts[4].strip() if len(parts) > 4 else ""
+    # 3. Collect Python (pip) packages
+    try:
+        import importlib.metadata
+        for dist in importlib.metadata.distributions():
+            p_name = dist.metadata.get("Name", "")
+            if p_name:
+                packages_items.append({
+                    "name": p_name,
+                    "app_id": p_name,
+                    "version": dist.version or "-",
+                    "size": "-",
+                    "description": dist.metadata.get("Summary", "") or "Python package (pip)",
+                    "platform": "pip",
+                    "platform_name": "Pip",
+                    "platform_icon": "🐍",
+                    "kind": "package",
+                    "kind_name": "Package",
+                    "kind_icon": "📦",
+                })
+                result["total_pip"] += 1
+    except Exception:
+        pass
 
-                    result["total_flatpak"] += 1
+    # 4. Collect Node.js (npm) global packages
+    for nd in ["/usr/local/lib/node_modules", "/usr/lib/node_modules", os.path.expanduser("~/.npm-global/lib/node_modules")]:
+        if os.path.isdir(nd):
+            for item in sorted(os.listdir(nd)):
+                if not item.startswith("."):
+                    pjson = os.path.join(nd, item, "package.json")
+                    if os.path.isfile(pjson):
+                        try:
+                            with open(pjson, "r", encoding="utf-8") as pf:
+                                pj = json.load(pf)
+                                packages_items.append({
+                                    "name": item,
+                                    "app_id": item,
+                                    "version": pj.get("version", "-"),
+                                    "size": "-",
+                                    "description": pj.get("description") or "Node.js global package (npm)",
+                                    "platform": "npm",
+                                    "platform_name": "npm",
+                                    "platform_icon": "📦",
+                                    "kind": "package",
+                                    "kind_name": "Package",
+                                    "kind_icon": "📦",
+                                })
+                                result["total_npm"] += 1
+                        except Exception:
+                            pass
 
-                    if term_lower:
-                        if term_lower not in name.lower() and term_lower not in app_id.lower() and term_lower not in desc.lower():
-                            continue
+    result["total_apps"] = len(apps_items)
+    result["total_packages"] = len(packages_items)
+    result["total_apt"] = sum(1 for p in packages_items if p["platform"] == "apt")
+    result["total_flatpak"] = sum(1 for p in apps_items if p["platform"] == "flatpak")
+    result["total_snap"] = sum(1 for p in (apps_items + packages_items) if p["platform"] == "snap")
 
-                    all_items.append({
-                        "name": name,
-                        "app_id": app_id,
-                        "version": version,
-                        "size": size or "-",
-                        "description": desc or "Flatpak application",
-                        "platform": "flatpak",
-                        "platform_name": "Flatpak",
-                        "platform_icon": "🟣",
-                    })
+    if cat_mode == "apps":
+        all_items = apps_items
+    elif cat_mode == "packages":
+        all_items = packages_items
+    else:
+        all_items = apps_items + packages_items
 
-    # 3. Collect installed Snap applications
-    if shutil.which("snap"):
-        rc_sn, out_sn, _ = run_command_safe(["snap", "list"], timeout=4)
-        if rc_sn == 0 and out_sn:
-            lines = out_sn.splitlines()
-            if len(lines) > 1:
-                for line in lines[1:]:
-                    parts = line.split()
-                    if len(parts) >= 3:
-                        name = parts[0].strip()
-                        version = parts[1].strip()
-                        result["total_snap"] += 1
-
-                        if term_lower and term_lower not in name.lower():
-                            continue
-
-                        all_items.append({
-                            "name": name,
-                            "app_id": name,
-                            "version": version,
-                            "size": "-",
-                            "description": "Snap package",
-                            "platform": "snap",
-                            "platform_name": "Snap",
-                            "platform_icon": "🟢",
-                        })
-
-    result["total_count"] = result["total_apt"] + result["total_flatpak"] + result["total_snap"]
-
-    # Rank filtered items so exact name matches appear first
+    # Filter by search keyword if provided
     if term_lower:
+        filtered = []
+        for item in all_items:
+            n = item.get("name", "").lower()
+            d = item.get("description", "").lower()
+            a = item.get("app_id", "").lower()
+            if term_lower in n or term_lower in d or term_lower in a:
+                filtered.append(item)
+
         def rank_installed(item: Dict[str, Any]) -> Tuple[int, str]:
             n = item["name"].lower()
             if n == term_lower:
@@ -879,8 +1272,10 @@ def collect_installed_packages(filter_term: str = "") -> Dict[str, Any]:
             else:
                 return (3, n)
 
-        all_items.sort(key=rank_installed)
+        filtered.sort(key=rank_installed)
+        all_items = filtered
 
+    result["total_count"] = len(all_items)
     result["matches"] = all_items
     return result
 

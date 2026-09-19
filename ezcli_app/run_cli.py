@@ -402,8 +402,8 @@ def run_cli_run(
             Panel(
                 f"[bold red]Target '{target_raw}' was not found.[/bold red]\n\n"
                 f"{err_msg}\n\n"
-                f"[bold yellow]💡 Looking to install it?[/bold yellow] Search available packages across APT, Snap, and Flatpak with:\n"
-                f"  [bold cyan]ez package-search {target_raw}[/bold cyan]",
+                f"[bold yellow]💡 Looking to install it?[/bold yellow] Inspect package details and install across APT, Snap, and Flatpak with:\n"
+                f"  [bold cyan]ez package-info {target_raw}[/bold cyan]",
                 title="❌ [bold red]Application Not Found[/bold red]",
                 border_style="red",
                 box=box.ROUNDED,

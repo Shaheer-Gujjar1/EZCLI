@@ -546,8 +546,8 @@ def render_version_results(
         guidance_table = Table(box=None, show_header=False, padding=(0, 1))
         guidance_table.add_column("Icon", style="bold yellow", width=3)
         guidance_table.add_column("Advice", style="white")
-        guidance_table.add_row("🔍", f"Search available software packages: [bold green]ez package-search {clean_name}[/bold green]")
-        guidance_table.add_row("📋", f"List installed system packages: [bold green]ez installed-packages[/bold green]")
+        guidance_table.add_row("🔍", f"Inspect available software packages: [bold green]ez package-info {clean_name}[/bold green]")
+        guidance_table.add_row("📋", f"List installed system packages: [bold green]ez list-installed-packages[/bold green]")
         guidance_table.add_row("💡", "Check spelling or inspect library environments ([dim]pip list[/dim] or [dim]npm list[/dim]).")
 
         body = Table(box=None, show_header=False, padding=(0, 0))
@@ -623,7 +623,7 @@ def run_version_command(
     # 1. No argument -> Show EasyCLI's version and friendly usage hint
     if not target:
         console.print(f"EasyCLI (ez) v{__version__} [dim](Safe Automatic Elevation)[/dim]")
-        console.print("[dim]💡 Tip: Check the version of any app, package, or library with '[bold cyan]ez version <name>[/bold cyan]'[/dim]")
+        console.print("[dim]💡 Note: 'ez version' has been retired. Software version inspection is now part of '[bold cyan]ez package-info <name>[/bold cyan]'.[/dim]")
         return
 
     # 2. Argument provided -> Detect across all sources with spinner

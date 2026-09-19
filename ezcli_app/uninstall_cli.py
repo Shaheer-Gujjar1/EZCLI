@@ -111,8 +111,8 @@ def run_cli_uninstall(app_name: Optional[str] = None, console: Optional[Console]
         tips_table.add_column("Icon", style="bold cyan", width=3)
         tips_table.add_column("Guidance", style="white")
         tips_table.add_row("🔍", f"No installed application named '[bold cyan]{clean_query}[/bold cyan]' was found.")
-        tips_table.add_row("📋", "List installed software with [bold green]ez installed-packages[/bold green] to check exact names.")
-        tips_table.add_row("📦", "Search the software catalog with [bold green]ez package-search <name>[/bold green] to check available packages.")
+        tips_table.add_row("📋", "List installed software with [bold green]ez list-installed-packages[/bold green] to check exact names.")
+        tips_table.add_row("📦", "Search the software catalog with [bold green]ez package-info <name>[/bold green] to check available packages.")
 
         console.print(
             Panel(

@@ -178,9 +178,11 @@ class ProcessEngine:
                 "dnsmasq", "ntp", "geoclue", "speech-dispatcher"
             )
             or user.startswith("systemd")
+            or user != self.current_user
         )
 
-        if is_kernel or (is_system_user and (ppid == 1 or tty in ("?", "-"))):
+        is_interactive_root = (user == "root" and tty.startswith("pts/"))
+        if is_kernel or (is_system_user and not is_interactive_root):
             return "system", "🔒 System"
 
         # 2. Background Daemons: Daemons and background helpers
@@ -191,7 +193,7 @@ class ProcessEngine:
             or comm_lower in ("kwin_x11", "dde-shell", "dde-lock", "dde-fakewm", "(sd-pam)")
             or (comm_lower.endswith("d") and tty in ("?", "-") and not any(k in comm_lower for kw_list, _ in self.APP_ICON_MAP for k in kw_list))
         ):
-            return "background", "⚙️ Background"
+            return "background", "⚙ Background"
 
         # 3. User Applications
         # If user owns it and it's not categorized as system or background, it is an App!
@@ -206,7 +208,7 @@ class ProcessEngine:
 
         # D: Uninterruptible sleep (I/O hang / driver lockup)
         if "D" in stat_upper:
-            return True, "⚠️", "Unresponsive", "⚠️ Unresponsive (I/O Wait)"
+            return True, "❗", "Unresponsive", "❗ Unresponsive (I/O Wait)"
 
         # Z: Defunct / Zombie
         if "Z" in stat_upper:
@@ -214,7 +216,7 @@ class ProcessEngine:
 
         # T: Stopped / Frozen by signal
         if "T" in stat_upper:
-            return True, "⏸️", "Stopped", "⏸️ Frozen (Stopped)"
+            return True, "⏸", "Stopped", "⏸ Frozen (Stopped)"
 
         # Active vs Idle
         if "R" in stat_upper or cpu > 1.0:
@@ -226,7 +228,7 @@ class ProcessEngine:
         self,
         mode: str = "normal",  # "normal" (apps only) or "pro" (all tasks)
         filter_text: str = "",
-        category_filter: str = "all",  # "all", "app", "background", "system", "unresponsive"
+        category_filter: str = "default",  # "default", "all", "app", "background", "system", "unresponsive"
         sort_by: str = "cpu",  # "cpu", "mem", "name", "pid", "status"
         reverse: bool = True,
     ) -> Tuple[List[ProcessItem], Dict[str, Any]]:
@@ -319,18 +321,18 @@ class ProcessEngine:
                 if is_unresp:
                     summary["unresponsive_count"] += 1
 
-                # Filter by mode: In normal mode, ONLY show apps!
-                if mode == "normal" and category != "app":
-                    continue
+                # Category filter
+                eff_filter = category_filter
+                if eff_filter in ("default", ""):
+                    eff_filter = "app" if mode == "normal" else "all"
 
-                # Category filter tab
-                if category_filter == "app" and category != "app":
+                if eff_filter == "app" and category != "app":
                     continue
-                elif category_filter == "background" and category != "background":
+                elif eff_filter == "background" and category != "background":
                     continue
-                elif category_filter == "system" and category != "system":
+                elif eff_filter == "system" and category != "system":
                     continue
-                elif category_filter == "unresponsive" and not is_unresp:
+                elif eff_filter == "unresponsive" and not is_unresp:
                     continue
 
                 # Search filter

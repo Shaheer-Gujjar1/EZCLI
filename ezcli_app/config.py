@@ -41,8 +41,8 @@ FEATURES: List[FeatureTemplate] = [
         subcommand="stats",
         title="Resource Statistics",
         icon="⚡",
-        description="Live-updating system & process monitor (per-core CPU, RAM/Swap, process manager)",
-        wrapped_commands=["free -h", "uptime", "nproc", "ps"],
+        description="Live hardware & system metrics monitor (per-core CPU, RAM/Swap, and top resource consumers)",
+        wrapped_commands=["free -h", "uptime", "nproc", "/proc/stat"],
         renderer_name="render_stats",
     ),
     FeatureTemplate(
@@ -90,36 +90,21 @@ FEATURES: List[FeatureTemplate] = [
         renderer_name="render_big_files",
     ),
     FeatureTemplate(
-        id="package_search",
-        subcommand="package-search",
-        title="Search Packages",
-        icon="🔍",
-        description="Search packages across APT 📦, Flatpak 🟣, and Snap 🟢 with platform choices",
-        wrapped_commands=["apt search", "flathub", "snapcraft"],
-        arguments=[
-            ArgumentDef(
-                name="term",
-                help="Package search keyword",
-                required=True,
-            )
-        ],
-        renderer_name="render_package_search",
-    ),
-    FeatureTemplate(
-        id="package",
-        subcommand="package",
-        title="Package Details",
+        id="package_info",
+        subcommand="package-info",
+        title="Package & App Info",
         icon="📦",
-        description="View package version, size, description and installed status",
-        wrapped_commands=["apt show", "dpkg -s"],
+        description="Unified package inspector: check local & store, run, install, or uninstall",
+        wrapped_commands=["apt", "dpkg", "snap", "flatpak", "pip", "npm"],
         arguments=[
             ArgumentDef(
                 name="name",
-                help="Name of the package to inspect",
-                required=True,
+                help="Package or application name to inspect (or blank for App Hub)",
+                required=False,
+                default="",
             )
         ],
-        renderer_name="render_package",
+        renderer_name="render_package_info",
     ),
     FeatureTemplate(
         id="available_updates",
@@ -208,14 +193,20 @@ FEATURES: List[FeatureTemplate] = [
         renderer_name="render_logs",
     ),
     FeatureTemplate(
-        id="installed_packages",
-        subcommand="installed-packages",
-        title="Installed Packages",
+        id="list_installed_packages",
+        subcommand="list-installed-packages",
+        title="List Installed Packages",
         icon="📋",
-        description="List all installed system and desktop packages (wraps apt list --installed)",
+        description="List installed desktop applications and/or system packages (interactive filter for apps, packages, or both)",
         wrapped_commands=["apt list --installed", "dpkg-query", "flatpak list", "snap list"],
-        arguments=[],
-        renderer_name="render_installed_packages",
+        arguments=[
+            ArgumentDef(
+                name="filter",
+                help="Optional filter: 'apps', 'packages', 'both', or search keyword",
+                required=False,
+            )
+        ],
+        renderer_name="render_list_installed_packages",
     ),
     FeatureTemplate(
         id="installed_package_search",
@@ -387,23 +378,6 @@ FEATURES: List[FeatureTemplate] = [
         renderer_name="run_cli_edit_file",
     ),
     FeatureTemplate(
-        id="version",
-        subcommand="version",
-        title="Check Version",
-        icon="💡",
-        description="Check installed version of any app, package, snap, flatpak, or library",
-        wrapped_commands=["which", "dpkg", "apt", "snap", "flatpak", "python", "node"],
-        arguments=[
-            ArgumentDef(
-                name="name",
-                help="Name of app, package, or library to inspect (omit for EasyCLI version)",
-                required=False,
-                default="",
-            )
-        ],
-        renderer_name="render_version_info",
-    ),
-    FeatureTemplate(
         id="check_internet",
         subcommand="check-internet",
         title="Check Internet Connection",
@@ -492,6 +466,9 @@ FEATURES: List[FeatureTemplate] = [
         renderer_name="run_cli_run",
     ),
 ]
+
+# Sort features alphabetically by subcommand (A-Z) for clean and predictable listing
+FEATURES.sort(key=lambda f: f.subcommand)
 
 # Lookup map by subcommand
 FEATURES_BY_SUBCOMMAND: Dict[str, FeatureTemplate] = {

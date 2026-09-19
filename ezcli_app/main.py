@@ -5,6 +5,7 @@ from typing import Sequence
 
 from rich import box
 from rich.console import Console
+from rich.markup import escape
 from rich.panel import Panel
 from rich.table import Table
 
@@ -55,46 +56,76 @@ def check_textual_installed(console: Console) -> bool:
 def print_custom_help(console: Console) -> None:
     """Print formatted help listing all subcommands, icons, and descriptions."""
     distro = detect_distro()
-    header_text = (
-        f"[bold cyan]EasyCLI (ez) v{__version__}[/bold cyan] ─ Friendly Linux Command Frontend\n"
-        f"[dim]Platform:[/dim] [green]{distro.pretty_name}[/green] | [dim]Admin Mode:[/dim] [bold yellow]Automatic & Safe[/bold yellow]"
-    )
-    console.print(Panel(header_text, box=box.ROUNDED, border_style="cyan"))
+    term_width = console.size.width or 80
+
+    if term_width >= 80:
+        header_text = (
+            f"[bold cyan]EasyCLI (ez) v{__version__}[/bold cyan] ─ Friendly Linux Command Frontend\n"
+            f"[dim]Platform:[/dim] [green]{distro.pretty_name}[/green] | [dim]Admin Mode:[/dim] [bold yellow]Automatic & Safe[/bold yellow]"
+        )
+    elif term_width >= 55:
+        header_text = (
+            f"[bold cyan]EasyCLI (ez) v{__version__}[/bold cyan]\n"
+            f"[dim]Platform:[/dim] [green]{distro.pretty_name}[/green]\n"
+            f"[dim]Admin Mode:[/dim] [bold yellow]Automatic & Safe[/bold yellow]"
+        )
+    else:
+        header_text = f"[bold cyan]EasyCLI v{__version__}[/bold cyan]\n[green]{distro.pretty_name}[/green]"
+
+    console.print(Panel(header_text, box=box.ROUNDED, border_style="cyan", width=term_width))
 
     console.print("[bold]Usage (Flagless Command-Only Frontend):[/bold]")
     console.print("  [cyan]ez[/cyan]                         [dim]Open interactive TUI menu[/dim]")
-    console.print("  [cyan]ez <subcommand> [args][/cyan]     [dim]Run subcommand directly and print output[/dim]")
-    console.print("  [cyan]ez help[/cyan]                    [dim]Show this help message[/dim]")
-    console.print("  [cyan]ez version[/cyan]                 [dim]Show EasyCLI version[/dim]\n")
+    console.print(r"  [cyan]ez <subcommand> \[args][/cyan]     [dim]Run subcommand directly and print output[/dim]")
+    console.print("  [cyan]ez help[/cyan]                    [dim]Show this help message[/dim]\n")
 
     table = Table(
+        width=term_width,
         box=box.ROUNDED,
         border_style="cyan",
         header_style="bold cyan",
         title="[bold]Available Subcommands[/bold]",
         padding=(0, 1),
+        show_lines=True,
+        expand=True,
     )
-    table.add_column("Icon", justify="center", width=4)
-    table.add_column("Subcommand & Syntax", style="bold green", width=28)
-    table.add_column("Wrapped Tools", style="dim", width=26)
-    table.add_column("Description", style="white")
 
-    for f in FEATURES:
-        # Format syntax
-        syntax = f.subcommand
-        for arg in f.arguments:
-            if arg.required:
-                syntax += f" <{arg.name}>"
-            else:
-                syntax += f" [{arg.name}]"
-
-        wrapped_str = ", ".join(f.wrapped_commands)
-        table.add_row(
-            f.icon,
-            syntax,
-            wrapped_str,
-            f.description,
-        )
+    if term_width >= 105:
+        table.add_column("Icon", justify="center", width=4, no_wrap=True)
+        table.add_column("Full Command & Syntax", style="bold green", ratio=3, overflow="fold")
+        table.add_column("Wrapped Tools", style="dim", ratio=2)
+        table.add_column("Description", style="white", ratio=4)
+        for f in FEATURES:
+            syntax = f"ez {f.subcommand}"
+            for arg in f.arguments:
+                syntax += f" <{arg.name}>" if arg.required else f" [{arg.name}]"
+            wrapped_str = ", ".join(f.wrapped_commands)
+            table.add_row(f.icon, escape(syntax), wrapped_str, f.description)
+    elif term_width >= 75:
+        table.add_column("Full Command & Syntax", style="bold green", ratio=3, overflow="fold")
+        table.add_column("Wrapped Tools", style="dim", ratio=2)
+        table.add_column("Description", style="white", ratio=4)
+        for f in FEATURES:
+            syntax = f"ez {f.subcommand}"
+            for arg in f.arguments:
+                syntax += f" <{arg.name}>" if arg.required else f" [{arg.name}]"
+            wrapped_str = ", ".join(f.wrapped_commands)
+            table.add_row(f"{f.icon} {escape(syntax)}", wrapped_str, f.description)
+    elif term_width >= 52:
+        table.add_column("Full Command & Syntax", style="bold green", ratio=1, overflow="fold")
+        table.add_column("Description", style="white", ratio=1)
+        for f in FEATURES:
+            syntax = f"ez {f.subcommand}"
+            for arg in f.arguments:
+                syntax += f" <{arg.name}>" if arg.required else f" [{arg.name}]"
+            table.add_row(f"{f.icon} {escape(syntax)}", f.description)
+    else:
+        table.add_column("Command & Syntax", style="bold green", ratio=1, overflow="fold")
+        for f in FEATURES:
+            syntax = f"ez {f.subcommand}"
+            for arg in f.arguments:
+                syntax += f" <{arg.name}>" if arg.required else f" [{arg.name}]"
+            table.add_row(f"{f.icon} {escape(syntax)}")
 
     console.print(table)
     console.print("[dim]💡 Tip: Never run 'sudo ez'. EasyCLI always runs safely as your normal user\n   and elevates only the specific underlying action through a small privileged helper.[/dim]\n")
@@ -140,12 +171,12 @@ def dispatch_subcommand(feature, sub_args: list[str], console: Console) -> None:
         else:
             folder = raw_folder
         renderers.render_big_files(console, folder)
-    elif feature.id == "package_search":
-        term = " ".join(sub_args)
-        renderers.render_package_search(console, term)
-    elif feature.id == "package":
-        pkg_name = sub_args[0]
-        renderers.render_package(console, pkg_name)
+    elif feature.id == "package_info":
+        pkg_name = sub_args[0] if sub_args else None
+        renderers.render_package_info(console, pkg_name)
+    elif feature.id in ("package_search", "package"):
+        target = " ".join(sub_args) if sub_args else None
+        renderers.render_package_info(console, target)
     elif feature.id == "available_updates":
         renderers.render_available_updates(console)
     elif feature.id == "update":
@@ -172,8 +203,9 @@ def dispatch_subcommand(feature, sub_args: list[str], console: Console) -> None:
                 console.print(f"[bold red]Error:[/bold red] Invalid line count '{sub_args[0]}'. Must be an integer.")
                 sys.exit(1)
         renderers.render_logs(console, lines)
-    elif feature.id == "installed_packages":
-        renderers.render_installed_packages(console)
+    elif feature.id in ("list_installed_packages", "installed_packages"):
+        filter_arg = sub_args[0] if sub_args else None
+        renderers.render_list_installed_packages(console, filter_arg=filter_arg)
     elif feature.id == "installed_package_search":
         term = " ".join(sub_args)
         renderers.render_installed_package_search(console, term)
@@ -241,10 +273,6 @@ def dispatch_subcommand(feature, sub_args: list[str], console: Console) -> None:
             target = target_arg
 
         run_cli_edit_file(args=EditArgs(), console=console)
-    elif feature.id == "version":
-        from .version_checker import run_version_command
-        target_arg = sub_args[0] if sub_args else None
-        run_version_command(name=target_arg, console=console)
     elif feature.id == "check_internet":
         renderers.render_internet_check(console)
     elif feature.id == "connect_wifi":
@@ -300,7 +328,7 @@ def main() -> None:
                 f"[bold red]Error:[/bold red] EasyCLI is completely flagless — flags like '[cyan]{a}[/cyan]' are not supported.\n"
                 "EasyCLI uses clean canonical subcommands without flags:\n"
                 "  • View all commands: [bold green]ez help[/bold green]\n"
-                "  • Check versions:    [bold green]ez version[/bold green]\n"
+                "  • Package info:      [bold green]ez package-info <name>[/bold green]\n"
                 "  • Explore features:  [bold green]ez[/bold green] (interactive menu)"
             )
             sys.exit(1)
@@ -316,6 +344,29 @@ def main() -> None:
     if first_arg == "extract-here":
         from .extract_cli import run_cli_extract_here
         run_cli_extract_here(raw_args=args[1:], console=console)
+        return
+
+    # Backwards-compatible aliases for retired package commands
+    if first_arg in ("package", "package-search"):
+        from .package_info import run_cli_package_info
+        target = " ".join(args[1:]) if len(args) > 1 else None
+        run_cli_package_info(target, console=console)
+        return
+
+    # Backwards-compatible alias for installed-packages
+    if first_arg == "installed-packages":
+        first_arg = "list-installed-packages"
+        args[0] = "list-installed-packages"
+
+    # Backwards-compatible alias for retired version command
+    if first_arg == "version":
+        target = " ".join(args[1:]).strip() if len(args) > 1 else ""
+        if target:
+            from .package_info import run_cli_package_info
+            run_cli_package_info(target, console=console)
+        else:
+            console.print(f"EasyCLI (ez) v{__version__} [dim](Safe Automatic Elevation)[/dim]")
+            console.print("[dim]💡 Note: 'ez version' has been retired. Target version inspection is now part of '[bold cyan]ez package-info <name>[/bold cyan]'.[/dim]")
         return
 
     # 4. Validate canonical subcommand

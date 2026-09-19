@@ -233,9 +233,9 @@ class TestVersionChecker(unittest.TestCase):
         render_version_results(self.console, "nonexistent_app", [])
         output = self.console.export_text()
         self.assertIn("No matches found for 'nonexistent_app'", output)
-        self.assertIn("package-search", output)
+        self.assertIn("package-info", output)
         self.assertIn("nonexistent_app", output)
-        self.assertIn("ez installed-packages", output)
+        self.assertIn("ez list-installed-packages", output)
 
     def test_run_version_command_no_arg_shows_ez_version(self):
         run_version_command(name="", console=self.console)

@@ -135,7 +135,7 @@ class EndTaskModal(ModalScreen[Optional[Tuple[int, int]]]):
                 )
             elif p.category == "system":
                 yield Label(
-                    "🛡️ SYSTEM PROCESS WARNING:\n"
+                    "🔒 SYSTEM PROCESS WARNING:\n"
                     "This is a system/root service. Terminating it requires administrator\n"
                     "rights and may disrupt system stability or services.",
                     classes="system-warning",
@@ -390,7 +390,7 @@ class TaskManagerApp(App[None]):
     }
 
     #category-bar {
-        height: 3;
+        height: 4;
         background: #101726;
         padding: 0 1;
         border-bottom: solid #1e293b;
@@ -420,16 +420,20 @@ class TaskManagerApp(App[None]):
     }
 
     #action-bar {
-        height: 3;
+        height: 4;
         background: #1a2234;
         border-top: solid #334155;
         padding: 0 1;
+        overflow-x: auto;
+        overflow-y: hidden;
     }
 
     #action-bar Button {
+        min-width: 4;
         margin-right: 1;
         height: 3;
         border: none;
+        padding: 0;
     }
 
     #status-notification {
@@ -465,7 +469,7 @@ class TaskManagerApp(App[None]):
         self.mode = mode  # "normal" or "pro"
         self.engine = ProcessEngine()
         self.filter_text = ""
-        self.category_filter = "all"
+        self.category_filter = "app" if mode == "normal" else "all"
         self.sort_by = "cpu"
         self.sort_reverse = True
         self.is_paused = False
@@ -478,7 +482,7 @@ class TaskManagerApp(App[None]):
         with Vertical(id="header-container"):
             with Horizontal(id="title-row"):
                 yield Label("📋 EasyCLI Task Manager", id="app-title")
-                mode_badge = "📱 USER APPS" if self.mode == "normal" else "🛡️ PRO MODE (ALL TASKS)"
+                mode_badge = "📱 USER APPS" if self.mode == "normal" else "🔒 PRO MODE (ALL TASKS)"
                 mode_color = "#4ade80" if self.mode == "normal" else "#f43f5e"
                 yield Label(f"[{mode_color}]{mode_badge}[/{mode_color}]", id="mode-indicator")
 
@@ -495,13 +499,15 @@ class TaskManagerApp(App[None]):
                 id="filter-input",
             )
 
-        # 3. Category Filter Tabs (Always visible, very prominent in Pro mode)
+        # 3. Category Filter Tabs (Always visible, prominent in both modes)
+        all_cls = "tab-active" if self.category_filter == "all" else ""
+        apps_cls = "tab-active" if self.category_filter == "app" else ""
         with Horizontal(id="category-bar"):
-            yield Button("🌟 All Tasks (1)", id="tab-all", classes="tab-active", variant="default")
-            yield Button("📱 User Apps (2)", id="tab-apps", variant="default")
-            yield Button("⚙️ Background (3)", id="tab-bg", variant="default")
+            yield Button("🌟 All Tasks (1)", id="tab-all", classes=all_cls, variant="default")
+            yield Button("📱 User Apps (2)", id="tab-apps", classes=apps_cls, variant="default")
+            yield Button("⚙ Background (3)", id="tab-bg", variant="default")
             yield Button("🔒 System (4)", id="tab-system", variant="default")
-            yield Button("⚠️ Unresponsive (5)", id="tab-unresp", variant="default")
+            yield Button("❗ Unresponsive (5)", id="tab-unresp", variant="default")
 
         # 4. Main Process DataTable
         with Container(id="table-container"):
@@ -509,14 +515,15 @@ class TaskManagerApp(App[None]):
 
         # 5. Bottom Action Bar
         with Horizontal(id="action-bar"):
-            yield Button("🛑 End Task (Del)", variant="error", id="btn-end-task")
-            yield Button("⚡ Force Kill (Shift+K)", variant="warning", id="btn-force-kill")
-            yield Button("ℹ️ Details (i)", variant="primary", id="btn-details")
-            yield Button("⏸️ Pause (Space)", variant="default", id="btn-pause")
+            yield Button("🛑 End (Del)", variant="error", id="btn-end-task")
+            yield Button("⚡ Kill (K)", variant="warning", id="btn-force-kill")
+            yield Button("📄 Details (i)", variant="primary", id="btn-details")
+            yield Button("⏸ Pause (Spc)", variant="default", id="btn-pause")
             yield Button("🔄 Refresh (r)", variant="default", id="btn-refresh")
-            pro_label = "🛡️ Switch to Pro (p)" if self.mode == "normal" else "📱 Switch to Apps (p)"
+            pro_label = "🔒 Pro (p)" if self.mode == "normal" else "📱 Apps (p)"
             yield Button(pro_label, variant="default", id="btn-toggle-mode")
             yield Button("❓ Help (?)", variant="default", id="btn-help")
+            yield Button("❌ Quit (q)", variant="default", id="btn-quit")
             yield Label("", id="status-notification")
 
     def on_mount(self) -> None:
@@ -571,9 +578,19 @@ class TaskManagerApp(App[None]):
         unresp_count = summary.get("unresponsive_count", 0)
         unresp_label = self.query_one("#unresp-metric", Label)
         if unresp_count > 0:
-            unresp_label.update(f"[bold red]⚠️ {unresp_count} Unresponsive![/bold red]")
+            unresp_label.update(f"[bold red]❗ {unresp_count} Unresponsive![/bold red]")
         else:
             unresp_label.update("[bold green]✨ All Responsive[/bold green]")
+
+        # Update category tab labels with dynamic live counts
+        try:
+            self.query_one("#tab-all", Button).label = f"🌟 All ({summary['total']}) (1)"
+            self.query_one("#tab-apps", Button).label = f"📱 Apps ({summary['apps_count']}) (2)"
+            self.query_one("#tab-bg", Button).label = f"⚙ Background ({summary['background_count']}) (3)"
+            self.query_one("#tab-system", Button).label = f"🔒 System ({summary['system_count']}) (4)"
+            self.query_one("#tab-unresp", Button).label = f"❗ Unresponsive ({summary['unresponsive_count']}) (5)"
+        except Exception:
+            pass
 
         # 2. Populate DataTable
         table = self.query_one(DataTable)
@@ -599,10 +616,10 @@ class TaskManagerApp(App[None]):
             else:
                 mem_text = f"[dim]{p.mem_percent:4.1f}%[/dim]"
 
-            # Status Column with Unresponsive Badge
+            # Status & Name Columns with Unresponsive Marking
             if p.is_unresponsive:
-                status_markup = f"[bold red]⚠️ Unresponsive[/bold red]"
-                name_markup = f"[bold red]{p.app_icon} {p.name}[/bold red]"
+                status_markup = f"[bold red]❗ {p.status_text}[/bold red]"
+                name_markup = f"[bold red]❗ {p.app_icon} {p.name}[/bold red]"
             else:
                 status_markup = f"{p.status_icon} {p.status_text}"
                 name_markup = f"{p.app_icon} [bold]{p.name}[/bold]"
@@ -690,24 +707,54 @@ class TaskManagerApp(App[None]):
             self.action_toggle_mode()
         elif btn_id == "btn-help":
             self.action_show_help()
+        elif btn_id == "btn-quit":
+            self.action_quit()
         elif btn_id and btn_id.startswith("tab-"):
             # Category tabs
-            self.set_category_tab(btn_id.replace("tab-", ""))
+            self.set_category_tab(btn_id)
+
+    TAB_KEY_MAP = {
+        "all": "all",
+        "tab-all": "all",
+        "apps": "app",
+        "app": "app",
+        "tab-apps": "app",
+        "bg": "background",
+        "background": "background",
+        "tab-bg": "background",
+        "system": "system",
+        "tab-system": "system",
+        "unresp": "unresponsive",
+        "unresponsive": "unresponsive",
+        "tab-unresp": "unresponsive",
+    }
 
     def set_category_tab(self, tab: str) -> None:
         """Switch active category tab."""
-        self.category_filter = tab
+        canonical = self.TAB_KEY_MAP.get(tab, "all")
+        self.category_filter = canonical
+
+        mapping = {
+            "all": "tab-all",
+            "app": "tab-apps",
+            "background": "tab-bg",
+            "system": "tab-system",
+            "unresponsive": "tab-unresp",
+        }
 
         # Update button visual styling
-        for tab_id in ("all", "apps", "bg", "system", "unresp"):
-            btn = self.query_one(f"#tab-{tab_id}", Button)
-            expected = "app" if tab_id == "apps" else ("background" if tab_id == "bg" else ("unresponsive" if tab_id == "unresp" else tab_id))
-            if tab == expected:
-                btn.add_class("tab-active")
-            else:
-                btn.remove_class("tab-active")
+        for cat, btn_id in mapping.items():
+            try:
+                btn = self.query_one(f"#{btn_id}", Button)
+                if canonical == cat:
+                    btn.add_class("tab-active")
+                else:
+                    btn.remove_class("tab-active")
+            except Exception:
+                pass
 
-        self.refresh_process_data()
+        if self.is_running:
+            self.refresh_process_data()
 
     def show_notification(self, message: str, is_error: bool = False) -> None:
         """Show temporary status notification on the bottom bar."""
@@ -722,6 +769,10 @@ class TaskManagerApp(App[None]):
     def action_focus_filter(self) -> None:
         self.query_one("#filter-input", Input).focus()
 
+    def action_quit(self) -> None:
+        """Exit Task Manager."""
+        self.exit()
+
     def action_escape_action(self) -> None:
         filter_input = self.query_one("#filter-input", Input)
         if filter_input.has_focus:
@@ -734,11 +785,11 @@ class TaskManagerApp(App[None]):
         self.is_paused = not self.is_paused
         pause_btn = self.query_one("#btn-pause", Button)
         if self.is_paused:
-            pause_btn.label = "▶️ Resume (Space)"
-            self.show_notification("⏸️ Live polling paused.")
+            pause_btn.label = "▶ Resume (Spc)"
+            self.show_notification("⏸ Live polling paused.")
         else:
-            pause_btn.label = "⏸️ Pause (Space)"
-            self.show_notification("▶️ Live polling resumed.")
+            pause_btn.label = "⏸ Pause (Spc)"
+            self.show_notification("▶ Live polling resumed.")
             self.refresh_process_data()
 
     def action_refresh_now(self) -> None:
@@ -752,13 +803,13 @@ class TaskManagerApp(App[None]):
 
         # Update mode indicator
         mode_label = self.query_one("#mode-indicator", Label)
-        badge_text = "📱 USER APPS" if self.mode == "normal" else "🛡️ PRO MODE (ALL TASKS)"
+        badge_text = "📱 USER APPS" if self.mode == "normal" else "🔒 PRO MODE (ALL TASKS)"
         badge_color = "#4ade80" if self.mode == "normal" else "#f43f5e"
         mode_label.update(f"[{badge_color}]{badge_text}[/{badge_color}]")
 
         # Update button text
         toggle_btn = self.query_one("#btn-toggle-mode", Button)
-        toggle_btn.label = "🛡️ Switch to Pro (p)" if self.mode == "normal" else "📱 Switch to Apps (p)"
+        toggle_btn.label = "🔒 Pro (p)" if self.mode == "normal" else "📱 Apps (p)"
 
         # Re-initialize columns if needed
         table = self.query_one(DataTable)
@@ -774,8 +825,12 @@ class TaskManagerApp(App[None]):
         if self.mode == "pro":
             table.add_column("Category", key="category")
 
+        if self.mode == "normal":
+            self.set_category_tab("app")
+        else:
+            self.set_category_tab("all")
+
         self.show_notification(f"Switched to {badge_text}")
-        self.refresh_process_data()
 
     def action_end_task(self) -> None:
         p = self.get_selected_process()

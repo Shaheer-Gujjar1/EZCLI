@@ -34,6 +34,16 @@ class TestCollectors(unittest.TestCase):
         self.assertIn("uptime", info)
         self.assertNotEqual(info["hostname"], "")
         self.assertNotEqual(info["kernel"], "")
+        self.assertIn("cpu", info)
+        self.assertIn("motherboard", info)
+        self.assertIn("gpus", info)
+        self.assertIn("ram_total", info)
+        self.assertIn("ram_used", info)
+        self.assertIn("ram_percent", info)
+        self.assertIn("disk_total", info)
+        self.assertIn("disk_used", info)
+        self.assertIn("disk_percent", info)
+        self.assertIn("packages", info)
 
     def test_collect_stats(self):
         stats = collect_stats()
@@ -191,6 +201,15 @@ class TestCollectors(unittest.TestCase):
         # Non-matching filter
         res_none = collect_installed_packages("definitelynotaninstalledpkgxyz123")
         self.assertEqual(len(res_none["matches"]), 0)
+
+        # Category filtering: apps vs packages vs both
+        res_apps = collect_installed_packages(category="apps")
+        self.assertEqual(res_apps["category"], "apps")
+        self.assertTrue(all(item.get("kind") == "app" for item in res_apps["matches"]))
+
+        res_pkgs = collect_installed_packages(category="packages")
+        self.assertEqual(res_pkgs["category"], "packages")
+        self.assertTrue(all(item.get("kind") == "package" for item in res_pkgs["matches"]))
 
 
 if __name__ == "__main__":

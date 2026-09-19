@@ -98,7 +98,7 @@ class TestProcessEngine(unittest.TestCase):
         # D state (I/O hang) -> Unresponsive
         is_unresp, icon, text, badge = self.engine.detect_unresponsive("D+", 0.0, "cp")
         self.assertTrue(is_unresp)
-        self.assertEqual(icon, "⚠️")
+        self.assertEqual(icon, "❗")
         self.assertEqual(text, "Unresponsive")
         self.assertIn("I/O Wait", badge)
 
@@ -111,7 +111,7 @@ class TestProcessEngine(unittest.TestCase):
         # T state (Stopped) -> Unresponsive
         is_unresp, icon, text, badge = self.engine.detect_unresponsive("T", 0.0, "nano")
         self.assertTrue(is_unresp)
-        self.assertEqual(icon, "⏸️")
+        self.assertEqual(icon, "⏸")
         self.assertEqual(text, "Stopped")
 
         # Normal Active state
@@ -154,7 +154,7 @@ class TestProcessEngine(unittest.TestCase):
         # Unresponsive process (gedit with state D+) should be prioritized and tagged
         gedit_p = next(p for p in items if p.pid == 4100)
         self.assertTrue(gedit_p.is_unresponsive)
-        self.assertEqual(gedit_p.status_icon, "⚠️")
+        self.assertEqual(gedit_p.status_icon, "❗")
         self.assertEqual(gedit_p.status_text, "Unresponsive")
         self.assertEqual(summary["unresponsive_count"], 1)
 
@@ -265,9 +265,28 @@ class TestTaskManagerApp(unittest.TestCase):
     def test_app_init_modes(self):
         app_normal = TaskManagerApp(mode="normal")
         self.assertEqual(app_normal.mode, "normal")
+        self.assertEqual(app_normal.category_filter, "app")
 
         app_pro = TaskManagerApp(mode="pro")
         self.assertEqual(app_pro.mode, "pro")
+        self.assertEqual(app_pro.category_filter, "all")
+
+    def test_set_category_tab(self):
+        app = TaskManagerApp(mode="normal")
+        app.set_category_tab("tab-bg")
+        self.assertEqual(app.category_filter, "background")
+
+        app.set_category_tab("tab-system")
+        self.assertEqual(app.category_filter, "system")
+
+        app.set_category_tab("tab-unresp")
+        self.assertEqual(app.category_filter, "unresponsive")
+
+        app.set_category_tab("tab-apps")
+        self.assertEqual(app.category_filter, "app")
+
+        app.set_category_tab("tab-all")
+        self.assertEqual(app.category_filter, "all")
 
 
 if __name__ == "__main__":

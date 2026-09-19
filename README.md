@@ -158,16 +158,15 @@ ez help
 
 > 💡 **Looking for a comprehensive comparison?** See the full [EasyCLI Commands Guide & Linux Replacement Matrix](COMMANDS_GUIDE.md) for in-depth command breakdowns, interactive hotkeys, and traditional Linux command mappings.
 
-| Icon | Subcommand & Syntax | Version | Wrapped Tools | Description |
+| Icon | Full Command & Syntax | Version | Wrapped Tools | Description |
 | :---: | :--- | :---: | :--- | :--- |
 | 💻 | `ez system-info` | **v0.1** | `hostnamectl`, `uptime -p`, `/etc/os-release` | Key-value card with OS name/version, hostname, kernel, architecture, and uptime. |
-| ⚡ | `ez stats` | **v0.3** | `/proc`, `ps`, `free`, `uptime` | Live-updating system & process monitor (modern `htop` alternative with per-core CPU bars, RAM/Swap gauges, search filtering, and safe process termination). |
+| ⚡ | `ez stats` | **v0.3** | `/proc`, `free`, `uptime`, `nproc` | Live-updating system metrics monitor (modern `btop`/`htop` alternative with per-core CPU bars, RAM/Swap gauges, and top resource consumers). |
 | 📋 | `ez task-manager` | **v0.4** | *(Windows Task Manager)*, `ps`, `kill` | Lite & modern Windows-style task manager for user apps with mouse support, emoji icons, unresponsive detection, and instant termination. |
 | 🔒 | `ez task-manager-pro` | **v0.4** | `ps aux`, `top`, `sudo kill` | Comprehensive pro task manager with user apps, background daemons, system services, category tabs, and auto admin elevation. |
 | 💽 | `ez disk-info` | **v0.1** | `df -h` | Table of storage mounts, sizes, used/available space, and inline usage bars (filters out pseudo-filesystems). |
 | 📁 | `ez big-files [path \| choose-directory]` | **v0.1** | `du -h --max-depth=1`, `find` | Table of largest files and folders. Provide a path or use `choose-directory` to pick visually via the mini explorer. Defaults to `~`. |
-| 🔍 | `ez package-search <term>` | **v0.1** | `apt search`, `flathub`, `snapcraft` | Universal search across **APT 📦**, **Flatpak 🟣**, and **Snap 🟢** with interactive platform selection & installation commands. |
-| 📦 | `ez package <name>` | **v0.1** | `apt show`, `dpkg -s` | Card showing package version, size, homepage, description, and installed status. |
+| 📦 | `ez package-info [name]` | **v0.5** | `apt show`, `apt search`, `flatpak`, `snap`, `pip`, `npm` | App-Store package inspector: checks local machine & stores simultaneously, loose matching, nature classification, and safe actions (Run/Install/Uninstall). Hub menu if no arg. |
 | 🔄 | `ez available-updates` | **v0.1** | `apt list --upgradable` | Table of upgradable packages and versions using existing lists only (never runs `apt update`). |
 | 🔄 | `ez update` | **v0.4** | `apt update`, `apt-get update` | Refresh package catalog from repositories without installing or modifying software. Safe elevation. |
 | 🚀 | `ez upgrade` | **v0.4** | `apt upgrade`, `snap refresh`, `flatpak update` | Comprehensive upgrade across APT, Flatpak, and Snap with impact simulation, Timeshift restore point prompt, and reboot check. |
@@ -175,7 +174,7 @@ ez help
 | 🔧 | `ez service-status <name>` | **v0.1** | `systemctl is-active`, `systemctl is-enabled` | Status card with running state and boot enablement indicators. |
 | 🌐 | `ez network-info` | **v0.1** | `ip addr`, `ip route`, `/etc/resolv.conf` | Overview card and table of network interfaces, IP addresses, gateway, DNS, and online status. |
 | 📄 | `ez logs [N]` | **v0.1** | `journalctl -n N --no-pager` | Color-coded system logs by severity (errors red, warnings yellow, ok green). Defaults to 50 lines. |
-| 📋 | `ez installed-packages` | **v0.1** | `apt list --installed`, `dpkg-query`, `flatpak list`, `snap list` | List all installed packages across system and desktop platforms (wraps `apt list --installed`). |
+| 📋 | `ez list-installed-packages [apps\|packages\|both]` | **v0.5** | `apt list --installed`, `dpkg-query`, `flatpak`, `snap`, `pip`, `npm` | List installed software with interactive filter (Installed Applications Only, Packages Only like npm/node/nala/php/pip, or Both). |
 | 🔎 | `ez installed-package-search <name>` | **v0.1** | `apt list --installed \| grep -i <name>`, `dpkg-query` | Search installed packages and applications by name (wraps `apt list --installed \| grep -i <name>`). |
 | 📁 | `ez choose-directory [path]` | **v0.2** | `explorer` | Graphical terminal file explorer with mouse navigation, file-type emojis, bookmarks, and subshell launcher. |
 | 📋 | `ez copy [target \| choose-directory]` | **v0.2** | `cp` | Copy file/folder in current directory directly or choose visually with `choose-directory`. |
@@ -187,7 +186,6 @@ ez help
 | 📄 | `ez create-file <names...> [choose-directory]` | **v0.3** | `create-file` | Create one or more new blank files directly (comma-separated, in current directory) or choose destination directory visually with mini explorer. Automatic privilege elevation. |
 | 🧹 | `ez delete [target \| choose-directory]` | **v0.3** | `delete` | Permanently delete file(s) or folder(s) with explicit consent, non-force-first safety, and automatic elevation. |
 | 📝 | `ez edit-file [target \| choose-directory]` | **v0.3** | `edit-file` | Modern terminal text and code editor with syntax highlighting, line numbers, visual search, and auto-elevation. |
-| 💡 | `ez version [name]` | **v0.4** | `which`, `dpkg`, `apt`, `snap`, `flatpak`, `python`, `node` | Universal version checker across PATH binaries, Debian packages, APT catalog, Snap, Flatpak, Python, and Node libraries. Dual mode: displays EasyCLI version with no argument, or inspects specified target. |
 | 📶 | `ez check-internet` | **v0.5** | `ping`, `ip route`, `socket` | 3-stage visual connectivity pipeline (`Router → DNS → Internet`) with latency (`✔`/`✖`) and an immediate "Why internet isn't working" one-line diagnostic verdict. |
 | 📶 | `ez connect-wifi` | **v0.5** | `nmcli`, `iw` | In-terminal graphical Wi-Fi manager with mouse support, signal strength bars, network scanning, password entry modal with show/hide toggle (`👁️`/`🙈`), and action buttons (`Connect`, `Cancel`, `Refresh`, `Disconnect`). |
 | 🔍 | `ez search-file <term>` | **v0.5** | `find`, `locate`, `ls` | Fast fuzzy file search starting from `/home`, rich results table with emoji icons, interactive selection to open, copy path, or edit, and optional system-wide (`'/'`) fallback with auto-elevation. |
@@ -558,25 +556,15 @@ ez task-manager-pro   # Pro Mode: All tasks (Apps + Background Daemons + System 
 - **Mouse & Keyboard Controls**: Click rows to select, double-click or press `Del`/`k` to End Task, click column headers to sort by CPU %, Memory %, Name, PID, or Status, press `/` to live filter.
 - **Automatic Elevation**: In Pro Mode, terminating root or system processes automatically elevates through the privileged helper without needing to launch EasyCLI as root.
 
-### 5. `ez version [name]` — Universal Version Checker
-A single, flagless, beginner-friendly version checker for any application, package, binary, or library:
+### 5. `ez package-info [name]` — Universal Package & Version Inspector
+A unified, App-Store styled inspector that consolidates software inspection, store catalogs, and version checking into one command:
 ```bash
-ez version         # Displays EasyCLI version + usage hint
-ez version curl    # Universal inspection across all 7 sources
+ez package-info curl    # Context-aware card with installed status, versions, nature, and actions
+ez package-info         # Interactive search hub across APT, Flathub, Snap, Pip, and PATH
 ```
-- **Dual Invocation**:
-  - **No argument (`ez version`)**: Displays EasyCLI's own version along with a clear one-line tip on inspecting any external software.
-  - **With argument (`ez version <name>`)**: Automatically inspects the target across all 7 detection sources in exact sequence:
-    1. **Executable on PATH**: Quietly probes standard candidate version flags (`--version`, `-v`, `-V`, `version`, `-version`) with execution timeouts and safety guards.
-    2. **Installed Debian Package**: Queries `dpkg-query` and retrieves installation timestamp from `/var/lib/dpkg/info/<pkg>.list`.
-    3. **APT Catalog**: Checks candidate versions available via repository catalog (`apt-cache policy`).
-    4. **Snap Package**: Inspects installed snaps via `snap list` and `/snap/<name>/current` mtime.
-    5. **Flatpak Application**: Inspects installed Flatpaks via `flatpak info` and `flatpak list --app`.
-    6. **Python Library**: Discovers installed Python packages via standard `importlib.metadata.distribution`.
-    7. **Node.js Library**: Scans global npm packages (`npm root -g`) and local `./node_modules/<name>/package.json`.
-- **Unified Multi-Source Card**: If a tool is present in multiple places (e.g. `curl` installed as both a system binary and Debian package), all matches are rendered together in a single, clear Rich card with Source Type, Detected Version, Identifier/Path, and Install Date.
-- **Friendly Guidance**: If nothing is found across any source, renders a helpful card suggesting `ez package-search <name>` and `ez installed-packages`.
-- **Read-Only & Flagless**: Zero administrative elevation needed; strictly flagless.
+- **Unified Multi-Source Detection**: Inspects binaries on PATH, Debian packages (`dpkg`/`apt`), Flathub/Flatpak, Snap Store, Python (`pip`), and Node.js (`npm`), reporting installed version, store version, install size, and desktop launcher nature.
+- **Safe Actions**: Run, Install, or Uninstall directly from the card.
+- **Retired `ez version`**: The standalone subcommand `ez version` has been retired. Running `ez version <name>` automatically routes to `ez package-info <name>`, while running `ez version` without arguments displays EasyCLI's own version.
 
 ### 6. `ez check-internet` — Universal Internet Connectivity Checker (v0.5)
 Instant 3-stage connectivity diagnosis and visual pipeline:
@@ -699,7 +687,7 @@ ez run choose-directory
   - *Mandatory Preview & Confirmation*: Always displays the assembled command in a high-contrast preview card and prompts for explicit user confirmation before running.
 - **Ambiguous Flatpak Selection**: If multiple Flatpak applications match a name (e.g. `firefox` matching stable and developer editions), an interactive Rich selection table is presented to choose the intended package.
 - **Automatic Privilege Elevation**: Commands or files failing due to `Permission denied` (EACCES / exit code 126 or 13) seamlessly prompt for elevation and run via the privileged helper with dot password feedback.
-- **Missing App Guidance**: If an application is not installed, displays a clean card suggesting: `ez package-search <target>`.
+- **Missing App Guidance**: If an application is not installed, displays a clean card suggesting: `ez package-info <target>`.
 
 ---
 
@@ -811,7 +799,7 @@ EZCLI/
   - Comprehensive multi-source system upgrade (`ez upgrade`) across APT, Flatpak, and Snap with impact simulation, Timeshift restore point recommendation, risk badge, and reboot check.
   - Safe application uninstallation (`ez uninstall <name>`) across APT, Flatpak, and Snap with warning card, single consent, and zero-cache admin elevation.
   - Lite & modern terminal Task Manager (`ez task-manager`, `ez task-manager-pro`) with mouse support, real-time gauges, unresponsive process detection, and auto-elevation.
-  - Universal Version Checker (`ez version [name]`) automatically inspecting binaries on PATH, Debian packages, APT catalog, Snap, Flatpak, Python, and Node libraries without flags.
+  - Universal Version Checker (`ez version [name]`, consolidated into `ez package-info` in v0.5) automatically inspecting binaries on PATH, Debian packages, APT catalog, Snap, Flatpak, Python, and Node libraries without flags.
 - **v0.5 — Internet Diagnostics, Visual Pipeline, In-Terminal Wi-Fi Manager, Fuzzy File Search, Compression, Extraction & Universal Runner**:
   - Universal internet connectivity checker (`ez check-internet`) testing Router ping, DNS resolution, and internet reachability.
   - High-contrast visual pipeline (`Router → DNS → Internet`) with latency indicators (`✔`/`✖`).

@@ -99,6 +99,10 @@ def parse_desktop_file(filepath: str) -> Optional[dict]:
                 data["nodisplay"] = v.lower() == "true"
             elif k == "type":
                 data["type"] = v
+            elif k == "comment" and "comment" not in data:
+                data["comment"] = v
+            elif k == "genericname" and "genericname" not in data:
+                data["genericname"] = v
 
     if data["type"].lower() != "application" or data["nodisplay"]:
         return None

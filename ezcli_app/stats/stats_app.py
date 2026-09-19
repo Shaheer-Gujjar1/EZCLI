@@ -353,19 +353,19 @@ class StatsHelpModal(ModalScreen[None]):
 
     def compose(self) -> ComposeResult:
         help_text = (
-            "[bold cyan]EasyCLI Live Stats & Process Monitor Guide[/bold cyan]\n\n"
+            "[bold cyan]EasyCLI Live Stats & Metrics Monitor Guide[/bold cyan]\n\n"
             "  [bold green]Mouse Controls:[/bold green] Click any row to highlight, click column header to sort,\n"
             "                  click bottom action buttons, scroll table with wheel.\n\n"
-            "  [bold green]k / x[/bold green]          Terminate or Kill selected process (safe confirmation)\n"
+            "  [bold green]t[/bold green]              Open Task Manager (end tasks, unresponsive detection, auto-elevation)\n"
             "  [bold green]Enter / i[/bold green]      Inspect process details (cwd, exe, open files, cmdline)\n"
             "  [bold green]/ or Ctrl+F[/bold green]    Search / filter processes in real-time\n"
             "  [bold green]s[/bold green]              Open Sort Picker (CPU%, Memory%, RAM, PID, Name)\n"
-            "  [bold green]Space[/bold green]          Pause / Resume live stats updates\n"
+            "  [bold green]Space[/bold green]          Pause / Resume live telemetry updates\n"
             "  [bold green]+ / -[/bold green]          Speed up or slow down refresh interval\n"
             "  [bold green]r[/bold green]              Force immediate refresh\n"
             "  [bold green]q / Esc[/bold green]        Quit Live Stats monitor\n\n"
-            "[dim]Auto-Elevation: Terminating system/root processes will automatically prompt\n"
-            "for admin elevation using EasyCLI's secure elevation helper.[/dim]"
+            "[dim]💡 Tip: 'ez stats' is your telemetry monitor for CPU & RAM metrics. To end\n"
+            "tasks or manage applications with safe auto-elevation, press 't' for Task Manager.[/dim]"
         )
         with Vertical(id="help-dialog"):
             yield Label("📖 Monitor Controls & Help", id="help-title")
@@ -506,13 +506,15 @@ class StatsApp(App[None]):
     #action-bar {
         height: 3;
         align: center middle;
-        padding: 0 1;
+        padding: 0;
+        overflow-x: auto;
+        overflow-y: hidden;
     }
 
     #action-bar Button {
-        min-width: 8;
+        min-width: 6;
         height: 3;
-        margin: 0 1;
+        margin: 0 0;
         padding: 0 1;
     }
     """
@@ -524,8 +526,9 @@ class StatsApp(App[None]):
         Binding("ctrl+f", "toggle_filter", "Filter"),
         Binding("s", "open_sort", "Sort"),
         Binding("space", "toggle_pause", "Pause/Play"),
-        Binding("k", "kill_selected", "Kill"),
-        Binding("x", "kill_selected", "Kill"),
+        Binding("t", "open_task_manager", "Task Manager"),
+        Binding("k", "guide_task_manager", "Task Manager"),
+        Binding("x", "guide_task_manager", "Task Manager"),
         Binding("enter", "inspect_selected", "Info"),
         Binding("i", "inspect_selected", "Info"),
         Binding("r", "refresh_now", "Refresh"),
@@ -590,9 +593,9 @@ class StatsApp(App[None]):
                 yield Button("❓ Help (F1)", variant="default", id="btn-help")
                 yield Button("🔍 Filter (/)", variant="default", id="btn-filter")
                 yield Button("🔀 Sort (s)", variant="default", id="btn-sort")
-                yield Button("⏸️ Pause (Space)", variant="default", id="btn-pause")
-                yield Button("🛑 Kill (k)", variant="error", id="btn-kill")
-                yield Button("ℹ️ Details (i)", variant="primary", id="btn-info")
+                yield Button("⏸ Pause (Space)", variant="default", id="btn-pause")
+                yield Button("📋 Tasks (t)", variant="warning", id="btn-task-manager")
+                yield Button("📄 Details (i)", variant="primary", id="btn-info")
                 yield Button("🔄 Refresh (r)", variant="default", id="btn-refresh")
                 yield Button("❌ Quit (q)", variant="default", id="btn-quit")
 
@@ -804,29 +807,25 @@ class StatsApp(App[None]):
 
         if self.is_paused:
             status_label.update(f"[bold yellow]❚❚ PAUSED[/bold yellow]{admin_badge}")
-            pause_btn.label = "▶️ Resume (Space)"
+            pause_btn.label = "▶ Resume (Space)"
             self.show_notification("Live updates paused. Press Space to resume.")
         else:
             status_label.update(f"[bold green]● LIVE ({self.refresh_interval:.1f}s)[/bold green]{admin_badge}")
-            pause_btn.label = "⏸️ Pause (Space)"
+            pause_btn.label = "⏸ Pause (Space)"
             self.show_notification("Live updates resumed.")
             self.refresh_stats()
 
+    def action_open_task_manager(self) -> None:
+        """Exit live stats monitor and launch Task Manager."""
+        self.exit(result="task_manager")
+
+    def action_guide_task_manager(self) -> None:
+        """Inform user that task and process termination is handled in Task Manager."""
+        self.show_notification("💡 Process management is in Task Manager. Press 't' to open it!")
+
     def action_kill_selected(self) -> None:
-        p = self.get_selected_process()
-        if not p:
-            self.show_notification("No process selected to terminate.", is_error=True)
-            return
-
-        def on_kill_confirmed(result: Optional[Tuple[int, int]]) -> None:
-            if not result:
-                return
-            pid, sig = result
-            success, msg = self.collector.terminate_process(pid, sig)
-            self.show_notification(msg, is_error=not success)
-            self.refresh_stats()
-
-        self.push_screen(KillProcessModal(p), on_kill_confirmed)
+        """Redirect legacy kill command to Task Manager."""
+        self.action_guide_task_manager()
 
     def action_inspect_selected(self) -> None:
         p = self.get_selected_process()
@@ -881,8 +880,10 @@ class StatsApp(App[None]):
             self.action_open_sort()
         elif btn_id == "btn-pause":
             self.action_toggle_pause()
+        elif btn_id == "btn-task-manager":
+            self.action_open_task_manager()
         elif btn_id == "btn-kill":
-            self.action_kill_selected()
+            self.action_guide_task_manager()
         elif btn_id == "btn-info":
             self.action_inspect_selected()
         elif btn_id == "btn-refresh":
@@ -916,4 +917,7 @@ class StatsApp(App[None]):
 def run_live_stats() -> None:
     """Entry point to launch the live stats Textual TUI."""
     app = StatsApp()
-    app.run()
+    res = app.run()
+    if res == "task_manager":
+        from ..task_manager import run_task_manager
+        run_task_manager(mode="normal")

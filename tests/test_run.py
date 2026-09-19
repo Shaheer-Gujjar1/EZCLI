@@ -448,7 +448,7 @@ class TestRunCLI(unittest.TestCase):
         run_cli_run(["unknown_tool_xyz"], console=self.console)
         output = self.console.export_text()
         self.assertIn("Application Not Found", output)
-        self.assertIn("ez package-search unknown_tool_xyz", output)
+        self.assertIn("ez package-info unknown_tool_xyz", output)
 
     @patch("ezcli_app.run_cli.Prompt.ask", return_value="1")
     @patch("subprocess.Popen")

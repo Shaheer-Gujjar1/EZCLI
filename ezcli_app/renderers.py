@@ -1,10 +1,10 @@
 """Rich-based formatters and renderers for EasyCLI subcommands."""
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 from rich import box
 from rich.console import Console
 from rich.panel import Panel
-from rich.prompt import Confirm
+from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
 from .collectors import (
@@ -41,29 +41,89 @@ def make_bar(percent: float, width: int = 10) -> str:
 # 1. System Info Renderer
 # ==============================================================================
 def render_system_info(console: Console, is_admin: bool = False) -> None:
-    """Render system info card."""
+    """Render comprehensive system, hardware, and desktop info card."""
     data = collect_system_info()
 
-    table = Table(box=None, show_header=False, padding=(0, 2))
-    table.add_column("Key", style="bold cyan", no_wrap=True)
+    table = Table(box=None, show_header=False, padding=(0, 1))
+    table.add_column("Key", style="bold cyan", width=22)
     table.add_column("Value", style="white")
 
+    # Section 1: OS & Desktop Environment
+    table.add_row("[bold yellow]── OS & Session ──[/bold yellow]", "")
+
     distro_str = data["os_name"]
-    if data["codename"]:
+    if data.get("codename"):
         distro_str += f" ({data['codename']})"
-    if data["is_debian_based"]:
+    if data.get("is_debian_based"):
         distro_str += " [green](Debian-based)[/green]"
 
     table.add_row("Distribution", distro_str)
     table.add_row("Hostname", data["hostname"])
-    table.add_row("Kernel", data["kernel"])
-    table.add_row("Architecture", data["arch"])
+
+    kernel_arch = data["kernel"]
+    if data.get("arch") and data["arch"] != "Unknown" and data["arch"] not in data["kernel"]:
+        kernel_arch += f" ({data['arch']})"
+    table.add_row("Kernel", kernel_arch)
     table.add_row("System Uptime", f"[bold green]{data['uptime']}[/bold green]")
 
-    if data.get("hardware_model"):
-        table.add_row("Hardware Model", data["hardware_model"])
+    if data.get("desktop"):
+        table.add_row("Desktop Environment", data["desktop"])
+
+    display_parts = []
+    if data.get("session_type"):
+        display_parts.append(data["session_type"])
+    if data.get("resolution"):
+        display_parts.append(data["resolution"])
+    if display_parts:
+        table.add_row("Display Server", " - ".join(display_parts))
+
+    shell_term = []
+    if data.get("shell"):
+        shell_term.append(data["shell"])
+    if data.get("terminal") and data["terminal"] not in ("dumb", "unknown", ""):
+        shell_term.append(f"({data['terminal']})")
+    if shell_term:
+        table.add_row("Shell & Terminal", " ".join(shell_term))
+
+    if data.get("packages"):
+        table.add_row("Software Packages", data["packages"])
+
+    # Section 2: Hardware & Performance Specs
+    table.add_row("", "")
+    table.add_row("[bold yellow]── Hardware Specs ──[/bold yellow]", "")
+
+    mb = data.get("motherboard") or data.get("hardware_model")
+    if mb:
+        table.add_row("Computer / Board", mb)
     if data.get("chassis"):
         table.add_row("Chassis Type", data["chassis"])
+    if data.get("cpu") and data["cpu"] != "Unknown":
+        table.add_row("Processor (CPU)", data["cpu"])
+
+    gpus = data.get("gpus", [])
+    if gpus:
+        for idx, gpu in enumerate(gpus):
+            label = "Graphics (GPU)" if idx == 0 else ""
+            table.add_row(label, gpu)
+
+    if data.get("battery"):
+        table.add_row("Battery & Power", data["battery"])
+
+    # Section 3: Memory & Storage
+    table.add_row("", "")
+    table.add_row("[bold yellow]── Memory & Disk ──[/bold yellow]", "")
+
+    if data.get("ram_total", 0) > 0:
+        ram_bar = make_bar(data.get("ram_percent", 0.0), 8)
+        table.add_row("Memory (RAM)", f"{data.get('ram_str', '')}  {ram_bar}")
+
+    if data.get("swap_total", 0) > 0:
+        swap_bar = make_bar(data.get("swap_percent", 0.0), 8)
+        table.add_row("Swap Space", f"{data.get('swap_str', '')}  {swap_bar}")
+
+    if data.get("disk_total", 0) > 0:
+        disk_bar = make_bar(data.get("disk_percent", 0.0), 8)
+        table.add_row("Root Storage (/)", f"{data.get('disk_str', '')}  {disk_bar}")
 
     title_admin = " [dim](Admin Mode)[/dim]" if is_admin else ""
     panel = Panel(
@@ -367,7 +427,7 @@ def render_package_search(console: Console, term: str, interactive: bool = True,
         tips_table.add_column("Guidance", style="white")
         tips_table.add_row("🔄", "Refresh Index: Debian systems read from a local package cache. Run [bold green]ez update[/bold green] to fetch the latest index.")
         tips_table.add_row("🔍", "Broader Search: Try searching with a broader keyword (e.g. 'player', 'codec', or 'video').")
-        tips_table.add_row("📦", f"Direct Lookup: If you know the package name, run [bold cyan]ez package {term}[/bold cyan] directly.")
+        tips_table.add_row("📦", f"Package Info: Inspect local and store details directly with [bold cyan]ez package-info {term}[/bold cyan].")
         tips_table.add_row("🌐", "Repositories: Some packages require 'contrib' or 'non-free' in /etc/apt/sources.list.")
 
         console.print(
@@ -440,6 +500,12 @@ def render_package_search(console: Console, term: str, interactive: bool = True,
                     console.print()
             else:
                 console.print(f"[yellow]Please choose a number between 1 and {len(packages)} or press Enter to exit.[/yellow]")
+
+
+def render_package_info(console: Console, name: Optional[str] = None) -> None:
+    """Render unified package-info card or Hub menu."""
+    from .package_info import run_cli_package_info
+    run_cli_package_info(name, console=console)
 
 
 # ==============================================================================
@@ -719,37 +785,125 @@ def render_logs(console: Console, lines_count: int = 50, is_admin: bool = False)
 
 
 # ==============================================================================
-# 11. Installed Packages Renderer
+# 11. Installed Packages & Applications Renderer
 # ==============================================================================
-def render_installed_packages(console: Console, filter_term: str = "", is_admin: bool = False) -> None:
-    """Render installed packages with optional keyword filtering."""
-    status_msg = f"Filtering installed packages for '{filter_term}'..." if filter_term else "Scanning installed packages..."
-    with console.status(f"[bold cyan]{status_msg}[/bold cyan]", spinner="dots"):
-        data = collect_installed_packages(filter_term)
+def render_list_installed_packages(
+    console: Console,
+    filter_arg: Optional[str] = None,
+    category: Optional[str] = None,
+    is_admin: bool = False,
+) -> None:
+    """
+    Render installed desktop applications and/or system packages.
+    Prompts the user to choose 'apps', 'packages', or 'both' if not specified.
+    """
+    import sys
+    filter_term = ""
+    chosen_cat = category
+
+    if filter_arg:
+        arg_lower = filter_arg.strip().lower()
+        if arg_lower in ("1", "apps", "app", "applications", "application"):
+            chosen_cat = "apps"
+        elif arg_lower in ("2", "packages", "package", "pkgs", "pkg"):
+            chosen_cat = "packages"
+        elif arg_lower in ("3", "both", "all"):
+            chosen_cat = "both"
+        else:
+            filter_term = filter_arg.strip()
+
+    # If category not specified, ask the user
+    if not chosen_cat:
+        prompt_content = (
+            "[bold white]What would you like to list?[/bold white]\n\n"
+            "  [bold cyan][1][/bold cyan] 🖥️  [bold]Installed Applications Only[/bold]\n"
+            "      [dim]Desktop & GUI software (Browsers, Editors, Media Players, etc.)[/dim]\n\n"
+            "  [bold cyan][2][/bold cyan] 📦  [bold]Packages Only[/bold]\n"
+            "      [dim]CLI tools, runtimes, and libraries (like npm, node, nala, php, pip, etc.)[/dim]\n\n"
+            "  [bold cyan][3][/bold cyan] 🌟  [bold]Both[/bold]\n"
+            "      [dim]All installed applications, system packages, and developer libraries[/dim]"
+        )
+        console.print(
+            Panel(
+                prompt_content,
+                title="[bold cyan]📋 Select What to List[/bold cyan]",
+                border_style="cyan",
+                box=box.ROUNDED,
+                padding=(1, 2),
+            )
+        )
+        try:
+            choice = Prompt.ask(
+                "[bold cyan]Choose an option [1-3][/bold cyan]",
+                choices=["1", "2", "3", "apps", "packages", "both"],
+                default="1",
+            ).strip().lower()
+        except (KeyboardInterrupt, EOFError):
+            choice = "both"
+
+        if choice in ("1", "apps", "app", "applications"):
+            chosen_cat = "apps"
+        elif choice in ("2", "packages", "package", "pkgs", "pkg"):
+            chosen_cat = "packages"
+        else:
+            chosen_cat = "both"
+
+    status_text = {
+        "apps": "Scanning installed desktop applications...",
+        "packages": "Scanning installed packages and developer tools...",
+        "both": "Scanning all installed applications and packages...",
+    }.get(chosen_cat, "Scanning installed software...")
+
+    if filter_term:
+        status_text = f"Searching installed software for '{filter_term}'..."
+
+    with console.status(f"[bold cyan]{status_text}[/bold cyan]", spinner="dots"):
+        data = collect_installed_packages(filter_term=filter_term, category=chosen_cat)
 
     # Summary Badges Panel
     summary_table = Table(box=None, show_header=False, padding=(0, 2))
     summary_table.add_column("Property", style="bold cyan", width=24)
     summary_table.add_column("Value", style="white")
 
-    breakdown = f"📦 APT: [bold cyan]{data['total_apt']}[/bold cyan]"
-    if data["total_flatpak"] > 0:
-        breakdown += f"  |  🟣 Flatpak: [bold magenta]{data['total_flatpak']}[/bold magenta]"
-    if data["total_snap"] > 0:
-        breakdown += f"  |  🟢 Snap: [bold green]{data['total_snap']}[/bold green]"
-
-    summary_table.add_row("Total Installed Packages", f"[bold green]{data['total_count']:,}[/bold green]")
-    summary_table.add_row("Ecosystem Breakdown", breakdown)
-
-    if not filter_term:
-        summary_table.add_row("Search Tip", "Search installed apps with [cyan]ez installed-package-search <app_name>[/cyan]")
+    if chosen_cat == "apps":
+        panel_title = "[bold cyan]🖥️ Installed Applications Overview[/bold cyan]"
+        apt_apps = max(0, data["total_apps"] - data["total_flatpak"] - data["total_snap"])
+        breakdown = f"📦 APT / System: [bold cyan]{apt_apps}[/bold cyan]"
+        if data["total_flatpak"] > 0:
+            breakdown += f"  |  🟣 Flatpak: [bold magenta]{data['total_flatpak']}[/bold magenta]"
+        if data["total_snap"] > 0:
+            breakdown += f"  |  🟢 Snap: [bold green]{data['total_snap']}[/bold green]"
+        summary_table.add_row("Total Applications", f"[bold green]{data['total_count']:,}[/bold green]")
+        summary_table.add_row("Ecosystem Breakdown", breakdown)
+        summary_table.add_row("Filter View", "[bold cyan]🖥️ Desktop Applications Only[/bold cyan]")
+    elif chosen_cat == "packages":
+        panel_title = "[bold cyan]📦 Installed Packages Overview[/bold cyan]"
+        breakdown = f"📦 APT: [bold cyan]{data['total_apt']:,}[/bold cyan]"
+        if data.get("total_pip", 0) > 0:
+            breakdown += f"  |  🐍 Pip: [bold yellow]{data['total_pip']}[/bold yellow]"
+        if data.get("total_npm", 0) > 0:
+            breakdown += f"  |  📦 npm: [bold red]{data['total_npm']}[/bold red]"
+        if data["total_snap"] > 0:
+            breakdown += f"  |  🟢 Snap: [bold green]{data['total_snap']}[/bold green]"
+        summary_table.add_row("Total Packages", f"[bold green]{data['total_count']:,}[/bold green]")
+        summary_table.add_row("Ecosystem Breakdown", breakdown)
+        summary_table.add_row("Filter View", "[bold yellow]📦 Packages & Libraries (npm, node, nala, php, pip, CLI tools)[/bold yellow]")
     else:
+        panel_title = "[bold cyan]📋 All Installed Software Overview[/bold cyan]"
+        breakdown = f"🖥️ Applications: [bold green]{data['total_apps']}[/bold green]  |  📦 Packages: [bold cyan]{data['total_packages']:,}[/bold cyan]"
+        summary_table.add_row("Total Installed Items", f"[bold green]{data['total_count']:,}[/bold green]")
+        summary_table.add_row("Classification", breakdown)
+        summary_table.add_row("Filter View", "[bold green]🌟 Both (Applications & Packages)[/bold green]")
+
+    if filter_term:
         summary_table.add_row("Active Search", f"[bold yellow]'{filter_term}'[/bold yellow] ({len(data['matches'])} matching)")
+    else:
+        summary_table.add_row("Search Tip", "Search installed apps or packages with [cyan]ez installed-package-search <name>[/cyan]")
 
     console.print(
         Panel(
             summary_table,
-            title="[bold cyan]📋 Installed Packages Overview[/bold cyan]",
+            title=panel_title,
             border_style="cyan",
             box=box.ROUNDED,
             padding=(1, 1),
@@ -761,24 +915,28 @@ def render_installed_packages(console: Console, filter_term: str = "", is_admin:
         if filter_term:
             console.print(
                 Panel(
-                    f"[bold yellow]No installed packages matching '{filter_term}' were found.[/bold yellow]\n\n"
-                    f"💡 [dim]To search repositories for available packages to install, run:[/dim]\n"
-                    f"   [bold cyan]ez package-search {filter_term}[/bold cyan]",
+                    f"[bold yellow]No installed software matching '{filter_term}' was found.[/bold yellow]\n\n"
+                    f"💡 [dim]To inspect store catalogs and install software, run:[/dim]\n"
+                    f"   [bold cyan]ez package-info {filter_term}[/bold cyan]",
                     border_style="yellow",
                     box=box.ROUNDED,
                     title="[bold yellow]No Matches[/bold yellow]",
                 )
             )
+        else:
+            console.print("[dim]No installed software found for this selection.[/dim]")
         return
 
-    # Limit default view to 50 if no filter
-    display_items = matches if filter_term else matches[:50]
+    # In 'apps' mode, display all applications (typically ~50-80); in 'packages' or 'both', show first 50
+    display_limit = len(matches) if chosen_cat == "apps" else 50
+    display_items = matches if filter_term else matches[:display_limit]
 
-    title_str = (
-        f"[bold]Installed Packages Matching '{filter_term}' ({len(matches)} found)[/bold]"
-        if filter_term
-        else f"[bold]Installed Packages (Showing first {len(display_items)} of {data['total_count']:,})[/bold]"
-    )
+    if filter_term:
+        title_str = f"[bold]Installed Software Matching '{filter_term}' ({len(matches)} found)[/bold]"
+    elif chosen_cat == "apps":
+        title_str = f"[bold]Installed Applications ({len(display_items)} total)[/bold]"
+    else:
+        title_str = f"[bold]Installed Software (Showing first {len(display_items)} of {data['total_count']:,})[/bold]"
 
     table = Table(
         box=box.ROUNDED,
@@ -787,35 +945,53 @@ def render_installed_packages(console: Console, filter_term: str = "", is_admin:
         title=title_str,
     )
     table.add_column("#", justify="right", style="bold yellow", width=4)
+
+    if chosen_cat == "both":
+        table.add_column("Type", style="bold cyan", width=8)
+
     table.add_column("Platform", style="white", width=12)
-    table.add_column("Package / Application", style="bold green", width=26)
-    table.add_column("Version", style="yellow", width=18)
-    table.add_column("Size", justify="right", style="dim", width=10)
+    name_col = "Application" if chosen_cat == "apps" else ("Package" if chosen_cat == "packages" else "Software Name")
+    table.add_column(name_col, style="bold green", width=26)
+    table.add_column("Version", style="yellow", width=16)
+
+    if chosen_cat != "apps":
+        table.add_column("Size", justify="right", style="dim", width=10)
+
     table.add_column("Description", style="white")
 
     for idx, item in enumerate(display_items, 1):
-        plat_badge = f"{item['platform_icon']} {item['platform_name']}"
-        table.add_row(
-            str(idx),
+        plat_badge = f"{item.get('platform_icon', '📦')} {item.get('platform_name', 'System')}"
+        row = [str(idx)]
+        if chosen_cat == "both":
+            k_badge = "🖥️ App" if item.get("kind") == "app" else "📦 Pkg"
+            row.append(k_badge)
+        row.extend([
             plat_badge,
             item["name"],
-            item["version"] or "-",
-            item["size"] or "-",
-            item["description"],
-        )
+            item.get("version") or "-",
+        ])
+        if chosen_cat != "apps":
+            row.append(item.get("size") or "-")
+        row.append(item.get("description") or "-")
+        table.add_row(*row)
 
     console.print(table)
 
     if not filter_term and len(matches) > len(display_items):
         console.print(
-            f"[dim]Showing {len(display_items)} of {data['total_count']:,} installed packages. "
+            f"[dim]Showing {len(display_items)} of {data['total_count']:,} installed items. "
             f"Run [bold cyan]ez installed-package-search <app_name>[/bold cyan] to search for specific packages.[/dim]\n"
         )
 
 
+def render_installed_packages(console: Console, filter_term: str = "", is_admin: bool = False) -> None:
+    """Backward-compatible alias for render_list_installed_packages."""
+    render_list_installed_packages(console, filter_arg=filter_term, is_admin=is_admin)
+
+
 def render_installed_package_search(console: Console, term: str, is_admin: bool = False) -> None:
-    """Search installed packages by name (wraps apt list --installed | grep -i <app>)."""
-    render_installed_packages(console, filter_term=term)
+    """Search installed applications and packages by name (wraps apt list --installed | grep -i <app>)."""
+    render_list_installed_packages(console, filter_arg=term, category="both", is_admin=is_admin)
 
 
 def render_version_info(console: Console, name: str = "") -> None:
