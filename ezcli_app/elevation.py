@@ -1084,5 +1084,153 @@ def elevated_tm_stats(
     return False, {}, err
 
 
+def elevated_cleanup_apt(
+    skip_explanation: bool = False,
+    console: Optional[Console] = None,
+) -> Tuple[bool, str]:
+    """Clean APT package cache (/var/cache/apt/archives)."""
+    success, res, err = run_elevated_helper(
+        action="cleanup_apt",
+        params={},
+        reason="Clean cached package download files in /var/cache/apt/archives.",
+        task_description="Clean APT package cache",
+        risk_level="low",
+        skip_explanation=skip_explanation,
+        console=console,
+        timeout=120,
+    )
+    if success and isinstance(res, dict) and res.get("success"):
+        return True, ""
+    return False, err or (res.get("stderr") if isinstance(res, dict) else "")
+
+
+def elevated_cleanup_autoremove(
+    skip_explanation: bool = False,
+    console: Optional[Console] = None,
+) -> Tuple[bool, str]:
+    """Remove orphan dependency packages via apt-get autoremove."""
+    success, res, err = run_elevated_helper(
+        action="cleanup_autoremove",
+        params={},
+        reason="Remove unneeded dependency packages.",
+        task_description="Autoremove orphan packages",
+        risk_level="medium",
+        skip_explanation=skip_explanation,
+        console=console,
+        timeout=300,
+    )
+    if success and isinstance(res, dict) and res.get("success"):
+        return True, ""
+    return False, err or (res.get("stderr") if isinstance(res, dict) else "")
+
+
+def elevated_apt_mark_manual(
+    packages: List[str],
+    skip_explanation: bool = False,
+    console: Optional[Console] = None,
+) -> Tuple[bool, str]:
+    """Mark packages as manually installed to protect them from autoremove."""
+    success, res, err = run_elevated_helper(
+        action="apt_mark_manual",
+        params={"packages": packages},
+        reason=f"Mark {len(packages)} desktop-critical package(s) as manually installed.",
+        task_description="Mark packages as manual",
+        risk_level="low",
+        skip_explanation=skip_explanation,
+        console=console,
+        timeout=60,
+    )
+    if success and isinstance(res, dict) and res.get("success"):
+        return True, ""
+    return False, err or (res.get("stderr") if isinstance(res, dict) else "")
+
+
+def elevated_cleanup_logs(
+    skip_explanation: bool = False,
+    console: Optional[Console] = None,
+) -> Tuple[bool, Dict[str, Any], str]:
+    """Clean old rotated system logs and vacuum journal."""
+    success, res, err = run_elevated_helper(
+        action="cleanup_logs",
+        params={},
+        reason="Clean archived and rotated log files in /var/log.",
+        task_description="Clean system logs",
+        risk_level="low",
+        skip_explanation=skip_explanation,
+        console=console,
+        timeout=60,
+    )
+    if success and isinstance(res, dict) and res.get("success"):
+        return True, res, ""
+    return False, {}, err or (res.get("error") if isinstance(res, dict) else "")
+
+
+def elevated_user_chpasswd(
+    username: str,
+    new_password: str,
+    skip_explanation: bool = False,
+    console: Optional[Console] = None,
+) -> Tuple[bool, str]:
+    """Update user password via chpasswd using elevation."""
+    success, res, err = run_elevated_helper(
+        action="user_chpasswd",
+        params={"username": username, "new_password": new_password},
+        reason=f"Change login password for user '{username}'.",
+        task_description=f"Update password for {username}",
+        risk_level="medium",
+        skip_explanation=skip_explanation,
+        console=console,
+        timeout=30,
+    )
+    if success and isinstance(res, dict) and res.get("success"):
+        return True, ""
+    return False, err or (res.get("stderr") if isinstance(res, dict) else "")
+
+
+def elevated_fix_packages(
+    skip_explanation: bool = False,
+    console: Optional[Console] = None,
+) -> Tuple[bool, str, str]:
+    """Repair broken package states: dpkg --configure -a and apt-get --fix-broken install -y."""
+    success, res, err = run_elevated_helper(
+        action="fix_packages",
+        params={},
+        reason="Repair interrupted package installations and unmet dependencies.",
+        task_description="Repair broken packages",
+        risk_level="medium",
+        skip_explanation=skip_explanation,
+        console=console,
+        timeout=600,
+    )
+    if success and isinstance(res, dict) and res.get("success"):
+        return True, res.get("log", ""), ""
+    log_out = res.get("log", "") if isinstance(res, dict) else ""
+    return False, log_out, err or (res.get("error") if isinstance(res, dict) else "")
+
+
+def elevated_toggle_service(
+    unit: str,
+    enable: bool = True,
+    skip_explanation: bool = False,
+    console: Optional[Console] = None,
+) -> Tuple[bool, str]:
+    """Enable or disable a systemd service unit."""
+    action_verb = "enable" if enable else "disable"
+    success, res, err = run_elevated_helper(
+        action="toggle_service",
+        params={"unit": unit, "enable": enable},
+        reason=f"{action_verb.capitalize()} system boot service '{unit}'.",
+        task_description=f"{action_verb.capitalize()} service {unit}",
+        risk_level="medium",
+        skip_explanation=skip_explanation,
+        console=console,
+        timeout=30,
+    )
+    if success and isinstance(res, dict) and res.get("success"):
+        return True, ""
+    return False, err or (res.get("stderr") if isinstance(res, dict) else "")
+
+
+
 
 

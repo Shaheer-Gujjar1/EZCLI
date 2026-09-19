@@ -282,6 +282,19 @@ class TestCLI(unittest.TestCase):
         self.assertIn("Invalid Argument", res.stdout)
         self.assertIn("ez time-machine", res.stdout)
 
+    def test_new_subcommands_in_help(self):
+        res = self.run_ez("help")
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("cleanup", res.stdout)
+        self.assertIn("profile", res.stdout)
+        self.assertIn("fix-packages", res.stdout)
+        self.assertIn("startup-apps", res.stdout)
+
+    def test_fix_packages_direct(self):
+        res = self.run_ez("fix-packages")
+        self.assertEqual(res.returncode, 0)
+        self.assertTrue("System Package Health" in res.stdout or "Broken Package" in res.stdout or "All Clear" in res.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

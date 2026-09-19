@@ -193,8 +193,11 @@ ez help
 | 🔍 | `ez search-file <term>` | **v0.5** | `find`, `locate`, `ls` | Fast fuzzy file search starting from `/home`, rich results table with emoji icons, interactive selection to open, copy path, or edit, and optional system-wide (`'/'`) fallback with auto-elevation. |
 | 📦 | `ez compress [targets \| choose-directory]` | **v0.5** | `zip`, `tar`, `gzip`, `xz`, `7z` | Compress files and folders into `.zip`, `.tar.gz`, `.tar.xz`, `.7z`, or `.tar.bz2` with interactive TUI format selector, comma-separated targeting, `choose-directory` mini explorer, and live progress. |
 | 📂 | `ez extract [archives...] [to <dest> \| choose-directory]` | **v0.5** | `unzip`, `tar`, `7z` | Extract archive(s) into current directory, specific destination (`to <path>`), visual picker (`to choose-directory`), or launch two-stage mini explorer. Auto-elevation for protected paths. |
-| 🎯 | `ez run [target \| choose-directory] [args...]` | **v0.5** | `bash`, `python3`, `gio`, `snap`, `flatpak` | Universal runner for scripts, binaries, AppImages, and installed apps. Detached background launch for GUI apps; safe flag-free Guided Mode with preview confirmation for CLI tools. |
 | 🕒 | `ez time-machine [list \| create [comment]]` | **v0.6** | `rsync`, `cp`, `btrfs` | Standalone mini Timeshift system restore point manager: visual timeline TUI with rsync hardlink deduplication, create restore point modal (`c`), safe rollback with pre-flight simulation (`r`), delete (`d`), and visual snapshot browsing (`b`). Zero external dependencies. |
+| 🧹 | `ez cleanup` | **v0.6** | `apt-get clean`, `apt-get autoremove`, `rm` | Safe system cleaner: scans APT cache, orphan packages with desktop-critical protection, trash, old logs, and thumbnails. Interactive category selection, simulation preview, and freed space summary. |
+| 👤 | `ez profile` | **v0.6** | `whoami`, `id`, `chpasswd` | User information card (username, GECOS, groups, sudo rights, home, shell) and change password TUI modal with dot feedback, show/hide toggle, arbitrary length support, and secure stdin chpasswd. |
+| 🔧 | `ez fix-packages` | **v0.6** | `dpkg --configure -a`, `apt-get --fix-broken install` | Automated broken package repair: detects interrupted installations and missing dependencies, displays simulation preview and risk badge, with elevated repair execution and all-clear status card. |
+| 🚀 | `ez startup-apps [name]` | **v0.6** | `systemctl enable/disable`, `autostart` | Manage login applications and boot services: interactive TUI with two tabs (Login Apps & Boot Services), non-root desktop overrides, elevated systemd toggles, preview lines, and typed confirmation for critical services. Direct mode supported. |
 
 
 ---
@@ -772,6 +775,90 @@ ez time-machine create "Before kernel update"
 
 ---
 
+## 🧹 Safe System Cleaner (v0.6: ez cleanup)
+
+`ez cleanup` is an interactive, safety-first system cleaner that reclaims storage by clearing safe caches, empty trash bins, rotated logs, and orphan packages without risking system breakages.
+
+```bash
+ez cleanup
+```
+
+- **Junk Categories Scanned**:
+  - `📦 APT Package Cache`: Leftover `.deb` downloads in `/var/cache/apt/archives/`.
+  - `🍂 Orphan Dependencies`: Unused dependencies via `apt-get autoremove` simulation.
+  - `🗑️ User Trash Bin`: Discarded files in `~/.local/share/Trash`.
+  - `📜 Old Rotated Logs`: Compressed or archived logs in `/var/log` and journal archives.
+  - `🖼️ Thumbnail Cache`: Obsolete cached thumbnails in `~/.cache/thumbnails`.
+- **Desktop-Critical Safety Guard**:
+  - Always runs a dry-run simulation first.
+  - Inspects orphan packages for critical desktop components (`xorg`, `gdm3`, `sddm`, `lightdm`, `gnome-shell`, `plasma-desktop`, `dde`, `xfce4`, `ubuntu-desktop`).
+  - If critical packages are detected, flags them **HIGH RISK** and defaults to offering **"Keep them via apt-mark manual"** instead of removal. Autoremoval will never run silently.
+- **Interactive Flow**: Select all or specific categories by number, preview total space to be reclaimed, review confirmation prompt, track live cleaning progress, and view a final summary of freed disk space.
+
+---
+
+## 👤 User Profile & Password Management (v0.6: ez profile)
+
+`ez profile` provides a comprehensive overview of your current user account and an interactive, secure password change utility.
+
+```bash
+ez profile
+```
+
+- **Account Information Card**: Displays username, full name (GECOS), account type and sudo rights status (including passwordless sudo detection), home directory, login shell, and user groups.
+- **Secure Password Change (`[p]`)**:
+  - Full TUI modal with current password verification.
+  - New password input with dot masking (`••••`) and a `[👁️ Show Password]` / `[🙈 Hide Password]` toggle (identical to `ez connect-wifi`).
+  - Re-enter password confirmation step.
+  - **Arbitrary Length Support**: Zero artificial length constraints (accepts any valid password length).
+  - **Zero Leakage**: Authenticates via the elevation layer and transmits the password strictly via stdin to `chpasswd`—never exposed in `sys.argv`, logs, or disk.
+
+---
+
+## 🔧 Package Repair Engine (v0.6: ez fix-packages)
+
+`ez fix-packages` automatically diagnoses and resolves broken package states, replacing manual invocations of `apt --fix-broken install` and `dpkg --configure -a`.
+
+```bash
+ez fix-packages
+```
+
+- **Health Check & Diagnostics**: Inspects `dpkg --audit`, package status databases, and unresolved package dependencies.
+- **All-Clear State**: If system health is optimal, displays a friendly green card confirming no broken or unconfigured packages exist.
+- **Simulation Preview**: If issues are found, breaks down packages to configure, install, or remove with a clear **RISK BADGE** (`LOW`, `MEDIUM`, or `HIGH`).
+- **One-Click Repair**: Prompts for consent, elevates privileges through the non-root helper, finalizes pending configurations (`dpkg --configure -a`), and repairs broken dependencies (`apt-get --fix-broken install -y`).
+- **Proactive Integration**: `ez update` and `ez upgrade` automatically detect broken package states on failure and suggest running `ez fix-packages`.
+
+---
+
+## 🚀 Startup Apps & Boot Services Manager (v0.6: ez startup-apps)
+
+`ez startup-apps` gives you complete, intuitive control over what programs launch at user login and what system daemons start at boot.
+
+### Form 1: Interactive Two-Tab Manager
+```bash
+ez startup-apps
+```
+- **Tab 1: 🚀 Login Apps**:
+  - Scans user autostart (`~/.config/autostart`) and system autostart (`/etc/xdg/autostart`).
+  - **Root-Free Toggling**: Disabling system autostart entries creates a user-level override (`Hidden=true`) without needing administrator rights or modifying system files.
+- **Tab 2: ⚙️ Boot Services**:
+  - Scans enabled and disabled systemd service units.
+  - Toggles units using `systemctl enable` or `systemctl disable` via the elevation layer.
+- **Critical Service Safety Locking**:
+  - Critical services (`NetworkManager`, `dbus`, `systemd-logind`, display managers, `ssh`, `ufw`, `pipewire`) are locked with 🔒.
+  - Disabling a critical service requires explicit **typed confirmation** (`DISABLE`) to prevent accidental system lockouts.
+- **Preview Line**: Each selected row explains exactly what will happen at next boot or login.
+
+### Form 2: Direct Single-Item Inspection & Toggle
+```bash
+ez startup-apps discord
+ez startup-apps ssh
+```
+- Displays a single item card showing its current state, category, command/unit path, and preview effect with an instant toggle prompt.
+
+---
+
 
 ## 🎨 Icon & Font Policy
 
@@ -792,7 +879,7 @@ EZCLI/
 ├── setup.py               # Setup script (v0.6.0)
 ├── install.sh             # 1-step deployment script
 ├── README.md              # Documentation and guide
-├── tests/                 # Comprehensive unit test suite (398 tests)
+├── tests/                 # Comprehensive unit test suite (420 tests)
 │   ├── test_distro.py     # Distro parser and derivative detection tests
 │   ├── test_collectors.py # System inspection and installed package tests
 │   ├── test_file_ops.py   # Copy, move, cross-filesystem, and conflict tests
@@ -813,7 +900,11 @@ EZCLI/
 │   ├── test_extract.py    # Extraction engine, formats, Zip-Slip & CLI tests (v0.5)
 │   ├── test_run.py        # Universal runner, detector, safe guided mode & CLI tests (v0.5)
 │   ├── test_list.py       # Unified listing, tree, permissions & inspector tests (v0.6)
-│   └── test_time_machine.py # Standalone Time Machine engine, modals & CLI tests (v0.6)
+│   ├── test_time_machine.py # Standalone Time Machine engine, modals & CLI tests (v0.6)
+│   ├── test_cleanup.py    # Safe system cleaner & desktop-critical checks (v0.6)
+│   ├── test_profile.py    # User profile & secure password change tests (v0.6)
+│   ├── test_fix_packages.py # Broken package state diagnostic & repair tests (v0.6)
+│   └── test_startup_apps.py # Login apps & boot services manager tests (v0.6)
 └── ezcli_app/
     ├── __init__.py        # Package version (__version__ = "0.6.0")
     ├── config.py          # Declarative FeatureTemplate definitions (canonical commands only)
@@ -825,6 +916,17 @@ EZCLI/
     ├── main.py            # Subcommand parser, visual choose-directory dispatcher
     ├── list_cli.py        # Instant listing (Form 1) & background size streaming (v0.6)
     ├── list_tui.py        # Textual TUI inspector, tree/flat toggle & stat modal (v0.6)
+    ├── cleanup/           # Safe System Cleaner (v0.6)
+    │   ├── __init__.py    # Cleanup package exports
+    │   ├── cleaner_engine.py # Scanning, trash/thumbs/apt/logs & critical guards
+    │   └── cleanup_cli.py # Category selection, preview, and progress CLI
+    ├── profile_cli.py     # User profile card & secure password change modal (v0.6)
+    ├── fix_packages_cli.py# Broken package diagnostic & automated repair engine (v0.6)
+    ├── startup_apps/      # Startup & Boot Services Manager (v0.6)
+    │   ├── __init__.py    # Startup apps package exports
+    │   ├── startup_engine.py # Autostart overrides, systemd units & critical locking
+    │   ├── startup_app.py # Interactive Textual TUI with Login & Boot tabs
+    │   └── startup_cli.py # Direct single-item mode & TUI launcher
     ├── elevation.py       # Shared privilege-elevation layer & password UX (v0.3)
     ├── privileged_helper.py# Minimal privileged helper for elevated tasks
     ├── file_engine.py     # Safe file operations, SHA256 checks, conflict policies
@@ -900,9 +1002,13 @@ EZCLI/
   - Safe archive extraction (`ez extract-here` and `ez extract choose-directory`) supporting `.zip`, `.tar.gz`, `.tar.xz`, `.7z`, `.tar.bz2`, `.tar` with Zip-Slip path traversal protection, live extraction progress, multi-file comma targeting, two-stage visual picker, and automatic elevated destination support.
   - Universal Application & Script Runner (`ez run <target> [args...]`) executing local scripts, binaries, AppImages, and installed applications (PATH, Snap, Flatpak, Desktop entries). Features detached background launch for GUI apps, foreground execution for CLI tools, safe flag-free Guided Mode with preview confirmation, and automatic privilege elevation.
 
-- **v0.6 — Unified Directory Listing & Standalone Mini Timeshift Restore Points**:
+- **v0.6 — Unified Directory Listing, Mini Timeshift & System Maintenance**:
   - Flagless and pathless unified directory listing and inspector (`ez list`, `ez list choose-directory`) replacing `ls`, `tree`, `du`, and `stat` with instant pretty table, progressive background folder sizing, tree view toggle, and plain English permissions modal.
   - Standalone Mini Timeshift System Restore Points (`ez time-machine`) with zero external software dependencies, rsync hardlink deduplication (`--link-dest`), dual profiles (`Configs` vs `Full Root`), interactive timeline TUI, create restore point modal (`c`), safe rollback with pre-flight simulation (`r`), delete modal (`d`), visual snapshot browsing (`b`), and direct CLI list/create commands.
+  - Safe system cleaner (`ez cleanup`) scanning APT cache, orphan packages with desktop-critical protection (`xorg`, display managers, desktop metapackages), user trash, rotated logs, and thumbnail caches.
+  - User profile & password management (`ez profile`) displaying full user info and modern TUI password change modal with dot feedback and show/hide toggle matching `ez connect-wifi`.
+  - Broken package state repair (`ez fix-packages`) replacing manual `apt --fix-broken install` and `dpkg --configure -a` with simulation preview, risk badges, and elevated repair execution.
+  - Startup applications & boot services manager (`ez startup-apps`) providing an interactive 2-tab TUI with root-free autostart overrides, elevated systemd toggles, and typed confirmation locks on critical services.
 
 ---
 
@@ -913,6 +1019,6 @@ To run the automated unit test suite:
 python3 -m unittest discover tests/
 ```
 
-All 398 unit tests validate distro detection, collector safety, file operations, conflict policies, cross-filesystem moves, undo engine, command parsing, file/folder creation, safe deletion with force prompts, mini text editor validation, binary file protection, permission-denied simulations, live stats metrics, privileged catalog updates, multi-source system upgrade simulations, safe application uninstallation, Windows-style task manager, universal version checking, internet connectivity diagnostics, in-terminal Wi-Fi management, multi-format compression, safe archive extraction, universal application execution with safe guided mode, unified directory listing with background folder sizing, and standalone Time Machine snapshot engine, modals, and CLI workflows.
+All 420 unit tests validate distro detection, collector safety, file operations, conflict policies, cross-filesystem moves, undo engine, command parsing, file/folder creation, safe deletion with force prompts, mini text editor validation, binary file protection, permission-denied simulations, live stats metrics, privileged catalog updates, multi-source system upgrade simulations, safe application uninstallation, Windows-style task manager, universal version checking, internet connectivity diagnostics, in-terminal Wi-Fi management, multi-format compression, safe archive extraction, universal application execution with safe guided mode, unified directory listing with background folder sizing, standalone Time Machine snapshot engine and modals, safe system cleaner with desktop-critical guards, user profile card and secure password updating, broken package repair diagnostics, and startup applications/boot services management.
 
 

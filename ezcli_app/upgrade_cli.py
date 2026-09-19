@@ -193,10 +193,14 @@ def run_cli_update(console: Optional[Console] = None) -> None:
                 progress.update(task_id, completed=100, detail="Catalog refresh complete")
 
     if not success or not res:
+        tip_text = "[dim]Tip: Check your Internet connection or review /etc/apt/sources.list.[/dim]"
+        err_lower = (err or "").lower()
+        if any(k in err_lower for k in ["dpkg", "broken", "unmet", "configure"]):
+            tip_text += "\n[bold cyan]Tip:[/bold cyan] Run '[bold green]ez fix-packages[/bold green]' to automatically repair broken package dependencies."
         console.print(
             Panel(
                 f"[bold red]Failed to update software catalog:[/bold red]\n\n{err or 'Unknown error occurred.'}\n\n"
-                "[dim]Tip: Check your Internet connection or review /etc/apt/sources.list.[/dim]",
+                f"{tip_text}",
                 title="[bold red]Update Notice[/bold red]",
                 border_style="red",
                 box=box.ROUNDED,
@@ -331,9 +335,13 @@ def run_cli_upgrade(console: Optional[Console] = None) -> None:
             snap_updates = check_snap_updates()
 
         if not sim_success or not sim_data:
+            tip_msg = ""
+            sim_err_lower = (sim_err or "").lower()
+            if any(k in sim_err_lower for k in ["dpkg", "broken", "unmet", "configure"]):
+                tip_msg = "\n\n[bold cyan]Tip:[/bold cyan] Broken package states detected. Run '[bold green]ez fix-packages[/bold green]' to automatically repair them."
             console.print(
                 Panel(
-                    f"[bold red]Unable to calculate upgrade simulation:[/bold red]\n\n{sim_err or 'Simulation failed.'}",
+                    f"[bold red]Unable to calculate upgrade simulation:[/bold red]\n\n{sim_err or 'Simulation failed.'}{tip_msg}",
                     title="[bold red]Simulation Error[/bold red]",
                     border_style="red",
                     box=box.ROUNDED,

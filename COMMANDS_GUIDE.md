@@ -57,6 +57,10 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 | 34 | `ez run [target \| choose-directory] [args...]` | `bash`, `python3`, `chmod +x && ./app`, `snap run`, `flatpak run`, `gio launch`, `./app.AppImage` | One universal command to execute any script, binary, AppImage, or launch apps. GUI apps launch detached keeping terminal free; CLI tools execute with flag-free Guided Mode and command preview. |
 | 35 | `ez list [choose-directory]` | `ls`, `tree`, `du`, `stat` | Flagless and pathless unified directory listing and inspector. Instant pretty listing with background folder size streaming (Form 1) or visual directory picker with interactive TUI flat/tree toggle, sorting, hidden toggle, and plain English permissions details modal (Form 2). |
 | 36 | `ez time-machine [list \| create [comment]]` | `timeshift`, `rsync`, `btrfs` | Standalone mini Timeshift system restore point manager with zero external software dependencies. Visual timeline TUI, create restore point modal (`c`), safe rollback with pre-flight simulation (`r`), delete (`d`), and snapshot browsing (`b`). |
+| 37 | `ez cleanup` | `apt-get clean`, `apt-get autoremove`, `rm -rf ~/.local/share/Trash/*` | Safe system cleaner: scans APT cache, orphan packages with desktop-critical protection, trash, old logs, and thumbnails. Interactive category selection, simulation preview, and freed space summary. |
+| 38 | `ez profile` | `whoami`, `id`, `passwd`, `chpasswd` | User information card (username, GECOS, groups, sudo rights, home, shell) and change password TUI modal with dot feedback, show/hide toggle, arbitrary length support, and secure stdin chpasswd. |
+| 39 | `ez fix-packages` | `dpkg --configure -a`, `apt --fix-broken install` | Automated broken package repair: detects interrupted installations and missing dependencies, displays simulation preview and risk badge, with elevated repair execution and all-clear status card. |
+| 40 | `ez startup-apps [name]` | `systemctl enable/disable`, `~/.config/autostart` | Manage login applications and boot services: interactive TUI with two tabs (Login Apps & Boot Services), non-root desktop overrides, elevated systemd toggles, preview lines, and typed confirmation for critical services. Direct mode supported. |
 
 
 ---
@@ -684,6 +688,59 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
   - `[Enter]` / `[i]`: **Details Modal**: Inspects exact snapshot timestamp, backup profile, ID, size, file count, and description.
   - `[F5]` / `[R]`: **Refresh**: Reloads live storage device capacity, free space, and snapshot list.
   - `[q]` / `[Esc]`: Return to terminal shell.
+
+---
+
+### 7. System Maintenance, User Profile & Startup Services
+
+#### `ez cleanup`
+- **Replaces:** `apt-get clean`, `apt-get autoremove`, `rm -rf ~/.local/share/Trash/*`, `journalctl --vacuum-time`, `rm -rf ~/.cache/thumbnails/*`
+- **Why it's better:** Unified, safety-first cleaner that scans multiple junk categories, provides detailed size estimates, and enforces strict desktop-critical protection during orphan package autoremovals.
+- **Safety Guarantee:** If desktop-critical packages (e.g. `xorg`, `gdm3`, `sddm`, `lightdm`, `gnome-shell`, `plasma-desktop`, `dde`, `xfce4`) are found in the autoremove list, EasyCLI flags them **HIGH RISK** and defaults to offering `"Keep them via apt-mark manual"` so your graphical environment is never damaged.
+- **Syntax:**
+  ```bash
+  ez cleanup
+  ```
+
+---
+
+#### `ez profile`
+- **Replaces:** `whoami`, `id`, `groups`, `passwd`, `chpasswd`
+- **Why it's better:** Shows a unified user profile card with username, GECOS name, groups, home directory, login shell, and sudo rights status. Includes an interactive TUI password changer with visible dot feedback, a show/hide password toggle matching `ez connect-wifi`, zero artificial length restrictions, and secure `chpasswd` stdin piping (passwords never appear in `argv` or logs). Gracefully supports passwordless sudo accounts.
+- **Syntax:**
+  ```bash
+  ez profile
+  ```
+
+---
+
+#### `ez fix-packages`
+- **Replaces:** `apt --fix-broken install`, `dpkg --configure -a`
+- **Why it's better:** Checks your package database for interrupted installations, unconfigured packages, or missing dependencies. If healthy, displays a friendly all-clear card. If broken, shows a simulation preview with a calculated risk badge (`LOW`, `MEDIUM`, `HIGH`) and executes repair routines via the elevation layer. Proactively suggested by `ez update` and `ez upgrade` upon package manager failures.
+- **Syntax:**
+  ```bash
+  ez fix-packages
+  ```
+
+---
+
+#### `ez startup-apps [name]`
+- **Replaces:** `systemctl enable/disable`, manually editing `~/.config/autostart/*.desktop` and `/etc/xdg/autostart/`
+- **Why it's better:** Unified management for both user login applications and system boot services:
+  - **Login Apps Tab:** Toggles autostart programs cleanly without root (creates user-level `Hidden=true` overrides for system entries).
+  - **Boot Services Tab:** Toggles systemd services through the elevation layer.
+  - **Critical Services Guard:** Critical units (`NetworkManager`, `dbus`, `systemd-logind`, display managers, `ssh`) are locked with 🔒 and require explicit typed confirmation (`DISABLE`) before disabling.
+  - **Direct Mode:** Inspect and toggle a single item directly from the shell (`ez startup-apps <name>`).
+- **Syntax:**
+  ```bash
+  # Interactive Two-Tab TUI
+  ez startup-apps
+
+  # Direct Single-Item Inspection & Toggle
+  ez startup-apps discord
+  ez startup-apps NetworkManager
+  ```
+
 
 
 

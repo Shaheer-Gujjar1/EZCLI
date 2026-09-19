@@ -806,6 +806,20 @@ def dispatch_helper_request(request: Dict[str, Any], progress_callback: Optional
         return helper_tm_simulate(params.get("snapshot_id", ""), params.get("target_root", "/"))
     elif action == "tm_stats":
         return helper_tm_stats()
+    elif action == "cleanup_apt":
+        return helper_cleanup_apt()
+    elif action == "cleanup_autoremove":
+        return helper_cleanup_autoremove()
+    elif action == "apt_mark_manual":
+        return helper_apt_mark_manual(params.get("packages", []))
+    elif action == "cleanup_logs":
+        return helper_cleanup_logs()
+    elif action == "user_chpasswd":
+        return helper_user_chpasswd(params.get("username", ""), params.get("new_password", ""))
+    elif action == "fix_packages":
+        return helper_fix_packages()
+    elif action == "toggle_service":
+        return helper_toggle_service(params.get("unit", ""), params.get("enable", True))
     else:
         return {"success": False, "error": f"Unknown helper action '{action}'."}
 
@@ -1057,6 +1071,127 @@ def helper_tm_stats() -> Dict[str, Any]:
     try:
         stats = get_storage_stats()
         return {"success": True, "stats": stats}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def helper_cleanup_apt() -> Dict[str, Any]:
+    """Clean APT package cache (/var/cache/apt/archives)."""
+    try:
+        proc = subprocess.run(["apt-get", "clean"], capture_output=True, text=True, timeout=60)
+        return {"success": proc.returncode == 0, "stdout": proc.stdout, "stderr": proc.stderr}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def helper_cleanup_autoremove() -> Dict[str, Any]:
+    """Run apt-get autoremove -y."""
+    try:
+        env = os.environ.copy()
+        env["DEBIAN_FRONTEND"] = "noninteractive"
+        proc = subprocess.run(
+            [
+                "apt-get", "autoremove", "-y",
+                "-o", "Dpkg::Options::=--force-confdef",
+                "-o", "Dpkg::Options::=--force-confold",
+            ],
+            capture_output=True, text=True, timeout=300, env=env
+        )
+        return {"success": proc.returncode == 0, "stdout": proc.stdout, "stderr": proc.stderr}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def helper_apt_mark_manual(packages: List[str]) -> Dict[str, Any]:
+    """Mark packages as manually installed to prevent autoremoval."""
+    if not packages:
+        return {"success": True, "message": "No packages specified."}
+    try:
+        proc = subprocess.run(["apt-mark", "manual"] + packages, capture_output=True, text=True, timeout=60)
+        return {"success": proc.returncode == 0, "stdout": proc.stdout, "stderr": proc.stderr}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def helper_cleanup_logs() -> Dict[str, Any]:
+    """Clean old rotated system logs and vacuum journal."""
+    removed_count = 0
+    freed_bytes = 0
+    try:
+        log_dir = "/var/log"
+        if os.path.isdir(log_dir):
+            for root, _, files in os.walk(log_dir):
+                for f in files:
+                    if f.endswith(".gz") or f.endswith(".old") or re.search(r"\.\d+$", f):
+                        fp = os.path.join(root, f)
+                        try:
+                            st = os.stat(fp)
+                            freed_bytes += st.st_size
+                            os.remove(fp)
+                            removed_count += 1
+                        except OSError:
+                            pass
+        if shutil.which("journalctl"):
+            subprocess.run(["journalctl", "--vacuum-time=7d"], capture_output=True, text=True, timeout=30)
+        return {"success": True, "removed_count": removed_count, "freed_bytes": freed_bytes}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def helper_user_chpasswd(username: str, new_password: str) -> Dict[str, Any]:
+    """Update user password via chpasswd over stdin."""
+    if not username or not new_password:
+        return {"success": False, "error": "Username and new password must be provided."}
+    try:
+        proc = subprocess.Popen(
+            ["chpasswd"],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        out, err = proc.communicate(input=f"{username}:{new_password}\n", timeout=30)
+        return {"success": proc.returncode == 0, "stdout": out, "stderr": err}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def helper_fix_packages() -> Dict[str, Any]:
+    """Repair broken package states: dpkg --configure -a and apt-get --fix-broken install -y."""
+    env = os.environ.copy()
+    env["DEBIAN_FRONTEND"] = "noninteractive"
+    logs = []
+    try:
+        p1 = subprocess.run(
+            ["dpkg", "--configure", "-a", "--force-confdef", "--force-confold"],
+            capture_output=True, text=True, timeout=300, env=env
+        )
+        logs.append(f"=== dpkg --configure -a ===\n{p1.stdout}\n{p1.stderr}")
+
+        p2 = subprocess.run(
+            [
+                "apt-get", "--fix-broken", "install", "-y",
+                "-o", "Dpkg::Options::=--force-confdef",
+                "-o", "Dpkg::Options::=--force-confold",
+            ],
+            capture_output=True, text=True, timeout=600, env=env
+        )
+        logs.append(f"=== apt-get --fix-broken install ===\n{p2.stdout}\n{p2.stderr}")
+
+        success = (p1.returncode == 0 and p2.returncode == 0)
+        return {"success": success, "log": "\n".join(logs), "dpkg_code": p1.returncode, "apt_code": p2.returncode}
+    except Exception as e:
+        return {"success": False, "error": str(e), "log": "\n".join(logs)}
+
+
+def helper_toggle_service(unit: str, enable: bool) -> Dict[str, Any]:
+    """Enable or disable a systemd service unit."""
+    if not unit:
+        return {"success": False, "error": "Unit name required."}
+    action = "enable" if enable else "disable"
+    try:
+        proc = subprocess.run(["systemctl", action, unit], capture_output=True, text=True, timeout=30)
+        return {"success": proc.returncode == 0, "stdout": proc.stdout, "stderr": proc.stderr}
     except Exception as e:
         return {"success": False, "error": str(e)}
 

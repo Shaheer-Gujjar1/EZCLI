@@ -500,6 +500,53 @@ FEATURES: List[FeatureTemplate] = [
         ],
         renderer_name="run_cli_run",
     ),
+    FeatureTemplate(
+        id="cleanup",
+        subcommand="cleanup",
+        title="Safe System Cleaner",
+        icon="🧹",
+        description="Safe system cleaner for package caches, orphan packages, trash, and old logs",
+        wrapped_commands=["apt-get clean", "apt-get autoremove", "rm"],
+        arguments=[],
+        renderer_name="run_cleanup_cli",
+    ),
+    FeatureTemplate(
+        id="profile",
+        subcommand="profile",
+        title="User Profile & Password",
+        icon="👤",
+        description="Display current user profile, groups, sudo status, and secure password change",
+        wrapped_commands=["whoami", "id", "chpasswd"],
+        arguments=[],
+        renderer_name="run_profile_cli",
+    ),
+    FeatureTemplate(
+        id="fix_packages",
+        subcommand="fix-packages",
+        title="Package Repair Engine",
+        icon="🔧",
+        description="Repair broken package states, unconfigured dpkg packages, and missing dependencies",
+        wrapped_commands=["dpkg --configure -a", "apt-get --fix-broken install"],
+        arguments=[],
+        renderer_name="run_fix_packages_cli",
+    ),
+    FeatureTemplate(
+        id="startup_apps",
+        subcommand="startup-apps",
+        title="Startup & Boot Manager",
+        icon="🚀",
+        description="Manage login startup applications and systemd boot services with critical service locking",
+        wrapped_commands=["systemctl enable", "systemctl disable"],
+        arguments=[
+            ArgumentDef(
+                name="target",
+                help="Application name or service unit to view/toggle (omit for interactive TUI)",
+                required=False,
+                default="",
+            )
+        ],
+        renderer_name="run_startup_apps_cli",
+    ),
 ]
 
 # Sort features alphabetically by subcommand (A-Z) for clean and predictable listing

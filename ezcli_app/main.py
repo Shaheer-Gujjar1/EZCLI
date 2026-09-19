@@ -114,6 +114,27 @@ COMMAND_INTENT_MAP: dict = {
     "restore": ["time-machine"],
     "restore-point": ["time-machine"],
     "backup": ["time-machine"],
+    "cleanup": ["cleanup"],
+    "clean": ["cleanup"],
+    "autoremove": ["cleanup"],
+    "vacuum": ["cleanup"],
+    "trash": ["cleanup"],
+    "profile": ["profile"],
+    "whoami": ["profile"],
+    "user": ["profile"],
+    "user-info": ["profile"],
+    "passwd": ["profile"],
+    "password": ["profile"],
+    "change-password": ["profile"],
+    "fix": ["fix-packages"],
+    "repair": ["fix-packages"],
+    "fix-packages": ["fix-packages"],
+    "fix-broken": ["fix-packages"],
+    "startup": ["startup-apps"],
+    "startup-apps": ["startup-apps"],
+    "autostart": ["startup-apps"],
+    "boot": ["startup-apps"],
+    "boot-services": ["startup-apps"],
 }
 
 
@@ -406,6 +427,19 @@ def dispatch_subcommand(feature, sub_args: list[str], console: Console) -> None:
     elif feature.id == "run":
         from .run_cli import run_cli_run
         run_cli_run(raw_args=sub_args, console=console)
+    elif feature.id == "cleanup":
+        from .cleanup import run_cleanup_cli
+        run_cleanup_cli(console=console)
+    elif feature.id == "profile":
+        from .profile_cli import run_profile_cli
+        run_profile_cli(console=console)
+    elif feature.id == "fix_packages":
+        from .fix_packages_cli import run_fix_packages_cli
+        run_fix_packages_cli(console=console)
+    elif feature.id == "startup_apps":
+        from .startup_apps import run_startup_apps_cli
+        target_item = " ".join(sub_args).strip() if sub_args else None
+        run_startup_apps_cli(target=target_item, console=console)
 
 
 def main() -> None:

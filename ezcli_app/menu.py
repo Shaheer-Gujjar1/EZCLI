@@ -257,6 +257,23 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
                 from .run_cli import run_cli_run
                 run_cli_run(raw_args=args_values, console=console)
                 return
+            elif feature.id == "cleanup":
+                from .cleanup import run_cleanup_cli
+                run_cleanup_cli(console=console)
+                return
+            elif feature.id == "profile":
+                from .profile_cli import run_profile_cli
+                run_profile_cli(console=console)
+                return
+            elif feature.id == "fix_packages":
+                from .fix_packages_cli import run_fix_packages_cli
+                run_fix_packages_cli(console=console)
+                return
+            elif feature.id == "startup_apps":
+                from .startup_apps import run_startup_apps_cli
+                target_val = args_values[0] if (args_values and args_values[0]) else None
+                run_startup_apps_cli(target=target_val, console=console)
+                return
             elif renderer_fn is not None:
                 if feature.subcommand == "big_files" or feature.id == "big_files":
                     raw_folder = args_values[0] if args_values else "~"
