@@ -108,7 +108,14 @@ COMMAND_INTENT_MAP: dict = {
     "ip": ["network-info"],
     "update": ["update"],
     "upgrade": ["upgrade"],
+    "time-machine": ["time-machine"],
+    "timeshift": ["time-machine"],
+    "snapshot": ["time-machine"],
+    "restore": ["time-machine"],
+    "restore-point": ["time-machine"],
+    "backup": ["time-machine"],
 }
+
 
 
 def find_subcommand_suggestions(query: str) -> list[str]:
@@ -310,7 +317,11 @@ def dispatch_subcommand(feature, sub_args: list[str], console: Console) -> None:
     elif feature.id == "list":
         from .list_cli import run_cli_list
         run_cli_list(raw_args=sub_args, console=console)
+    elif feature.id == "time_machine":
+        from .time_machine.time_machine_cli import run_cli_time_machine
+        run_cli_time_machine(raw_args=sub_args, console=console)
     elif feature.id == "choose_directory":
+
         if not check_textual_installed(console):
             sys.exit(1)
         from .explorer.explorer_app import run_choose_directory

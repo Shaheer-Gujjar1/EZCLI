@@ -56,6 +56,7 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 | 33 | `ez extract [archives...] [to <dest> \| choose-directory]` | `unzip`, `tar`, `7z` | Extract archive(s) into current directory (press Enter), specific destination (`to <path>`), visual picker (`to choose-directory`), or launch two-stage mini explorer. Automatic elevation for protected destinations. |
 | 34 | `ez run [target \| choose-directory] [args...]` | `bash`, `python3`, `chmod +x && ./app`, `snap run`, `flatpak run`, `gio launch`, `./app.AppImage` | One universal command to execute any script, binary, AppImage, or launch apps. GUI apps launch detached keeping terminal free; CLI tools execute with flag-free Guided Mode and command preview. |
 | 35 | `ez list [choose-directory]` | `ls`, `tree`, `du`, `stat` | Flagless and pathless unified directory listing and inspector. Instant pretty listing with background folder size streaming (Form 1) or visual directory picker with interactive TUI flat/tree toggle, sorting, hidden toggle, and plain English permissions details modal (Form 2). |
+| 36 | `ez time-machine [list \| create [comment]]` | `timeshift`, `rsync`, `btrfs` | Standalone mini Timeshift system restore point manager with zero external software dependencies. Visual timeline TUI, create restore point modal (`c`), safe rollback with pre-flight simulation (`r`), delete (`d`), and snapshot browsing (`b`). |
 
 
 ---
@@ -653,5 +654,36 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
   # Pick an executable or script visually via mini explorer
   ez run choose-directory
   ```
+
+---
+
+### 6. System Backup & Restore Points
+
+#### `ez time-machine [list | create [comment]]`
+- **Replaces:** `timeshift --create`, `timeshift --list`, `timeshift --restore`, `timeshift --delete`, `rsync -aAXv`, `btrfs subvolume snapshot`
+- **Why it's better:** Completely standalone, native system restore point engine requiring **zero external software or heavy Timeshift package installations**. Uses standard Linux hardlink deduplication (`rsync --link-dest`) or Btrfs subvolumes to capture point-in-time system states in seconds with minimal disk space.
+- **Strictly Flagless & Pathless:** Rejects raw path arguments (`ez time-machine /var` is rejected). Restore points are managed and browsed visually.
+- **Dual Restore Profiles:**
+  - `⚡ Configs & Core (~50MB)`: Ultra-fast snapshot capturing system configurations (`/etc`), custom binaries (`/usr/local`), package database (`/var/lib/dpkg/status`), and bootloader configurations.
+  - `🖥️ Full Root System`: Complete system restore point capturing the operating system root (excluding pseudo-filesystems `/proc`, `/sys`, `/dev` and personal home directories `/home`).
+- **Syntax:**
+  ```bash
+  # Form 1: Interactive Full-Screen Timeline TUI
+  ez time-machine
+
+  # Form 2: Direct CLI Operations (Non-Interactive)
+  ez time-machine list                  # Instant pretty listing table of all restore points
+  ez time-machine create                # Direct creation with interactive comment prompt
+  ez time-machine create "Before update" # Direct creation with custom description
+  ```
+- **Interactive TUI Controls:**
+  - `[c]`: **Create Restore Point Modal**: Prompts for an optional description comment and profile selection (`Configs` vs `Full Root`).
+  - `[r]`: **Safe Rollback / Restore Modal**: Displays a pre-flight impact simulation, lists affected directories, shows a red warning card, and requires explicit confirmation before performing any changes.
+  - `[d]`: **Delete Restore Point Modal**: Confirms and safely deletes selected snapshot with progress indication.
+  - `[b]`: **Browse Snapshot**: Opens EasyCLI's file explorer directly inside the snapshot directory for visual inspection of captured files.
+  - `[Enter]` / `[i]`: **Details Modal**: Inspects exact snapshot timestamp, backup profile, ID, size, file count, and description.
+  - `[F5]` / `[R]`: **Refresh**: Reloads live storage device capacity, free space, and snapshot list.
+  - `[q]` / `[Esc]`: Return to terminal shell.
+
 
 

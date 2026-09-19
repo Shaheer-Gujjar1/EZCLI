@@ -40,7 +40,9 @@ class TestCLI(unittest.TestCase):
         self.assertIn("logs", res.stdout)
         self.assertIn("compress", res.stdout)
         self.assertIn("extract", res.stdout)
+        self.assertIn("time-machine", res.stdout)
         self.assertIn("ez <subcommand>", res.stdout)
+
 
     def test_version_command_retired(self):
         # 'ez version' is completely retired; running it returns unknown subcommand
@@ -269,8 +271,20 @@ class TestCLI(unittest.TestCase):
         self.assertIn("Path Arguments Not Allowed", res.stdout)
         self.assertIn("ez list choose-directory", res.stdout)
 
+    def test_time_machine_direct_list(self):
+        res = self.run_ez("time-machine", "list")
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("Time Machine", res.stdout)
+
+    def test_time_machine_rejects_paths(self):
+        res = self.run_ez("time-machine", "/var")
+        self.assertEqual(res.returncode, 1)
+        self.assertIn("Invalid Argument", res.stdout)
+        self.assertIn("ez time-machine", res.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()
+
 
 

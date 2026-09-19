@@ -224,7 +224,12 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
                 from .task_manager import run_task_manager
                 run_task_manager(mode="pro")
                 return
+            elif feature.id == "time_machine":
+                from .time_machine.time_machine_cli import run_cli_time_machine
+                run_cli_time_machine(raw_args=args_values, console=console)
+                return
             elif feature.id == "check_internet":
+
                 from .internet_checker import render_internet_check
                 render_internet_check(console=console)
             elif feature.id == "connect_wifi":

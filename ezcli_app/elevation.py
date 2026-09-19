@@ -951,4 +951,138 @@ def elevated_search_files(
     return False, [], err
 
 
+def elevated_tm_list(
+    skip_explanation: bool = False,
+    console: Optional[Console] = None,
+) -> Tuple[bool, List[Dict[str, Any]], str]:
+    """List snapshots for Time Machine with elevated permissions."""
+    success, res, err = run_elevated_helper(
+        action="tm_list",
+        params={},
+        reason="Read protected restore point snapshots from Time Machine storage.",
+        task_description="List Time Machine snapshots",
+        risk_level="low",
+        skip_explanation=skip_explanation,
+        console=console,
+        timeout=30,
+    )
+    if success and isinstance(res, dict):
+        return True, res.get("snapshots", []), ""
+    return False, [], err
+
+
+def elevated_tm_create(
+    comment: str = "",
+    profile: str = "config",
+    skip_explanation: bool = False,
+    console: Optional[Console] = None,
+    timeout: int = 300,
+) -> Tuple[bool, Optional[Dict[str, Any]], str]:
+    """Create a new Time Machine restore point."""
+    success, res, err = run_elevated_helper(
+        action="tm_create",
+        params={"comment": comment, "profile": profile},
+        reason="Create a safe system restore point snapshot using hardlink deduplication.",
+        task_description=f"Create Time Machine snapshot: {comment or profile}",
+        risk_level="low",
+        skip_explanation=skip_explanation,
+        console=console,
+        timeout=timeout,
+    )
+    if success and isinstance(res, dict):
+        return True, res.get("snapshot"), ""
+    return False, None, err
+
+
+def elevated_tm_restore(
+    snapshot_id: str,
+    target_root: str = "/",
+    skip_explanation: bool = False,
+    console: Optional[Console] = None,
+    timeout: int = 600,
+) -> Tuple[bool, str]:
+    """Restore system state from designated Time Machine snapshot."""
+    success, res, err = run_elevated_helper(
+        action="tm_restore",
+        params={"snapshot_id": snapshot_id, "target_root": target_root},
+        reason=f"Administrator permission is required to restore system files from restore point '{snapshot_id}'.",
+        task_description=f"Restore system state to snapshot '{snapshot_id}'",
+        risk_level="high",
+        skip_explanation=skip_explanation,
+        console=console,
+        timeout=timeout,
+    )
+    if success and isinstance(res, dict):
+        msg = res.get("message", "System restored successfully.")
+        return True, msg
+    return False, err
+
+
+def elevated_tm_delete(
+    snapshot_id: str,
+    skip_explanation: bool = False,
+    console: Optional[Console] = None,
+    timeout: int = 60,
+) -> Tuple[bool, str]:
+    """Delete a Time Machine restore point."""
+    success, res, err = run_elevated_helper(
+        action="tm_delete",
+        params={"snapshot_id": snapshot_id},
+        reason=f"Administrator permission is required to delete restore point '{snapshot_id}'.",
+        task_description=f"Delete snapshot '{snapshot_id}'",
+        risk_level="low",
+        skip_explanation=skip_explanation,
+        console=console,
+        timeout=timeout,
+    )
+    if success and isinstance(res, dict):
+        msg = res.get("message", "Snapshot deleted successfully.")
+        return True, msg
+    return False, err
+
+
+def elevated_tm_simulate(
+    snapshot_id: str,
+    target_root: str = "/",
+    skip_explanation: bool = False,
+    console: Optional[Console] = None,
+    timeout: int = 60,
+) -> Tuple[bool, Dict[str, Any], str]:
+    """Simulate restore to preview affected files."""
+    success, res, err = run_elevated_helper(
+        action="tm_simulate",
+        params={"snapshot_id": snapshot_id, "target_root": target_root},
+        reason="Preview files that will be modified or restored.",
+        task_description=f"Simulate restore for '{snapshot_id}'",
+        risk_level="low",
+        skip_explanation=skip_explanation,
+        console=console,
+        timeout=timeout,
+    )
+    if success and isinstance(res, dict):
+        return True, res, ""
+    return False, {}, err
+
+
+def elevated_tm_stats(
+    skip_explanation: bool = False,
+    console: Optional[Console] = None,
+) -> Tuple[bool, Dict[str, Any], str]:
+    """Get Time Machine storage disk metrics."""
+    success, res, err = run_elevated_helper(
+        action="tm_stats",
+        params={},
+        reason="Query Time Machine storage metrics.",
+        task_description="Get Time Machine storage stats",
+        risk_level="low",
+        skip_explanation=skip_explanation,
+        console=console,
+        timeout=15,
+    )
+    if success and isinstance(res, dict):
+        return True, res.get("stats", {}), ""
+    return False, {}, err
+
+
+
 

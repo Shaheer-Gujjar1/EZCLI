@@ -64,6 +64,24 @@ FEATURES: List[FeatureTemplate] = [
         renderer_name="run_task_manager_pro",
     ),
     FeatureTemplate(
+        id="time_machine",
+        subcommand="time-machine",
+        title="Time Machine (System Restore Points)",
+        icon="🕒",
+        description="Mini Timeshift system restore manager: view snapshots, create restore points, and safely recover system state",
+        wrapped_commands=["rsync", "cp", "btrfs"],
+        arguments=[
+            ArgumentDef(
+                name="action",
+                help="Optional 'list' or 'create [comment]' (defaults to interactive TUI)",
+                required=False,
+                default="",
+            )
+        ],
+        renderer_name="run_cli_time_machine",
+    ),
+
+    FeatureTemplate(
         id="disk_info",
         subcommand="disk-info",
         title="Disk Space Usage",

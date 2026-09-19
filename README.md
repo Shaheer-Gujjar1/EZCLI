@@ -194,6 +194,8 @@ ez help
 | 📦 | `ez compress [targets \| choose-directory]` | **v0.5** | `zip`, `tar`, `gzip`, `xz`, `7z` | Compress files and folders into `.zip`, `.tar.gz`, `.tar.xz`, `.7z`, or `.tar.bz2` with interactive TUI format selector, comma-separated targeting, `choose-directory` mini explorer, and live progress. |
 | 📂 | `ez extract [archives...] [to <dest> \| choose-directory]` | **v0.5** | `unzip`, `tar`, `7z` | Extract archive(s) into current directory, specific destination (`to <path>`), visual picker (`to choose-directory`), or launch two-stage mini explorer. Auto-elevation for protected paths. |
 | 🎯 | `ez run [target \| choose-directory] [args...]` | **v0.5** | `bash`, `python3`, `gio`, `snap`, `flatpak` | Universal runner for scripts, binaries, AppImages, and installed apps. Detached background launch for GUI apps; safe flag-free Guided Mode with preview confirmation for CLI tools. |
+| 🕒 | `ez time-machine [list \| create [comment]]` | **v0.6** | `rsync`, `cp`, `btrfs` | Standalone mini Timeshift system restore point manager: visual timeline TUI with rsync hardlink deduplication, create restore point modal (`c`), safe rollback with pre-flight simulation (`r`), delete (`d`), and visual snapshot browsing (`b`). Zero external dependencies. |
+
 
 ---
 
@@ -735,6 +737,41 @@ ez list choose-directory
 
 ---
 
+## 🕒 Mini Timeshift System Restore Points (v0.6: ez time-machine)
+
+`ez time-machine` is a standalone, lightweight system restore point manager inspired by Timeshift. It allows you to create point-in-time system snapshots, preview changes, safely roll back in case of system breakages, and browse snapshot files—all directly inside your terminal with **zero external software or heavy Timeshift package installations**.
+
+> 💡 **Self-Contained & Native**: Built with standard Linux utilities (`rsync` with hardlink deduplication `--link-dest`, `cp`, and optional `btrfs`), snapshots take minimal disk space and complete in seconds.
+
+### Form 1: Interactive Full-Screen Timeline TUI
+Launch the interactive visual restore manager:
+```bash
+ez time-machine
+```
+- **Storage & Health Dashboard**: Live header showing the backup partition, total capacity, free disk space, snapshot count, and latest snapshot date.
+- **Visual Restore Point Timeline**: Rich table detailing each restore point's ID, badge (`⚡ Configs` vs `🖥️ Full Root`), human-readable timestamp, size, and user description comment.
+- **Keyboard & Mouse Hotkeys**:
+  - `[c]`: **Create Snapshot Modal** — Enter a comment and select between `Configs (~50MB)` or `Full Root`.
+  - `[r]`: **Safe Rollback Modal** — Pre-flight simulation checks, impacted folder preview, warning confirmation card.
+  - `[d]`: **Delete Snapshot Modal** — Safely remove old snapshots to reclaim disk space.
+  - `[b]`: **Browse Snapshot** — Opens EasyCLI's file manager inside the snapshot directory for visual file inspection.
+  - `[Enter]` / `[i]`: **Snapshot Details Modal** — Detailed breakdown of captured paths, file counts, and metadata.
+  - `[F5]` / `[R]`: **Refresh** — Reload live disk stats and snapshots.
+  - `[q]` / `[Esc]`: Quit back to your shell.
+
+### Form 2: Direct CLI Commands (Non-Interactive)
+```bash
+# Instant pretty listing table of all existing restore points
+ez time-machine list
+
+# Create a restore point directly from the shell
+ez time-machine create "Before kernel update"
+```
+
+> ⚠️ **Strictly Flagless and Pathless**: `ez time-machine` accepts **no path argument anywhere**. Running `ez time-machine /var` is rejected. Folders and snapshots are always inspected and browsed visually.
+
+---
+
 
 ## 🎨 Icon & Font Policy
 
@@ -755,9 +792,8 @@ EZCLI/
 ├── setup.py               # Setup script (v0.6.0)
 ├── install.sh             # 1-step deployment script
 ├── README.md              # Documentation and guide
-├── tests/                 # Comprehensive unit test suite (384 tests)
+├── tests/                 # Comprehensive unit test suite (398 tests)
 │   ├── test_distro.py     # Distro parser and derivative detection tests
-
 │   ├── test_collectors.py # System inspection and installed package tests
 │   ├── test_file_ops.py   # Copy, move, cross-filesystem, and conflict tests
 │   ├── test_undo.py       # Reversible undo engine verification
@@ -776,7 +812,8 @@ EZCLI/
 │   ├── test_compress.py   # Multi-format compression, TUI & comma-target tests (v0.5)
 │   ├── test_extract.py    # Extraction engine, formats, Zip-Slip & CLI tests (v0.5)
 │   ├── test_run.py        # Universal runner, detector, safe guided mode & CLI tests (v0.5)
-│   └── test_list.py       # Unified listing, tree, permissions & inspector tests (v0.6)
+│   ├── test_list.py       # Unified listing, tree, permissions & inspector tests (v0.6)
+│   └── test_time_machine.py # Standalone Time Machine engine, modals & CLI tests (v0.6)
 └── ezcli_app/
     ├── __init__.py        # Package version (__version__ = "0.6.0")
     ├── config.py          # Declarative FeatureTemplate definitions (canonical commands only)
@@ -788,7 +825,6 @@ EZCLI/
     ├── main.py            # Subcommand parser, visual choose-directory dispatcher
     ├── list_cli.py        # Instant listing (Form 1) & background size streaming (v0.6)
     ├── list_tui.py        # Textual TUI inspector, tree/flat toggle & stat modal (v0.6)
-
     ├── elevation.py       # Shared privilege-elevation layer & password UX (v0.3)
     ├── privileged_helper.py# Minimal privileged helper for elevated tasks
     ├── file_engine.py     # Safe file operations, SHA256 checks, conflict policies
@@ -810,6 +846,11 @@ EZCLI/
     ├── run_detector.py    # Target resolution hierarchy, desktop/snap/flatpak engine (v0.5)
     ├── run_guide.py       # Safe help probe, static AST script parser & guided form (v0.5)
     ├── run_cli.py         # Universal runner orchestrator, GUI detachment & elevation (v0.5)
+    ├── time_machine/      # Standalone Mini Timeshift Restore Points (v0.6)
+    │   ├── __init__.py    # Time Machine package exports
+    │   ├── snapshot_engine.py # Native rsync hardlink deduplication & restore engine
+    │   ├── time_machine_app.py# Textual TUI with timeline, modals, & stats
+    │   └── time_machine_cli.py# CLI dispatcher, direct list/create & path rejection
     ├── wifi/              # Textual TUI In-Terminal Wi-Fi Manager with mouse support (v0.5)
     │   ├── __init__.py    # Wi-Fi package exports
     │   ├── wifi_engine.py # Network scanning, signal bars, security and connection engine
@@ -859,6 +900,10 @@ EZCLI/
   - Safe archive extraction (`ez extract-here` and `ez extract choose-directory`) supporting `.zip`, `.tar.gz`, `.tar.xz`, `.7z`, `.tar.bz2`, `.tar` with Zip-Slip path traversal protection, live extraction progress, multi-file comma targeting, two-stage visual picker, and automatic elevated destination support.
   - Universal Application & Script Runner (`ez run <target> [args...]`) executing local scripts, binaries, AppImages, and installed applications (PATH, Snap, Flatpak, Desktop entries). Features detached background launch for GUI apps, foreground execution for CLI tools, safe flag-free Guided Mode with preview confirmation, and automatic privilege elevation.
 
+- **v0.6 — Unified Directory Listing & Standalone Mini Timeshift Restore Points**:
+  - Flagless and pathless unified directory listing and inspector (`ez list`, `ez list choose-directory`) replacing `ls`, `tree`, `du`, and `stat` with instant pretty table, progressive background folder sizing, tree view toggle, and plain English permissions modal.
+  - Standalone Mini Timeshift System Restore Points (`ez time-machine`) with zero external software dependencies, rsync hardlink deduplication (`--link-dest`), dual profiles (`Configs` vs `Full Root`), interactive timeline TUI, create restore point modal (`c`), safe rollback with pre-flight simulation (`r`), delete modal (`d`), visual snapshot browsing (`b`), and direct CLI list/create commands.
+
 ---
 
 ## 🧪 Running Tests
@@ -868,5 +913,6 @@ To run the automated unit test suite:
 python3 -m unittest discover tests/
 ```
 
-All 352 unit tests validate distro detection, collector safety, file operations, conflict policies, cross-filesystem moves, undo engine, command parsing, file/folder creation, safe deletion with force prompts, mini text editor validation, binary file protection, permission-denied simulations, live stats metrics, privileged catalog updates, multi-source system upgrade simulations, safe application uninstallation, Windows-style task manager, universal version checking, internet connectivity diagnostics, in-terminal Wi-Fi management, multi-format compression, safe archive extraction, and universal application execution with safe guided mode.
+All 398 unit tests validate distro detection, collector safety, file operations, conflict policies, cross-filesystem moves, undo engine, command parsing, file/folder creation, safe deletion with force prompts, mini text editor validation, binary file protection, permission-denied simulations, live stats metrics, privileged catalog updates, multi-source system upgrade simulations, safe application uninstallation, Windows-style task manager, universal version checking, internet connectivity diagnostics, in-terminal Wi-Fi management, multi-format compression, safe archive extraction, universal application execution with safe guided mode, unified directory listing with background folder sizing, and standalone Time Machine snapshot engine, modals, and CLI workflows.
+
 

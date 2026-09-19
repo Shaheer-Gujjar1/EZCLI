@@ -794,8 +794,21 @@ def dispatch_helper_request(request: Dict[str, Any], progress_callback: Optional
             term=params.get("term", ""),
             max_results=params.get("max_results", 50),
         )
+    elif action == "tm_list":
+        return helper_tm_list()
+    elif action == "tm_create":
+        return helper_tm_create(params.get("comment", ""), params.get("profile", "config"))
+    elif action == "tm_restore":
+        return helper_tm_restore(params.get("snapshot_id", ""), params.get("target_root", "/"))
+    elif action == "tm_delete":
+        return helper_tm_delete(params.get("snapshot_id", ""))
+    elif action == "tm_simulate":
+        return helper_tm_simulate(params.get("snapshot_id", ""), params.get("target_root", "/"))
+    elif action == "tm_stats":
+        return helper_tm_stats()
     else:
         return {"success": False, "error": f"Unknown helper action '{action}'."}
+
 
 
 def helper_package_install(platform: str, package: str, timeout: int = 300) -> Dict[str, Any]:
@@ -985,7 +998,71 @@ def helper_search_files(
         return {"success": False, "error": f"Search error: {e}"}
 
 
+def helper_tm_list() -> Dict[str, Any]:
+    """List snapshots for Time Machine."""
+    from .time_machine.snapshot_engine import list_local_snapshots
+    from dataclasses import asdict
+    try:
+        snapshots = list_local_snapshots()
+        return {"success": True, "snapshots": [asdict(s) for s in snapshots]}
+    except Exception as e:
+        return {"success": False, "error": str(e), "snapshots": []}
+
+
+def helper_tm_create(comment: str = "", profile: str = "config") -> Dict[str, Any]:
+    """Create a new restore point."""
+    from .time_machine.snapshot_engine import create_snapshot
+    from dataclasses import asdict
+    try:
+        ok, meta, err = create_snapshot(comment=comment, profile=profile)
+        if ok and meta:
+            return {"success": True, "snapshot": asdict(meta)}
+        return {"success": False, "error": err}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def helper_tm_restore(snapshot_id: str, target_root: str = "/") -> Dict[str, Any]:
+    """Restore system state from designated snapshot."""
+    from .time_machine.snapshot_engine import restore_snapshot
+    try:
+        ok, msg = restore_snapshot(snapshot_id, target_root=target_root)
+        return {"success": ok, "message": msg, "error": "" if ok else msg}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def helper_tm_delete(snapshot_id: str) -> Dict[str, Any]:
+    """Delete a designated snapshot."""
+    from .time_machine.snapshot_engine import delete_snapshot
+    try:
+        ok, msg = delete_snapshot(snapshot_id)
+        return {"success": ok, "message": msg, "error": "" if ok else msg}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def helper_tm_simulate(snapshot_id: str, target_root: str = "/") -> Dict[str, Any]:
+    """Simulate restore to preview modified/deleted files."""
+    from .time_machine.snapshot_engine import simulate_restore
+    try:
+        return simulate_restore(snapshot_id, target_root=target_root)
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
+def helper_tm_stats() -> Dict[str, Any]:
+    """Get Time Machine storage disk metrics."""
+    from .time_machine.snapshot_engine import get_storage_stats
+    try:
+        stats = get_storage_stats()
+        return {"success": True, "stats": stats}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
+
 def main() -> None:
+
     """CLI entrypoint for privileged helper."""
     # Ensure stdout is unbuffered
     sys.stdout.reconfigure(line_buffering=True)  # type: ignore
