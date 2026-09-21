@@ -508,11 +508,6 @@ run_installation() {
     echo -e "${GREEN}║${RESET}   • ${BOLD}${WHITE}Diagnostics:${RESET}        ${CYAN}ez system-info${RESET}                               ${GREEN}║${RESET}"
     echo -e "${GREEN}╚══════════════════════════════════════════════════════════════════════════╝${RESET}"
     echo ""
-
-    if [ "$IS_INTERACTIVE" = true ] && [ -t 0 ] && ask_consent "Would you like to launch EasyCLI now?"; then
-        echo ""
-        exec ez
-    fi
 }
 
 run_uninstallation() {

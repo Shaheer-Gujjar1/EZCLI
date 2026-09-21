@@ -429,7 +429,6 @@ class SetupWizardApp(App[None]):
         self.enable_emoji = True
         self.remove_user_data = False
         self.remove_fonts = False
-        self.launch_after = True
 
     def compose(self) -> ComposeResult:
         status_str = f"● Installed in {self.install_location}" if self.is_installed else "○ Not Installed"
@@ -521,7 +520,6 @@ class SetupWizardApp(App[None]):
                                 yield Static("Setup Manager:     [bold cyan]ez-setup[/bold cyan]", classes="card-line")
                                 yield Static("Help & Manual:     [bold cyan]ez help[/bold cyan]", classes="card-line")
                                 yield Static("Diagnostics:       [bold cyan]ez system-info[/bold cyan]", classes="card-line")
-                            yield Checkbox("Launch EasyCLI now", value=True, id="chk-launch")
 
             with Horizontal(id="wizard-footer"):
                 yield Button("< Back", id="btn-back", disabled=True)
@@ -597,18 +595,14 @@ class SetupWizardApp(App[None]):
             f_title = self.query_one("#finish-title", Static)
             f_sub = self.query_one("#finish-subtitle", Static)
             f_card = self.query_one("#finish-card", Vertical)
-            chk_launch = self.query_one("#chk-launch", Checkbox)
-
             if self.selected_action == "uninstall":
                 f_title.update("🎉 EasyCLI Has Been Removed")
                 f_sub.update("EasyCLI and its components were successfully removed from your computer.")
                 f_card.display = False
-                chk_launch.display = False
             else:
                 f_title.update("🎉 EasyCLI Setup Completed Successfully!")
                 f_sub.update("EasyCLI has been installed and is ready to use in your terminal.")
                 f_card.display = True
-                chk_launch.display = True
 
     def on_radio_set_changed(self, event: RadioSet.Changed) -> None:
         if event.radio_set.id == "action-radios":
@@ -634,8 +628,6 @@ class SetupWizardApp(App[None]):
             self.remove_user_data = event.value
         elif event.checkbox.id == "chk-fonts":
             self.remove_fonts = event.value
-        elif event.checkbox.id == "chk-launch":
-            self.launch_after = event.value
 
     def trigger_action_with_elevation(self, action: str) -> None:
         """Prompt for admin credentials inside the TUI if needed, then proceed."""
@@ -694,8 +686,6 @@ class SetupWizardApp(App[None]):
                 self.switch_page("page-welcome")
             elif cur == "page-finish":
                 self.exit()
-                if self.launch_after and self.selected_action != "uninstall":
-                    os.system("ez || true")
 
     def action_cancel(self) -> None:
         self.exit()
