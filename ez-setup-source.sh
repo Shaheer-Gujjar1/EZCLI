@@ -783,6 +783,60 @@ render_menu_options() {
 }
 
 run_interactive_tui() {
+    local script_path
+    if [ -n "${BASH_SOURCE[0]}" ] && [ -f "${BASH_SOURCE[0]}" ]; then
+        script_path="$(readlink -f "${BASH_SOURCE[0]}" 2>/dev/null || realpath "${BASH_SOURCE[0]}" 2>/dev/null || echo "${BASH_SOURCE[0]}")"
+    else
+        script_path="$(readlink -f "$0" 2>/dev/null || realpath "$0" 2>/dev/null || echo "$0")"
+    fi
+    local script_dir
+    script_dir="$(cd "$(dirname "$script_path")" 2>/dev/null && pwd || echo "")"
+
+    # Step 1: Check Python 3
+    if command -v python3 &>/dev/null; then
+        # Step 2: Ensure virtualenv with Textual exists
+        if [ ! -f "$VENV_DIR/bin/python" ] || ! "$VENV_DIR/bin/python" -c "import textual" &>/dev/null; then
+            echo -e "${CYAN}⚡ Initializing EasyCLI Setup Wizard...${RESET}"
+            mkdir -p "$EZ_HOME"
+            python3 -m venv "$VENV_DIR" 2>/dev/null || {
+                if command -v apt-get &>/dev/null; then
+                    sudo apt-get update -qq && sudo apt-get install -y python3-venv python3-pip >/dev/null 2>&1 || true
+                    python3 -m venv "$VENV_DIR" 2>/dev/null || true
+                fi
+            }
+            if [ -f "$VENV_DIR/bin/pip" ]; then
+                "$VENV_DIR/bin/pip" install --upgrade --quiet rich textual >/dev/null 2>&1 || true
+            fi
+        fi
+
+        # Step 3: Locate or extract application files
+        local app_root=""
+        if [ -d "$script_dir/ezcli_app" ] && [ -f "$script_dir/ezcli_app/setup_app.py" ]; then
+            app_root="$script_dir"
+        elif [ -d "$APP_DIR/ezcli_app" ] && [ -f "$APP_DIR/ezcli_app/setup_app.py" ]; then
+            app_root="$APP_DIR"
+        else
+            mkdir -p "$APP_DIR"
+            extract_embedded_payload "$APP_DIR" "$script_path"
+            app_root="$APP_DIR"
+        fi
+
+        # Step 4: Launch full-featured Textual Windows-style Setup App
+        if [ -f "$VENV_DIR/bin/python" ] && "$VENV_DIR/bin/python" -c "import textual" &>/dev/null; then
+            if [ -f "$app_root/ezcli_app/setup_app.py" ]; then
+                PYTHONPATH="$app_root:$PYTHONPATH" "$VENV_DIR/bin/python" -m ezcli_app.setup_app
+                local ret=$?
+                cleanup_terminal
+                exit $ret
+            fi
+        fi
+    fi
+
+    # Fallback to ANSI menu if Textual cannot run
+    run_ansi_menu
+}
+
+run_ansi_menu() {
     local selected=0
 
     while true; do
