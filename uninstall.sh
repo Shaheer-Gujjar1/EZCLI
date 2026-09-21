@@ -1,88 +1,69 @@
 #!/usr/bin/env bash
+# ==============================================================================
+# EasyCLI (ez) - Uninstaller Entrypoint
+# Delegates to the unified Windows-style Setup Wizard (ez-setup.sh)
+# ==============================================================================
 set -e
 
-echo "=== EasyCLI (ez) Uninstaller ==="
+if [ "$1" = "--help" ] || [ "$1" = "-h" ]; then
+    echo "EasyCLI (ez) Uninstaller"
+    echo "Usage: ./uninstall.sh [OPTIONS]"
+    echo ""
+    echo "Options:"
+    echo "  -y, --yes          Confirm uninstallation without interactive prompts"
+    echo "  -h, --help         Show this help message"
+    echo ""
+    echo "Delegates to the unified EasyCLI Setup Wizard (ez-setup.sh --uninstall)."
+    exit 0
+fi
 
-ask_consent() {
-    local prompt="$1"
-    local default="${2:-Y}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" 2>/dev/null && pwd || echo "")"
+LOCAL_SETUP="$SCRIPT_DIR/ez-setup.sh"
+INSTALLED_SETUP="$HOME/.local/share/ez/ez-setup.sh"
+
+# 1. Local repository setup check
+if [ -n "$SCRIPT_DIR" ] && [ -f "$LOCAL_SETUP" ]; then
+    chmod +x "$LOCAL_SETUP" 2>/dev/null || true
+    exec "$LOCAL_SETUP" --uninstall "$@"
+fi
+
+# 2. Installed copy check
+if [ -f "$INSTALLED_SETUP" ]; then
+    chmod +x "$INSTALLED_SETUP" 2>/dev/null || true
+    exec "$INSTALLED_SETUP" --uninstall "$@"
+fi
+
+# 3. System PATH check
+if command -v ez-setup &>/dev/null; then
+    exec "$(command -v ez-setup)" --uninstall "$@"
+fi
+
+# 4. Remote standalone fallback
+STANDALONE_URL="https://raw.githubusercontent.com/Shaheer-Gujjar1/EZCLI/main/ez-setup.sh"
+TMP_DIR="$(mktemp -d /tmp/ezcli-uninstall.XXXXXX)"
+TMP_SETUP="$TMP_DIR/ez-setup.sh"
+
+echo "⏳ Fetching EasyCLI uninstallation wizard..."
+if command -v curl &>/dev/null; then
+    curl -fsSL "$STANDALONE_URL" -o "$TMP_SETUP"
+elif command -v wget &>/dev/null; then
+    wget -qO "$TMP_SETUP" "$STANDALONE_URL"
+fi
+
+if [ -s "$TMP_SETUP" ]; then
+    chmod +x "$TMP_SETUP"
     if [ -t 0 ]; then
-        if [ "$default" = "Y" ]; then
-            read -r -p "$prompt [Y/n] " response
-            case "$response" in
-                [nN][oO]|[nN]) return 1 ;;
-                *) return 0 ;;
-            esac
-        else
-            read -r -p "$prompt [y/N] " response
-            case "$response" in
-                [yY][eE][sS]|[yY]) return 0 ;;
-                *) return 1 ;;
-            esac
-        fi
+        "$TMP_SETUP" --uninstall "$@"
+    elif [ -e /dev/tty ]; then
+        "$TMP_SETUP" --uninstall "$@" < /dev/tty
     else
-        echo "$prompt [Auto-proceeding in non-interactive mode]"
-        return 0
+        "$TMP_SETUP" --uninstall "$@"
     fi
-}
-
-# 1. Remove binary symlinks (/usr/local/bin/ez and /usr/local/bin/ezcli)
-INSTALL_DIR="/usr/local/bin"
-removed_symlink=false
-for bin in "$INSTALL_DIR/ez" "$INSTALL_DIR/ezcli"; do
-    if [ -L "$bin" ] || [ -f "$bin" ]; then
-        echo "Removing $bin..."
-        if [ -w "$INSTALL_DIR" ]; then
-            rm -f "$bin"
-        else
-            sudo rm -f "$bin"
-        fi
-        removed_symlink=true
-    fi
-done
-
-if [ "$removed_symlink" = true ]; then
-    echo "✅ Removed command symlink(s) from $INSTALL_DIR."
-else
-    echo "ℹ️  No symlinks found in $INSTALL_DIR."
+    EXIT_CODE=$?
+    rm -rf "$TMP_DIR"
+    exit $EXIT_CODE
 fi
 
-# 2. Remove user data directories (~/.local/share/ez and ~/.local/share/ezcli)
-DATA_DIRS=("$HOME/.local/share/ez" "$HOME/.local/share/ezcli")
-found_data=false
-for dir in "${DATA_DIRS[@]}"; do
-    if [ -d "$dir" ]; then
-        found_data=true
-    fi
-done
-
-if [ "$found_data" = true ]; then
-    echo ""
-    if ask_consent "Remove EasyCLI user data, bookmarks, undo history, and local virtualenv (~/.local/share/ez)?"; then
-        for dir in "${DATA_DIRS[@]}"; do
-            if [ -d "$dir" ]; then
-                rm -rf "$dir"
-                echo "✅ Removed $dir"
-            fi
-        done
-    else
-        echo "Preserved user data in ~/.local/share/ez."
-    fi
-fi
-
-# 3. Optional: Fontconfig override
-EMOJI_CONF="$HOME/.config/fontconfig/conf.d/99-noto-color-emoji.conf"
-if [ -f "$EMOJI_CONF" ]; then
-    echo ""
-    if ask_consent "Remove Noto Color Emoji font prioritization ($EMOJI_CONF)?" "N"; then
-        rm -f "$EMOJI_CONF"
-        fc-cache -fv "$HOME/.config/fontconfig/conf.d" 2>/dev/null || fc-cache -fv 2>/dev/null || true
-        echo "✅ Removed font configuration override."
-    else
-        echo "Preserved Noto Color Emoji font configuration."
-    fi
-fi
-
-echo ""
-echo "🎉 EasyCLI has been successfully uninstalled."
-echo "   (You can now safely delete the repository folder if desired)."
+rm -rf "$TMP_DIR"
+echo "❌ Error: Could not find ez-setup.sh to perform uninstallation."
+exit 1

@@ -37,10 +37,35 @@ Distributions are automatically detected via `/etc/os-release` and verified for 
 - `python3-rich` (`sudo apt install python3-rich` or `pip install rich`)
 - An emoji font (`sudo apt install fonts-noto-color-emoji`)
 
-### Quick Install (Automated)
-Run the automated installer to link `ez` globally to `/usr/local/bin`:
+### ⚡ 1-Command Online Install (Standalone - No Git Clone Needed)
+Run this single command in any terminal to download only the self-contained setup manager and launch the interactive Windows-style Setup Wizard:
 ```bash
-./install.sh
+curl -fsSL https://raw.githubusercontent.com/Shaheer-Gujjar1/EZCLI/main/install.sh | bash
+```
+*Or using wget:*
+```bash
+wget -qO- https://raw.githubusercontent.com/Shaheer-Gujjar1/EZCLI/main/install.sh | bash
+```
+> **Zero Git Cloning:** This downloads **only** the self-extracting standalone `ez-setup.sh` file into a temporary location and immediately launches the visual installer. No repository files or git required.
+
+*Alternatively, download just the single standalone installer file directly:*
+```bash
+curl -fsSL https://raw.githubusercontent.com/Shaheer-Gujjar1/EZCLI/main/ez-setup.sh -o ez-setup.sh && chmod +x ez-setup.sh && ./ez-setup.sh
+```
+
+### 🖥️ Unified Windows-Style Setup Wizard (`ez-setup.sh`)
+EasyCLI includes an interactive, Windows-style setup manager for Linux terminals:
+- **🚀 Express Install (Recommended):** Sets up isolated environment, dependencies, 3D emoji fonts, and binary launcher in 1 click.
+- **⚙️ Custom Install:** Choose between System-Wide (`/usr/local/bin`) or User-Only (`~/.local/bin`, no root/sudo needed) and toggle emoji font support.
+- **🔄 Update / Reinstall:** Seamlessly refresh packages and application core.
+- **🔧 Repair Installation:** Automatically detect and fix broken virtual environments, missing libraries, or damaged symlinks.
+- **🗑️ Uninstall:** Windows-style uninstallation wizard with confirmation and choices to preserve or wipe user bookmarks and history.
+- **🩺 Diagnostics:** Detailed pre-flight health check for Python, dependencies, PATH, and fontconfig.
+
+If you have already cloned the repository, launch the manager with:
+```bash
+./ez-setup.sh
+# (Backward-compatible wrappers ./install.sh and ./uninstall.sh are also available)
 ```
 
 ### Running Directly (No Installation Needed)
@@ -877,7 +902,11 @@ EZCLI/
 ├── ez                     # Executable entrypoint script
 ├── pyproject.toml         # Packaging configuration (v0.6.0)
 ├── setup.py               # Setup script (v0.6.0)
-├── install.sh             # 1-step deployment script
+├── ez-setup.sh            # Standalone Windows-style TUI setup wizard & manager (Install/Uninstall)
+├── ez-setup-source.sh     # Setup wizard source template
+├── build_setup.sh         # Builder script to package standalone bundle into ez-setup.sh
+├── install.sh             # Backward-compatible installer launcher
+├── uninstall.sh           # Backward-compatible uninstaller launcher
 ├── README.md              # Documentation and guide
 ├── tests/                 # Comprehensive unit test suite (420 tests)
 │   ├── test_distro.py     # Distro parser and derivative detection tests

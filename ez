@@ -5,10 +5,19 @@ import glob
 import os
 import sys
 
+# Resolve real script location even if invoked via symlink
+real_file = os.path.realpath(__file__)
+real_dir = os.path.dirname(real_file)
+
 # Ensure local ezcli_app is in Python search path
-repo_dir = os.path.dirname(os.path.abspath(__file__))
-if repo_dir not in sys.path:
-    sys.path.insert(0, repo_dir)
+search_dirs = [
+    real_dir,
+    os.path.expanduser("~/.local/share/ez/app"),
+    os.path.expanduser("~/.local/share/ez"),
+]
+for p in search_dirs:
+    if os.path.isdir(p) and p not in sys.path:
+        sys.path.insert(0, p)
 
 # Check user venv if present (~/.local/share/ez/venv or legacy ~/.local/share/ezcli/venv)
 venv_site = (
