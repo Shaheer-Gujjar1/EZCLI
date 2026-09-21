@@ -232,7 +232,7 @@ class SetupWizardApp(App[None]):
     }
 
     #wizard-footer {
-        height: 3;
+        height: 4;
         border-top: solid #30363d;
         background: #161b22;
         padding: 0 1;
@@ -240,19 +240,21 @@ class SetupWizardApp(App[None]):
     }
 
     #wizard-footer Button {
-        margin-left: 1;
-        min-width: 10;
-        height: 1;
+        margin-left: 2;
+        min-width: 14;
+        height: 3;
     }
 
     .primary-btn {
         background: #238636;
-        color: white;
+        color: #ffffff;
+        text-style: bold;
     }
 
     .danger-btn {
         background: #da3633;
-        color: white;
+        color: #ffffff;
+        text-style: bold;
     }
     """
 
