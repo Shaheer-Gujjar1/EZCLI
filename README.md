@@ -37,21 +37,16 @@ Distributions are automatically detected via `/etc/os-release` and verified for 
 - `python3-rich` (`sudo apt install python3-rich` or `pip install rich`)
 - An emoji font (`sudo apt install fonts-noto-color-emoji`)
 
-### ⚡ 1-Command Online Install (Standalone - No Git Clone Needed)
-Run this single command in any terminal to download only the self-contained setup manager and launch the interactive Windows-style Setup Wizard:
-```bash
-curl -fsSL https://raw.githubusercontent.com/Shaheer-Gujjar1/EZCLI/main/install.sh | bash
-```
-*Or using wget:*
-```bash
-wget -qO- https://raw.githubusercontent.com/Shaheer-Gujjar1/EZCLI/main/install.sh | bash
-```
-> **Zero Git Cloning:** This downloads **only** the self-extracting standalone `ez-setup.sh` file into a temporary location and immediately launches the visual installer. No repository files or git required.
-
-*Alternatively, download just the single standalone installer file directly:*
+### ⚡ 1-Command Online Setup (Standalone - No Git Clone Needed)
+Run this single command in any terminal to download the standalone setup manager and automatically launch the interactive Windows-style Setup Wizard:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/Shaheer-Gujjar1/EZCLI/main/ez-setup.sh -o ez-setup.sh && chmod +x ez-setup.sh && ./ez-setup.sh
 ```
+*Or using wget:*
+```bash
+wget -O ez-setup.sh https://raw.githubusercontent.com/Shaheer-Gujjar1/EZCLI/main/ez-setup.sh && chmod +x ez-setup.sh && ./ez-setup.sh
+```
+> **100% Standalone & Self-Contained:** This downloads **only** the self-extracting `ez-setup.sh` file and immediately auto-runs the full interactive TUI wizard. No Git clone, extra repository files, or prior dependencies required.
 
 ### 🖥️ Unified Windows-Style Setup Wizard (`ez-setup.sh`)
 EasyCLI includes an interactive, Windows-style setup manager for Linux terminals:
