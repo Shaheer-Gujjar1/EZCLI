@@ -82,11 +82,20 @@ class CreateSnapshotModal(ModalScreen[Optional[Dict[str, str]]]):
     #btn-bar {
         margin-top: 1;
         align: right middle;
+        height: 4;
     }
     #btn-bar Button {
         margin-left: 1;
+        height: 3;
     }
     """
+
+    def on_mount(self) -> None:
+        self.query_one("#comment-input", Input).focus()
+
+    def on_key(self, event) -> None:
+        if event.key == "escape":
+            self.dismiss(None)
 
     def compose(self) -> ComposeResult:
         with Container(id="create-dialog"):
@@ -163,15 +172,24 @@ class RestoreSnapshotModal(ModalScreen[bool]):
     #btn-bar {
         margin-top: 1;
         align: right middle;
+        height: 4;
     }
     #btn-bar Button {
         margin-left: 1;
+        height: 3;
     }
     """
 
     def __init__(self, snapshot: SnapshotMetadata) -> None:
         super().__init__()
         self.snapshot = snapshot
+
+    def on_mount(self) -> None:
+        self.query_one("#btn-cancel", Button).focus()
+
+    def on_key(self, event) -> None:
+        if event.key == "escape":
+            self.dismiss(False)
 
     def compose(self) -> ComposeResult:
         with Container(id="restore-dialog"):
@@ -220,15 +238,24 @@ class DeleteSnapshotModal(ModalScreen[bool]):
     #btn-bar {
         margin-top: 1;
         align: right middle;
+        height: 4;
     }
     #btn-bar Button {
         margin-left: 1;
+        height: 3;
     }
     """
 
     def __init__(self, snapshot: SnapshotMetadata) -> None:
         super().__init__()
         self.snapshot = snapshot
+
+    def on_mount(self) -> None:
+        self.query_one("#btn-cancel", Button).focus()
+
+    def on_key(self, event) -> None:
+        if event.key == "escape":
+            self.dismiss(False)
 
     def compose(self) -> ComposeResult:
         with Container(id="delete-dialog"):
@@ -251,7 +278,7 @@ class DeleteSnapshotModal(ModalScreen[bool]):
             self.dismiss(False)
 
 
-class SnapshotDetailsModal(ModalScreen[None]):
+class SnapshotDetailsModal(ModalScreen[Optional[str]]):
     """Modal showing comprehensive restore point inspection card."""
 
     DEFAULT_CSS = """
@@ -278,12 +305,24 @@ class SnapshotDetailsModal(ModalScreen[None]):
     #btn-bar {
         margin-top: 1;
         align: right middle;
+        height: 4;
+    }
+    #btn-bar Button {
+        margin-left: 1;
+        height: 3;
     }
     """
 
     def __init__(self, snapshot: SnapshotMetadata) -> None:
         super().__init__()
         self.snapshot = snapshot
+
+    def on_mount(self) -> None:
+        self.query_one("#btn-close", Button).focus()
+
+    def on_key(self, event) -> None:
+        if event.key == "escape":
+            self.dismiss(None)
 
     def compose(self) -> ComposeResult:
         with Container(id="details-dialog"):
@@ -298,10 +337,14 @@ class SnapshotDetailsModal(ModalScreen[None]):
                 yield Label(f"[bold]Installed Packages:[/bold] {self.snapshot.packages_count:,} packages")
                 yield Label(f"[bold]Storage Path:[/bold] {get_snapshots_dir() / self.snapshot.id}")
             with Horizontal(id="btn-bar"):
+                yield Button("⏪ Restore This Point", variant="warning", id="btn-details-restore")
                 yield Button("Close", variant="primary", id="btn-close")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        self.dismiss(None)
+        if event.button.id == "btn-details-restore":
+            self.dismiss("restore")
+        else:
+            self.dismiss(None)
 
 
 # ==============================================================================
@@ -378,6 +421,25 @@ class TimeMachineApp(App[None]):
         color: $accent;
         margin-bottom: 1;
     }
+    #btn-create-first {
+        margin-top: 1;
+        height: 3;
+    }
+    #action-bar {
+        height: 4;
+        background: $surface-darken-1;
+        border-top: solid $primary-darken-2;
+        padding: 0 1;
+        align: left middle;
+        overflow-x: auto;
+        overflow-y: hidden;
+    }
+    #action-bar Button {
+        margin-right: 1;
+        height: 3;
+        min-width: 4;
+        padding: 0 1;
+    }
     """
 
     def __init__(self, snapshots_dir: Optional[Path] = None) -> None:
@@ -405,10 +467,19 @@ class TimeMachineApp(App[None]):
             with Container(id="empty-state"):
                 yield Label("🕒 No Restore Points Found", classes="empty-title")
                 yield Label(
-                    "You have not created any system restore points yet.\nPress [bold cyan]c[/bold cyan] to create your first safe restore point.",
+                    "You have not created any system restore points yet.\nClick below or press [bold cyan]c[/bold cyan] to create your first safe restore point.",
                 )
+                yield Button("➕ Create System Restore Point", variant="primary", id="btn-create-first")
+        with Horizontal(id="action-bar"):
+            yield Button("➕ Create (c)", variant="primary", id="btn-create")
+            yield Button("⏪ Restore (r)", variant="warning", id="btn-restore")
+            yield Button("🗑️ Delete (d)", variant="error", id="btn-delete")
+            yield Button("📂 Browse (b)", variant="default", id="btn-browse")
+            yield Button("📄 Details (Enter)", variant="default", id="btn-details")
+            yield Button("🔄 Refresh (F5)", variant="default", id="btn-refresh")
+            yield Button("❌ Quit (q)", variant="default", id="btn-quit")
         yield Static(
-            "Ready · Press [c] Create · [r] Restore · [d] Delete · [b] Browse · [Enter] Details · [q] Quit",
+            "Ready · Click any action button or press hotkeys...",
             id="status-banner",
         )
         yield Footer()
@@ -422,6 +493,33 @@ class TimeMachineApp(App[None]):
         banner = self.query_one("#status-banner", Static)
         banner.update(text)
 
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        bid = event.button.id
+        if bid in ["btn-create", "btn-create-first"]:
+            self.action_create()
+        elif bid == "btn-restore":
+            self.action_restore()
+        elif bid == "btn-delete":
+            self.action_delete()
+        elif bid == "btn-browse":
+            self.action_browse()
+        elif bid == "btn-details":
+            self.action_details()
+        elif bid == "btn-refresh":
+            self.action_refresh()
+        elif bid == "btn-quit":
+            self.action_quit()
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        """Double-clicking or pressing Enter on a row opens details modal."""
+        self.action_details()
+
+    def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        """Update status line when navigating or clicking on a row."""
+        selected = self.get_selected_snapshot()
+        if selected:
+            self.update_status(f"Selected restore point: {selected.id} · {selected.comment or '(no description)'}")
+
     def refresh_snapshots(self) -> None:
         """Reload snapshots list from disk and update top stats."""
         from .snapshot_engine import list_local_snapshots, get_storage_stats
@@ -432,7 +530,8 @@ class TimeMachineApp(App[None]):
         empty_box = self.query_one("#empty-state", Container)
         table.clear()
 
-        if self.snapshots:
+        has_items = bool(self.snapshots)
+        if has_items:
             empty_box.display = False
             table.display = True
             for s in self.snapshots:
@@ -448,6 +547,13 @@ class TimeMachineApp(App[None]):
         else:
             table.display = False
             empty_box.display = True
+
+        # Update buttons enabled/disabled state based on whether items exist
+        for btn_id in ["#btn-restore", "#btn-delete", "#btn-browse", "#btn-details"]:
+            try:
+                self.query_one(btn_id, Button).disabled = not has_items
+            except Exception:
+                pass
 
         # Update stats
         stats = get_storage_stats(get_base_dir())
@@ -551,7 +657,12 @@ class TimeMachineApp(App[None]):
         selected = self.get_selected_snapshot()
         if not selected:
             return
-        self.push_screen(SnapshotDetailsModal(selected))
+
+        def handle_details_result(res: Optional[str]) -> None:
+            if res == "restore":
+                self.action_restore()
+
+        self.push_screen(SnapshotDetailsModal(selected), handle_details_result)
 
     def action_refresh(self) -> None:
         self.refresh_snapshots()

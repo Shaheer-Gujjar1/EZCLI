@@ -186,5 +186,93 @@ class TestTimeMachineCLI(unittest.TestCase):
         mock_print.assert_called_once()
 
 
+class TestTimeMachineTUI(unittest.IsolatedAsyncioTestCase):
+    async def test_time_machine_tui_mouse_and_buttons(self):
+        """Verify full mouse support, action bar buttons, and modal interactions."""
+        from ezcli_app.time_machine.time_machine_app import (
+            TimeMachineApp,
+            CreateSnapshotModal,
+            RestoreSnapshotModal,
+            DeleteSnapshotModal,
+            SnapshotDetailsModal,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            snap_dir = Path(tmpdir) / "snapshots"
+            snap_dir.mkdir(parents=True)
+
+            # Test 1: Empty state
+            app = TimeMachineApp(snapshots_dir=snap_dir)
+            async with app.run_test() as pilot:
+                self.assertIsNotNone(app.query_one("#action-bar"))
+                self.assertIsNotNone(app.query_one("#btn-create"))
+                self.assertIsNotNone(app.query_one("#btn-restore"))
+                self.assertIsNotNone(app.query_one("#btn-delete"))
+                self.assertIsNotNone(app.query_one("#btn-browse"))
+                self.assertIsNotNone(app.query_one("#btn-details"))
+                self.assertIsNotNone(app.query_one("#btn-refresh"))
+                self.assertIsNotNone(app.query_one("#btn-quit"))
+
+                # In empty state, restore/delete/browse/details should be disabled
+                self.assertTrue(app.query_one("#btn-restore").disabled)
+                self.assertTrue(app.query_one("#btn-delete").disabled)
+                self.assertIsNotNone(app.query_one("#btn-create-first"))
+
+                # Click empty state create button
+                app.query_one("#btn-create-first").press()
+                await pilot.pause()
+                self.assertIsInstance(app.screen, CreateSnapshotModal)
+
+                # Cancel via mouse button
+                app.screen.query_one("#btn-cancel").press()
+                await pilot.pause()
+                self.assertEqual(len(app.screen_stack), 1)
+
+            # Test 2: With items populated
+            sample = SnapshotMetadata(
+                id="2026-09-21_12-00-00",
+                created_at="2026-09-21 12:00:00",
+                timestamp=1700000000.0,
+                comment="Pre-update backup",
+                profile="config",
+                size_bytes=52428800,
+                distro="Linux",
+                kernel="6.6.0",
+                packages_count=1500,
+            )
+
+            with patch("ezcli_app.time_machine.snapshot_engine.list_local_snapshots", return_value=[sample]):
+                app2 = TimeMachineApp(snapshots_dir=snap_dir)
+                async with app2.run_test() as pilot:
+                    self.assertFalse(app2.query_one("#btn-restore").disabled)
+                    self.assertFalse(app2.query_one("#btn-delete").disabled)
+                    self.assertFalse(app2.query_one("#btn-details").disabled)
+
+                    # Click Details button
+                    app2.query_one("#btn-details").press()
+                    await pilot.pause()
+                    self.assertIsInstance(app2.screen, SnapshotDetailsModal)
+
+                    # Click restore button inside details modal
+                    app2.screen.query_one("#btn-details-restore").press()
+                    await pilot.pause()
+                    self.assertIsInstance(app2.screen, RestoreSnapshotModal)
+
+                    # Cancel restore modal
+                    app2.screen.query_one("#btn-cancel").press()
+                    await pilot.pause()
+                    self.assertEqual(len(app2.screen_stack), 1)
+
+                    # Click Delete button
+                    app2.query_one("#btn-delete").press()
+                    await pilot.pause()
+                    self.assertIsInstance(app2.screen, DeleteSnapshotModal)
+
+                    # Cancel delete modal
+                    app2.screen.query_one("#btn-cancel").press()
+                    await pilot.pause()
+                    self.assertEqual(len(app2.screen_stack), 1)
+
+
 if __name__ == "__main__":
     unittest.main()

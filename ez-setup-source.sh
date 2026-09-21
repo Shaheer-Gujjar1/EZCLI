@@ -799,7 +799,7 @@ run_interactive_tui() {
             echo -e "${CYAN}⚡ Initializing EasyCLI Setup Wizard...${RESET}"
             mkdir -p "$EZ_HOME"
             python3 -m venv "$VENV_DIR" 2>/dev/null || {
-                if command -v apt-get &>/dev/null; then
+                if command -v apt-get &>/dev/null && sudo -n true 2>/dev/null; then
                     sudo apt-get update -qq && sudo apt-get install -y python3-venv python3-pip >/dev/null 2>&1 || true
                     python3 -m venv "$VENV_DIR" 2>/dev/null || true
                 fi

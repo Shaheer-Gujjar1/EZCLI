@@ -24,10 +24,13 @@ from textual import work  # type: ignore
 from textual.app import App, ComposeResult  # type: ignore
 from textual.binding import Binding  # type: ignore
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll  # type: ignore
+from textual.screen import ModalScreen  # type: ignore
 from textual.widgets import (  # type: ignore
     Button,
     Checkbox,
     ContentSwitcher,
+    Input,
+    Label,
     Log,
     ProgressBar,
     RadioButton,
@@ -77,6 +80,160 @@ def detect_installation() -> Tuple[bool, str]:
     return False, "Not Installed"
 
 
+def requires_sudo(scope: str, action: str) -> bool:
+    """Check if the selected operation needs sudo privileges."""
+    if os.geteuid() == 0:
+        return False
+    # Check if sudo credentials are already cached
+    res = subprocess.run(["sudo", "-n", "true"], capture_output=True)
+    if res.returncode == 0:
+        return False
+    if action == "uninstall":
+        for name in ["ez", "ez-setup", "ezcli"]:
+            target = SYS_BIN_DIR / name
+            if target.exists() or target.is_symlink():
+                if not os.access(str(SYS_BIN_DIR), os.W_OK):
+                    return True
+        return False
+    elif action in ["install", "custom", "repair"]:
+        if scope == "system" and not os.access(str(SYS_BIN_DIR), os.W_OK):
+            return True
+    return False
+
+
+# ==============================================================================
+# In-TUI Elevation Modal Screen
+# ==============================================================================
+
+class AdminPasswordModal(ModalScreen[bool]):
+    """Modal dialog for entering administrator password inside the TUI."""
+
+    DEFAULT_CSS = """
+    AdminPasswordModal {
+        align: center middle;
+        background: rgba(0, 0, 0, 0.75);
+    }
+    #admin-dialog {
+        width: 66;
+        height: auto;
+        border: round #388bfd;
+        background: #161b22;
+        padding: 1 2;
+    }
+    #admin-title {
+        text-style: bold;
+        color: #58a6ff;
+        text-align: center;
+        margin-bottom: 1;
+    }
+    #admin-desc {
+        color: #c9d1d9;
+        text-align: center;
+        margin-bottom: 1;
+    }
+    #admin-input {
+        margin-bottom: 1;
+        border: solid #388bfd;
+    }
+    #admin-err {
+        color: #f85149;
+        text-align: center;
+        margin-bottom: 1;
+        height: 1;
+    }
+    #admin-toggle-box {
+        align: center middle;
+        margin-bottom: 1;
+        height: 3;
+    }
+    #admin-buttons {
+        align: center middle;
+        height: 4;
+        margin-top: 1;
+    }
+    #admin-buttons Button {
+        margin: 0 1;
+        min-width: 14;
+        height: 3;
+    }
+    """
+
+    def __init__(self, action_name: str = "system-wide installation") -> None:
+        super().__init__()
+        self.action_name = action_name
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="admin-dialog"):
+            yield Label("🔐 Administrator Rights Required", id="admin-title")
+            yield Label(
+                f"Administrator privileges are required to configure /usr/local/bin for {self.action_name}.\n"
+                "Please enter your sudo password below:",
+                id="admin-desc",
+            )
+            yield Input(placeholder="Enter sudo password...", password=True, id="admin-input")
+            yield Label("", id="admin-err")
+            with Horizontal(id="admin-toggle-box"):
+                yield Button("👁️ Show Password", id="btn-toggle-pwd", variant="default")
+            with Horizontal(id="admin-buttons"):
+                yield Button("🔐 Authenticate", variant="primary", id="btn-auth")
+                yield Button("❌ Cancel", variant="default", id="btn-cancel-auth")
+
+    def on_mount(self) -> None:
+        self.query_one("#admin-input", Input).focus()
+
+    def on_key(self, event) -> None:
+        if event.key == "escape":
+            self.dismiss(False)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-toggle-pwd":
+            inp = self.query_one("#admin-input", Input)
+            if inp.password:
+                inp.password = False
+                event.button.label = "🙈 Hide Password"
+            else:
+                inp.password = True
+                event.button.label = "👁️ Show Password"
+        elif event.button.id == "btn-auth":
+            self.submit()
+        elif event.button.id == "btn-cancel-auth":
+            self.dismiss(False)
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id == "admin-input":
+            self.submit()
+
+    def submit(self) -> None:
+        inp = self.query_one("#admin-input", Input)
+        pwd = inp.value
+        err_lbl = self.query_one("#admin-err", Label)
+
+        if not pwd:
+            err_lbl.update("Password cannot be empty.")
+            return
+
+        try:
+            # Validate with sudo -S -p "" -v (reads from stdin pipe, never opens /dev/tty)
+            res = subprocess.run(
+                ["sudo", "-S", "-p", "", "-v"],
+                input=pwd.encode() + b"\n",
+                capture_output=True,
+            )
+            if res.returncode == 0:
+                self.dismiss(True)
+            else:
+                err_lbl.update("❌ Incorrect password. Please try again.")
+                inp.value = ""
+                inp.focus()
+        except FileNotFoundError:
+            # sudo not installed
+            err_lbl.update("❌ 'sudo' command is not available on this system.")
+
+
+# ==============================================================================
+# Main Setup Wizard App
+# ==============================================================================
+
 class SetupWizardApp(App[None]):
     """Modern Windows-style setup wizard for EasyCLI with full mouse click and keyboard support."""
 
@@ -91,10 +248,10 @@ class SetupWizardApp(App[None]):
     }
 
     #wizard-window {
-        width: 82;
+        width: 84;
         max-width: 98%;
-        height: 22;
-        max-height: 98%;
+        height: 24;
+        max-height: 100%;
         border: round #388bfd;
         background: #161b22;
         padding: 0;
@@ -215,7 +372,7 @@ class SetupWizardApp(App[None]):
     }
 
     #progress-log {
-        height: 8;
+        height: 9;
         background: #0d1117;
         border: solid #30363d;
         color: #c9d1d9;
@@ -223,7 +380,7 @@ class SetupWizardApp(App[None]):
     }
 
     #diag-log {
-        height: 11;
+        height: 12;
         background: #0d1117;
         border: solid #30363d;
         color: #c9d1d9;
@@ -480,6 +637,35 @@ class SetupWizardApp(App[None]):
         elif event.checkbox.id == "chk-launch":
             self.launch_after = event.value
 
+    def trigger_action_with_elevation(self, action: str) -> None:
+        """Prompt for admin credentials inside the TUI if needed, then proceed."""
+        if requires_sudo(self.target_scope, action):
+            action_desc = "uninstallation" if action == "uninstall" else "system-wide installation"
+
+            def on_auth_result(success: bool) -> None:
+                if success:
+                    self.switch_page("page-progress")
+                else:
+                    # If cancelled during install, gracefully switch to user-only mode
+                    if action in ["install", "custom"]:
+                        self.target_scope = "user"
+                        self.notify(
+                            "Administrator elevation skipped: installing to User scope (~/.local/bin) instead.",
+                            title="Switched to User Scope",
+                            severity="information",
+                        )
+                        self.switch_page("page-progress")
+                    else:
+                        self.notify(
+                            "Uninstallation paused: administrator permissions required to remove system shortcuts.",
+                            title="Elevation Required",
+                            severity="warning",
+                        )
+
+            self.push_screen(AdminPasswordModal(action_desc), on_auth_result)
+        else:
+            self.switch_page("page-progress")
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = event.button.id
         switcher = self.query_one("#wizard-switcher", ContentSwitcher)
@@ -499,9 +685,11 @@ class SetupWizardApp(App[None]):
                 elif self.selected_action == "diagnostics":
                     self.switch_page("page-diagnostics")
                 else:
-                    self.switch_page("page-progress")
-            elif cur in ["page-custom", "page-uninstall"]:
-                self.switch_page("page-progress")
+                    self.trigger_action_with_elevation("install")
+            elif cur == "page-custom":
+                self.trigger_action_with_elevation("custom")
+            elif cur == "page-uninstall":
+                self.trigger_action_with_elevation("uninstall")
             elif cur == "page-diagnostics":
                 self.switch_page("page-welcome")
             elif cur == "page-finish":
@@ -595,9 +783,10 @@ class SetupWizardApp(App[None]):
                         setup_link.unlink(missing_ok=True)
                     setup_link.symlink_to(EZ_HOME / "ez-setup.sh")
             else:
-                subprocess.run(["sudo", "ln", "-sf", str(APP_DIR / "ez"), str(ez_link)], check=False)
+                # Use sudo -n non-interactive mode so it never prompts outside TUI
+                subprocess.run(["sudo", "-n", "ln", "-sf", str(APP_DIR / "ez"), str(ez_link)], check=False, capture_output=True)
                 if (EZ_HOME / "ez-setup.sh").exists():
-                    subprocess.run(["sudo", "ln", "-sf", str(EZ_HOME / "ez-setup.sh"), str(setup_link)], check=False)
+                    subprocess.run(["sudo", "-n", "ln", "-sf", str(EZ_HOME / "ez-setup.sh"), str(setup_link)], check=False, capture_output=True)
 
             step(100, "Installation finished successfully!")
             time.sleep(0.5)
@@ -629,7 +818,8 @@ class SetupWizardApp(App[None]):
                         if os.access(str(bin_dir), os.W_OK):
                             link.unlink(missing_ok=True)
                         else:
-                            subprocess.run(["sudo", "rm", "-f", str(link)], check=False)
+                            # Use sudo -n non-interactive mode so it never prompts outside TUI
+                            subprocess.run(["sudo", "-n", "rm", "-f", str(link)], check=False, capture_output=True)
             step(45, "Command shortcuts removed")
 
             step(65, "Removing application files...")
