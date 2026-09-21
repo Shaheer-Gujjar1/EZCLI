@@ -2,6 +2,7 @@
 Built with Textual for a full-screen, mouse-supported, responsive installer experience.
 """
 
+import glob
 import os
 import platform
 import shutil
@@ -9,19 +10,23 @@ import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Tuple
 
-from textual import work
-from textual.app import App, ComposeResult
-from textual.binding import Binding
-from textual.containers import Container, Grid, Horizontal, Vertical, VerticalScroll
-from textual.screen import ModalScreen
-from textual.widgets import (
+# Ensure venv site-packages is accessible if textual is installed in user venv
+venv_site = (
+    glob.glob(os.path.expanduser("~/.local/share/ez/venv/lib/python*/site-packages"))
+    + glob.glob(os.path.expanduser("~/.local/share/ezcli/venv/lib/python*/site-packages"))
+)
+if venv_site and venv_site[0] not in sys.path:
+    sys.path.insert(0, venv_site[0])
+
+from textual import work  # type: ignore
+from textual.app import App, ComposeResult  # type: ignore
+from textual.binding import Binding  # type: ignore
+from textual.containers import Container, Horizontal, Vertical, VerticalScroll  # type: ignore
+from textual.widgets import (  # type: ignore
     Button,
     Checkbox,
-    Footer,
-    Header,
-    Label,
     Log,
     ProgressBar,
     RadioButton,
