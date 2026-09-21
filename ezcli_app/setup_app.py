@@ -27,6 +27,7 @@ from textual.containers import Container, Horizontal, Vertical, VerticalScroll  
 from textual.widgets import (  # type: ignore
     Button,
     Checkbox,
+    ContentSwitcher,
     Log,
     ProgressBar,
     RadioButton,
@@ -77,7 +78,7 @@ def detect_installation() -> Tuple[bool, str]:
 
 
 class SetupWizardApp(App[None]):
-    """Modern Windows-style setup wizard for EasyCLI."""
+    """Modern Windows-style setup wizard for EasyCLI with full mouse click and keyboard support."""
 
     TITLE = "EasyCLI Setup Wizard"
     SUB_TITLE = f"Version {APP_VERSION}"
@@ -86,31 +87,34 @@ class SetupWizardApp(App[None]):
     Screen {
         background: #0d1117;
         align: center middle;
+        overflow: hidden;
     }
 
     #wizard-window {
-        width: 86;
-        height: 32;
-        border: thick #388bfd;
+        width: 82;
+        max-width: 98%;
+        height: 22;
+        max-height: 98%;
+        border: round #388bfd;
         background: #161b22;
         padding: 0;
     }
 
     #wizard-header {
-        height: 3;
+        height: 1;
         background: #1f6feb;
         color: white;
         text-style: bold;
-        padding: 1 2;
+        padding: 0 1;
         content-align: center middle;
     }
 
     #wizard-body {
-        height: 24;
+        height: 1fr;
     }
 
     #sidebar {
-        width: 24;
+        width: 21;
         background: #0d1117;
         border-right: solid #30363d;
         padding: 1 1;
@@ -133,15 +137,27 @@ class SetupWizardApp(App[None]):
     }
 
     #content-area {
-        width: 60;
-        padding: 1 2;
+        width: 1fr;
+        padding: 0 1;
         background: #161b22;
+    }
+
+    ContentSwitcher {
+        height: 100%;
+        width: 100%;
+    }
+
+    .wizard-page {
+        height: 100%;
+        width: 100%;
+        padding: 0 1;
     }
 
     .screen-title {
         color: #f0f6fc;
         text-style: bold;
-        margin-bottom: 1;
+        margin-top: 0;
+        margin-bottom: 0;
     }
 
     .screen-subtitle {
@@ -152,8 +168,9 @@ class SetupWizardApp(App[None]):
     #system-card {
         background: #21262d;
         border: round #30363d;
-        padding: 1 2;
+        padding: 0 1;
         margin-bottom: 1;
+        height: auto;
     }
 
     .card-line {
@@ -173,44 +190,59 @@ class SetupWizardApp(App[None]):
     RadioSet {
         background: transparent;
         border: none;
-        margin-bottom: 1;
+        margin: 0;
+        padding: 0;
+        height: auto;
     }
 
     RadioButton {
         background: transparent;
         color: #c9d1d9;
+        padding: 0;
+        margin: 0;
     }
 
     Checkbox {
         background: transparent;
         color: #c9d1d9;
-        margin-bottom: 1;
+        margin: 0;
+        padding: 0;
     }
 
     ProgressBar {
-        margin: 1 0;
+        margin: 0;
         tint: #1f6feb;
     }
 
     #progress-log {
-        height: 10;
+        height: 8;
         background: #0d1117;
         border: solid #30363d;
         color: #c9d1d9;
         margin-top: 1;
     }
 
+    #diag-log {
+        height: 11;
+        background: #0d1117;
+        border: solid #30363d;
+        color: #c9d1d9;
+        padding: 0 1;
+        margin-top: 1;
+    }
+
     #wizard-footer {
-        height: 4;
+        height: 3;
         border-top: solid #30363d;
         background: #161b22;
-        padding: 0 2;
+        padding: 0 1;
         align: right middle;
     }
 
     #wizard-footer Button {
         margin-left: 1;
-        min-width: 12;
+        min-width: 10;
+        height: 1;
     }
 
     .primary-btn {
@@ -233,8 +265,7 @@ class SetupWizardApp(App[None]):
         super().__init__()
         self.is_installed, self.install_location = detect_installation()
         self.distro_name = get_distro_info()
-        self.current_page = "welcome"  # welcome, options, progress, uninstall_options, finish, diagnostics
-        self.selected_action = "install"  # install, custom, uninstall, repair, diagnostics
+        self.selected_action = "install"  # install, custom, uninstall, diagnostics
         self.target_scope = "system"  # system, user
         self.enable_emoji = True
         self.remove_user_data = False
@@ -242,6 +273,9 @@ class SetupWizardApp(App[None]):
         self.launch_after = True
 
     def compose(self) -> ComposeResult:
+        status_str = f"● Installed in {self.install_location}" if self.is_installed else "○ Not Installed"
+        status_cls = "status-installed" if self.is_installed else "status-not-installed"
+
         with Container(id="wizard-window"):
             yield Static(
                 f"💻 EasyCLI Setup & Management Wizard  │  v{APP_VERSION}",
@@ -253,19 +287,91 @@ class SetupWizardApp(App[None]):
                     yield Static("2. Configuration", classes="step-item", id="step-2")
                     yield Static("3. Execution", classes="step-item", id="step-3")
                     yield Static("4. Complete", classes="step-item", id="step-4")
+
                 with Vertical(id="content-area"):
-                    yield Static("", id="page-container")
+                    with ContentSwitcher(initial="page-welcome", id="wizard-switcher"):
+                        # Page 1: Welcome & Action Select
+                        with Vertical(id="page-welcome", classes="wizard-page"):
+                            yield Static("Welcome to EasyCLI Setup Wizard", classes="screen-title")
+                            yield Static("Choose an installation or management task below:", classes="screen-subtitle")
+                            with Vertical(id="system-card"):
+                                yield Static(f"Platform:  [bold]{self.distro_name}[/bold]", classes="card-line")
+                                yield Static(f"Python:    [bold]{platform.python_version()}[/bold]", classes="card-line")
+                                yield Static(f"Status:    [{status_cls}]{status_str}[/{status_cls}]", classes="card-line")
+
+                            if self.is_installed:
+                                with RadioSet(id="action-radios"):
+                                    yield RadioButton("🔄 Reinstall / Update EasyCLI (Recommended)", id="act-reinstall", value=True)
+                                    yield RadioButton("⚙️ Custom Reinstallation & Scope", id="act-custom")
+                                    yield RadioButton("🗑️ Uninstall EasyCLI completely", id="act-uninstall")
+                                    yield RadioButton("🩺 System Diagnostics & Verification", id="act-diagnostics")
+                            else:
+                                with RadioSet(id="action-radios"):
+                                    yield RadioButton("🚀 Express Install (Recommended system-wide)", id="act-express", value=True)
+                                    yield RadioButton("⚙️ Custom Installation (Choose scope & fonts)", id="act-custom")
+                                    yield RadioButton("🗑️ Clean / Uninstall Previous Residuals", id="act-uninstall")
+                                    yield RadioButton("🩺 System Diagnostics & Verification", id="act-diagnostics")
+
+                        # Page 2: Custom Options
+                        with Vertical(id="page-custom", classes="wizard-page"):
+                            yield Static("Custom Installation Options", classes="screen-title")
+                            yield Static("Configure destination directory scope and components:", classes="screen-subtitle")
+                            yield Static("1. Installation Scope:", classes="card-line")
+                            with RadioSet(id="scope-radios"):
+                                yield RadioButton("System-Wide (/usr/local/bin/ez) - Available to all users (sudo)", id="scope-sys", value=True)
+                                yield RadioButton("User-Only (~/.local/bin/ez) - No administrator/sudo required", id="scope-user")
+                            yield Static("2. Components & Enhancements:", classes="card-line")
+                            yield Checkbox("Core EasyCLI Binaries & Wrappers", value=True, disabled=True)
+                            yield Checkbox("Noto Color Emoji font prioritization for 3D icons", value=True, id="chk-emoji")
+                            yield Checkbox("Setup Manager shortcut ('ez-setup')", value=True, disabled=True)
+
+                        # Page 3: Uninstall Options
+                        with Vertical(id="page-uninstall", classes="wizard-page"):
+                            yield Static("Uninstall EasyCLI", classes="screen-title")
+                            yield Static("Select which components should be safely removed:", classes="screen-subtitle")
+                            yield Checkbox("Command shortcuts (/usr/local/bin/ez, ez-setup)", value=True, disabled=True)
+                            yield Checkbox("Application files and virtual environment (~/.local/share/ez)", value=True, disabled=True)
+                            yield Checkbox("Remove user bookmarks, history, and preferences", value=False, id="chk-data")
+                            yield Checkbox("Revert Noto Color Emoji font prioritization", value=False, id="chk-fonts")
+
+                        # Page 4: Diagnostics View
+                        with Vertical(id="page-diagnostics", classes="wizard-page"):
+                            yield Static("System & Runtime Diagnostics", classes="screen-title")
+                            with VerticalScroll(id="diag-log"):
+                                yield Static(f"• OS Platform:    {self.distro_name}")
+                                yield Static(f"• Python Runtime: {sys.version.split()[0]} ({sys.executable})")
+                                yield Static(f"• EasyCLI Home:   {EZ_HOME}")
+                                yield Static(f"• Installed Bin:  {self.install_location}")
+                                yield Static(f"• Emoji Override: {'Present' if EMOJI_CONF.exists() else 'System Default'}")
+                                which_ez = shutil.which("ez")
+                                yield Static(f"• PATH Status:    {'Found: ' + which_ez if which_ez else 'Not currently in PATH'}")
+
+                        # Page 5: Progress View
+                        with Vertical(id="page-progress", classes="wizard-page"):
+                            yield Static("Executing Operation...", classes="screen-title", id="progress-title")
+                            yield ProgressBar(total=100, show_eta=False, id="prog-bar")
+                            yield Static("Preparing task...", id="prog-status")
+                            yield Log(id="progress-log")
+
+                        # Page 6: Finish View
+                        with Vertical(id="page-finish", classes="wizard-page"):
+                            yield Static("Operation Complete!", classes="screen-title", id="finish-title")
+                            yield Static("EasyCLI operation completed successfully.", classes="screen-subtitle", id="finish-subtitle")
+                            with Vertical(id="finish-card"):
+                                yield Static("Command Launcher:  [bold cyan]ez[/bold cyan]", classes="card-line")
+                                yield Static("Setup Manager:     [bold cyan]ez-setup[/bold cyan]", classes="card-line")
+                                yield Static("Help & Manual:     [bold cyan]ez help[/bold cyan]", classes="card-line")
+                                yield Static("Diagnostics:       [bold cyan]ez system-info[/bold cyan]", classes="card-line")
+                            yield Checkbox("Launch EasyCLI now", value=True, id="chk-launch")
+
             with Horizontal(id="wizard-footer"):
                 yield Button("< Back", id="btn-back", disabled=True)
                 yield Button("Next >", id="btn-next", classes="primary-btn")
                 yield Button("Cancel", id="btn-cancel")
 
-    def on_mount(self) -> None:
-        self.render_current_page()
-
     def update_sidebar(self, step: int) -> None:
         for i in range(1, 5):
-            w = self.query_one(f"#step-i".replace("i", str(i)), Static)
+            w = self.query_one(f"#step-{i}", Static)
             w.remove_class("step-active")
             w.remove_class("step-done")
             if i < step:
@@ -273,138 +379,77 @@ class SetupWizardApp(App[None]):
             elif i == step:
                 w.add_class("step-active")
 
-    def render_current_page(self) -> None:
-        container = self.query_one("#content-area", Vertical)
-        container.remove_children()
+    def switch_page(self, page_id: str) -> None:
+        switcher = self.query_one("#wizard-switcher", ContentSwitcher)
+        switcher.current = page_id
 
         btn_back = self.query_one("#btn-back", Button)
         btn_next = self.query_one("#btn-next", Button)
 
-        if self.current_page == "welcome":
+        if page_id == "page-welcome":
             self.update_sidebar(1)
             btn_back.disabled = True
+            btn_next.disabled = False
             btn_next.label = "Next >"
             btn_next.classes = "primary-btn"
 
-            status_str = f"● Installed in {self.install_location}" if self.is_installed else "○ Not Installed"
-            status_cls = "status-installed" if self.is_installed else "status-not-installed"
-
-            container.mount(Static("Welcome to EasyCLI Setup Wizard", classes="screen-title"))
-            container.mount(Static("Choose an installation or management task below:", classes="screen-subtitle"))
-
-            with container:
-                with Vertical(id="system-card"):
-                    yield Static(f"Platform:  [bold]{self.distro_name}[/bold]", classes="card-line")
-                    yield Static(f"Python:    [bold]{platform.python_version()}[/bold]", classes="card-line")
-                    yield Static(f"Status:    [{status_cls}]{status_str}[/{status_cls}]", classes="card-line")
-
-                if self.is_installed:
-                    with RadioSet(id="action-radios"):
-                        yield RadioButton("🔄 Reinstall / Update EasyCLI (Recommended)", id="act-reinstall", value=True)
-                        yield RadioButton("⚙️ Custom Reinstallation & Preferences", id="act-custom")
-                        yield RadioButton("🗑️ Uninstall EasyCLI completely", id="act-uninstall")
-                        yield RadioButton("🩺 System Diagnostics & Verification", id="act-diagnostics")
-                else:
-                    with RadioSet(id="action-radios"):
-                        yield RadioButton("🚀 Express Install (Recommended system-wide)", id="act-express", value=True)
-                        yield RadioButton("⚙️ Custom Installation (Choose scope & fonts)", id="act-custom")
-                        yield RadioButton("🗑️ Clean / Uninstall Previous Residuals", id="act-uninstall")
-                        yield RadioButton("🩺 System Diagnostics & Verification", id="act-diagnostics")
-
-        elif self.current_page == "custom_options":
+        elif page_id == "page-custom":
             self.update_sidebar(2)
             btn_back.disabled = False
+            btn_next.disabled = False
             btn_next.label = "Install Now"
             btn_next.classes = "primary-btn"
 
-            container.mount(Static("Custom Installation Options", classes="screen-title"))
-            container.mount(Static("Configure target directory scope and components:", classes="screen-subtitle"))
-
-            with container:
-                yield Static("1. Installation Target Directory:", classes="card-line")
-                with RadioSet(id="scope-radios"):
-                    yield RadioButton("System-Wide (/usr/local/bin/ez) - Available to all users (sudo)", id="scope-sys", value=(self.target_scope == "system"))
-                    yield RadioButton("User-Only (~/.local/bin/ez) - No administrator/sudo required", id="scope-user", value=(self.target_scope == "user"))
-
-                yield Static("2. Components & Enhancements:", classes="card-line")
-                yield Checkbox("Core EasyCLI Binaries & Commands", value=True, disabled=True)
-                yield Checkbox("Noto Color Emoji font prioritization for 3D icons", value=self.enable_emoji, id="chk-emoji")
-                yield Checkbox("Setup Manager shortcut ('ez-setup')", value=True, disabled=True)
-
-        elif self.current_page == "uninstall_options":
+        elif page_id == "page-uninstall":
             self.update_sidebar(2)
             btn_back.disabled = False
-            btn_next.label = "Uninstall"
+            btn_next.disabled = False
+            btn_next.label = "Uninstall Now"
             btn_next.classes = "danger-btn"
 
-            container.mount(Static("Uninstall EasyCLI", classes="screen-title"))
-            container.mount(Static("Select which components should be removed:", classes="screen-subtitle"))
-
-            with container:
-                yield Checkbox("Command symlinks (/usr/local/bin/ez, ez-setup)", value=True, disabled=True)
-                yield Checkbox("Application files and virtualenv (~/.local/share/ez/app)", value=True, disabled=True)
-                yield Checkbox("User bookmarks, history, and configuration files", value=self.remove_user_data, id="chk-data")
-                if EMOJI_CONF.exists():
-                    yield Checkbox("Revert Noto Color Emoji font priority configuration", value=self.remove_fonts, id="chk-fonts")
-
-        elif self.current_page == "diagnostics":
+        elif page_id == "page-diagnostics":
             self.update_sidebar(2)
             btn_back.disabled = False
-            btn_next.label = "Done"
+            btn_next.disabled = False
+            btn_next.label = "Back to Menu"
             btn_next.classes = "primary-btn"
 
-            container.mount(Static("System & Runtime Diagnostics", classes="screen-title"))
-            with container:
-                with VerticalScroll(id="progress-log"):
-                    yield Static(f"• OS Platform:    {self.distro_name}")
-                    yield Static(f"• Python Runtime: {sys.version.split()[0]} ({sys.executable})")
-                    yield Static(f"• EasyCLI Home:   {EZ_HOME}")
-                    yield Static(f"• Installed Bin:  {self.install_location}")
-                    yield Static(f"• Emoji Override: {'Present' if EMOJI_CONF.exists() else 'System Default'}")
-                    which_ez = shutil.which("ez")
-                    yield Static(f"• PATH Status:    {'Found: ' + which_ez if which_ez else 'Not currently in PATH'}")
-
-        elif self.current_page == "progress":
+        elif page_id == "page-progress":
             self.update_sidebar(3)
             btn_back.disabled = True
             btn_next.disabled = True
             btn_next.label = "Working..."
 
-            action_title = "Installing EasyCLI..." if self.selected_action in ["install", "custom", "repair"] else "Uninstalling EasyCLI..."
-            container.mount(Static(action_title, classes="screen-title", id="progress-title"))
-            with container:
-                yield ProgressBar(total=100, show_eta=False, id="prog-bar")
-                yield Static("Preparing task...", id="prog-status")
-                yield Log(id="progress-log")
-
-            if self.selected_action in ["install", "custom", "repair"]:
-                self.run_install_worker()
-            else:
+            title_w = self.query_one("#progress-title", Static)
+            if self.selected_action == "uninstall":
+                title_w.update("Uninstalling EasyCLI...")
                 self.run_uninstall_worker()
+            else:
+                title_w.update("Installing EasyCLI...")
+                self.run_install_worker()
 
-        elif self.current_page == "finish":
+        elif page_id == "page-finish":
             self.update_sidebar(4)
             btn_back.disabled = True
             btn_next.disabled = False
             btn_next.label = "Finish"
             btn_next.classes = "primary-btn"
 
-            is_uninstalled = (self.selected_action == "uninstall")
-            title = "EasyCLI Has Been Removed" if is_uninstalled else "🎉 EasyCLI Setup Completed!"
-            container.mount(Static(title, classes="screen-title"))
+            f_title = self.query_one("#finish-title", Static)
+            f_sub = self.query_one("#finish-subtitle", Static)
+            f_card = self.query_one("#finish-card", Vertical)
+            chk_launch = self.query_one("#chk-launch", Checkbox)
 
-            with container:
-                if is_uninstalled:
-                    yield Static("EasyCLI and its components were successfully removed from your system.", classes="screen-subtitle")
-                else:
-                    yield Static("EasyCLI is now installed and ready for your daily terminal tasks.", classes="screen-subtitle")
-                    with Vertical(id="system-card"):
-                        yield Static("Command Launcher:  [bold cyan]ez[/bold cyan]", classes="card-line")
-                        yield Static("Setup Manager:     [bold cyan]ez-setup[/bold cyan]", classes="card-line")
-                        yield Static("Help & Manual:     [bold cyan]ez help[/bold cyan]", classes="card-line")
-                        yield Static("Diagnostics:       [bold cyan]ez system-info[/bold cyan]", classes="card-line")
-
-                    yield Checkbox("Launch EasyCLI now", value=self.launch_after, id="chk-launch")
+            if self.selected_action == "uninstall":
+                f_title.update("🎉 EasyCLI Has Been Removed")
+                f_sub.update("EasyCLI and its components were successfully removed from your computer.")
+                f_card.display = False
+                chk_launch.display = False
+            else:
+                f_title.update("🎉 EasyCLI Setup Completed Successfully!")
+                f_sub.update("EasyCLI has been installed and is ready to use in your terminal.")
+                f_card.display = True
+                chk_launch.display = True
 
     def on_radio_set_changed(self, event: RadioSet.Changed) -> None:
         if event.radio_set.id == "action-radios":
@@ -435,30 +480,29 @@ class SetupWizardApp(App[None]):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         bid = event.button.id
+        switcher = self.query_one("#wizard-switcher", ContentSwitcher)
+        cur = switcher.current
+
         if bid == "btn-cancel":
             self.exit()
         elif bid == "btn-back":
-            if self.current_page in ["custom_options", "uninstall_options", "diagnostics"]:
-                self.current_page = "welcome"
-                self.render_current_page()
+            if cur in ["page-custom", "page-uninstall", "page-diagnostics"]:
+                self.switch_page("page-welcome")
         elif bid == "btn-next":
-            if self.current_page == "welcome":
+            if cur == "page-welcome":
                 if self.selected_action == "custom":
-                    self.current_page = "custom_options"
+                    self.switch_page("page-custom")
                 elif self.selected_action == "uninstall":
-                    self.current_page = "uninstall_options"
+                    self.switch_page("page-uninstall")
                 elif self.selected_action == "diagnostics":
-                    self.current_page = "diagnostics"
+                    self.switch_page("page-diagnostics")
                 else:
-                    self.current_page = "progress"
-                self.render_current_page()
-            elif self.current_page in ["custom_options", "uninstall_options"]:
-                self.current_page = "progress"
-                self.render_current_page()
-            elif self.current_page == "diagnostics":
-                self.current_page = "welcome"
-                self.render_current_page()
-            elif self.current_page == "finish":
+                    self.switch_page("page-progress")
+            elif cur in ["page-custom", "page-uninstall"]:
+                self.switch_page("page-progress")
+            elif cur == "page-diagnostics":
+                self.switch_page("page-welcome")
+            elif cur == "page-finish":
                 self.exit()
                 if self.launch_after and self.selected_action != "uninstall":
                     os.system("ez || true")
@@ -506,7 +550,6 @@ class SetupWizardApp(App[None]):
                 shutil.copy2(src_dir / "ez", APP_DIR / "ez")
                 os.chmod(str(APP_DIR / "ez"), 0o755)
 
-                # Copy ez-setup.sh for permanent manager
                 if (src_dir / "ez-setup.sh").exists():
                     shutil.copy2(src_dir / "ez-setup.sh", EZ_HOME / "ez-setup.sh")
                     os.chmod(str(EZ_HOME / "ez-setup.sh"), 0o755)
@@ -612,8 +655,7 @@ class SetupWizardApp(App[None]):
 
     def _finish_operation(self) -> None:
         self.is_installed, self.install_location = detect_installation()
-        self.current_page = "finish"
-        self.render_current_page()
+        self.switch_page("page-finish")
 
 
 def run_setup_app() -> None:
