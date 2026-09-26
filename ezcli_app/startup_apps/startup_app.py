@@ -1,12 +1,22 @@
 """Interactive Textual TUI for managing startup apps and boot services."""
 
+import glob
+import os
+import sys
 from typing import List, Optional
 
-from textual.app import App, ComposeResult
-from textual.binding import Binding
-from textual.containers import Container, Horizontal, Vertical
-from textual.screen import ModalScreen
-from textual.widgets import Button, DataTable, Footer, Header, Input, Label, TabbedContent, TabPane
+venv_site = (
+    glob.glob(os.path.expanduser("~/.local/share/ez/venv/lib/python*/site-packages"))
+    + glob.glob(os.path.expanduser("~/.local/share/ezcli/venv/lib/python*/site-packages"))
+)
+if venv_site and venv_site[0] not in sys.path:
+    sys.path.insert(0, venv_site[0])
+
+from textual.app import App, ComposeResult  # type: ignore
+from textual.binding import Binding  # type: ignore
+from textual.containers import Container, Horizontal, Vertical  # type: ignore
+from textual.screen import ModalScreen  # type: ignore
+from textual.widgets import Button, DataTable, Footer, Header, Input, Label, TabbedContent, TabPane  # type: ignore
 
 from .startup_engine import (
     StartupItem,

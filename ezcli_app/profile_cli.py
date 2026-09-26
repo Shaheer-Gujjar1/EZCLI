@@ -1,6 +1,7 @@
 """User profile and secure password management for EasyCLI."""
 
 import getpass
+import glob
 import grp
 import os
 import pwd
@@ -10,16 +11,23 @@ import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
+venv_site = (
+    glob.glob(os.path.expanduser("~/.local/share/ez/venv/lib/python*/site-packages"))
+    + glob.glob(os.path.expanduser("~/.local/share/ezcli/venv/lib/python*/site-packages"))
+)
+if venv_site and venv_site[0] not in sys.path:
+    sys.path.insert(0, venv_site[0])
+
 from rich import box
 from rich.console import Console
 from rich.panel import Panel
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
-from textual.app import App, ComposeResult
-from textual.containers import Horizontal, Vertical
-from textual.screen import ModalScreen
-from textual.widgets import Button, Input, Label
+from textual.app import App, ComposeResult  # type: ignore
+from textual.containers import Horizontal, Vertical  # type: ignore
+from textual.screen import ModalScreen  # type: ignore
+from textual.widgets import Button, Input, Label  # type: ignore
 
 from .elevation import elevated_user_chpasswd, prompt_password_dots
 

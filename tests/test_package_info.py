@@ -455,8 +455,8 @@ class TestPackageInfo(unittest.TestCase):
 
     def test_admin_password_modal_lifecycle(self):
         import asyncio
-        from textual.app import App
-        from textual.widgets import Input, Label
+        from textual.app import App  # type: ignore
+        from textual.widgets import Input, Label  # type: ignore
         from ezcli_app.package_info_tui import AdminPasswordModal
 
         class DummyApp(App[None]):
