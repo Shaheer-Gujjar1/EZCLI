@@ -435,6 +435,20 @@ class TestPackageInfo(unittest.TestCase):
         run_cli_package_info(None, console=self.console)
         self.assertTrue(mock_hub.called)
 
+    def test_package_info_tui_app_lifecycle(self):
+        import asyncio
+        from ezcli_app.package_info_tui import PackageInfoApp
+
+        async def _test():
+            app = PackageInfoApp()
+            async with app.run_test() as pilot:
+                self.assertIsNotNone(pilot.app.query_one("#search-input"))
+                self.assertIsNotNone(pilot.app.query_one("#package-table"))
+                self.assertIsNotNone(pilot.app.query_one("#detail-scroll"))
+                await pilot.click("#btn-close")
+
+        asyncio.run(_test())
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -840,6 +840,12 @@ def helper_package_install(platform: str, package: Any, timeout: int = 300) -> D
         return {"success": False, "error": "No package specified for installation."}
 
     platform_clean = (platform or "apt").lower()
+    if platform_clean in ("flathub", "flatpak"):
+        platform_clean = "flatpak"
+    elif platform_clean in ("snap_store", "snap"):
+        platform_clean = "snap"
+    elif platform_clean in ("dpkg", "apt_store", "apt"):
+        platform_clean = "apt"
 
     env = os.environ.copy()
     env["DEBIAN_FRONTEND"] = "noninteractive"
@@ -899,6 +905,12 @@ def helper_package_uninstall(
 
     pkg_clean = package.strip()
     platform_clean = (platform or "apt").lower()
+    if platform_clean in ("flathub", "flatpak"):
+        platform_clean = "flatpak"
+    elif platform_clean in ("snap_store", "snap"):
+        platform_clean = "snap"
+    elif platform_clean in ("dpkg", "apt_store", "apt"):
+        platform_clean = "apt"
 
     env = os.environ.copy()
     env["DEBIAN_FRONTEND"] = "noninteractive"

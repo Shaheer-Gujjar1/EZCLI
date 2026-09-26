@@ -374,10 +374,13 @@ class TestAutomaticElevationCLI(unittest.TestCase):
 
     @patch("ezcli_app.elevation.is_root", return_value=False)
     @patch("ezcli_app.elevation.prompt_password_dots", return_value=None)
-    def test_authenticate_elevation_session_cancelled(self, mock_prompt, mock_root):
+    @patch("subprocess.run")
+    def test_authenticate_elevation_session_cancelled(self, mock_sub, mock_prompt, mock_root):
         from ezcli_app.elevation import authenticate_elevation_session
+        mock_sub.return_value = MagicMock(returncode=1)
         session = authenticate_elevation_session(skip_explanation=True)
         self.assertIsNone(session)
+        mock_prompt.assert_called_once()
 
     def test_lock_freshness_check(self):
         """Verify is_directory_locked reports true on restricted folders and false on accessible ones."""

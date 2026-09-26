@@ -20,6 +20,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -1236,7 +1237,15 @@ def handle_candidate_actions(console: Console, candidate: PackageCandidate) -> N
 
 
 def run_package_info_hub(console: Console) -> None:
-    """TUI Hub mode displayed when 'ez package-info' is run without arguments."""
+    """Hub mode displayed when 'ez package-info' is run without arguments."""
+    if sys.stdout.isatty():
+        from .main import check_textual_installed
+        if check_textual_installed(console):
+            from .package_info_tui import PackageInfoApp
+            app = PackageInfoApp()
+            app.run()
+            return
+
     while True:
         console.clear()
         header = (
@@ -1299,6 +1308,15 @@ def run_cli_package_info(name: Optional[str] = None, console: Optional[Console] 
     """
     console = console or Console()
     query = (name or "").strip()
+
+    # Launch full interactive TUI in terminal sessions
+    if sys.stdout.isatty():
+        from .main import check_textual_installed
+        if check_textual_installed(console):
+            from .package_info_tui import PackageInfoApp
+            app = PackageInfoApp(initial_query=query)
+            app.run()
+            return
 
     if not query:
         run_package_info_hub(console)

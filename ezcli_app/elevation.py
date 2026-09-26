@@ -900,8 +900,9 @@ class ElevationResult(tuple):
 
 
 def elevated_package_install(
-    platform_or_package: Any,
+    platform_or_package: Any = None,
     package: Optional[Any] = None,
+    platform: Optional[str] = None,
     reason: Optional[str] = None,
     task_description: Optional[str] = None,
     skip_explanation: bool = False,
@@ -910,39 +911,48 @@ def elevated_package_install(
 ) -> ElevationResult:
     """Install a software package or list of packages via the privileged helper (APT, Flatpak, Snap).
     
-    Supports both calling conventions:
+    Supports both calling conventions and keyword arguments:
       - elevated_package_install(platform, package, console=console)
       - elevated_package_install(package_or_packages, reason=..., task_description=..., console=console)
+      - elevated_package_install(platform="flatpak", package="org.winehq.Wine", console=console)
     """
     console = console or Console()
 
-    if package is None:
-        platform = "apt"
-        package = platform_or_package
-    elif isinstance(platform_or_package, (list, tuple, set)):
-        platform = "apt"
-        package = platform_or_package
-    elif str(platform_or_package).lower() in ("apt", "snap", "flatpak"):
-        platform = str(platform_or_package).lower()
-    else:
-        platform = "apt"
-        package = platform_or_package
+    # Determine platform
+    chosen_plat: str = "apt"
+    if platform is not None:
+        chosen_plat = str(platform).lower()
+    elif package is not None and str(platform_or_package).lower() in ("apt", "snap", "flatpak", "flathub", "snap_store", "dpkg", "apt_store"):
+        chosen_plat = str(platform_or_package).lower()
+    elif str(platform_or_package).lower() in ("apt", "snap", "flatpak", "flathub", "snap_store", "dpkg", "apt_store") and package is not None:
+        chosen_plat = str(platform_or_package).lower()
 
-    if isinstance(package, (list, tuple, set)):
-        pkg_list = [str(p).strip() for p in package if str(p).strip()]
+    # Normalize platform aliases
+    if chosen_plat in ("flathub", "flatpak"):
+        platform_clean = "flatpak"
+    elif chosen_plat in ("snap_store", "snap"):
+        platform_clean = "snap"
+    else:
+        platform_clean = "apt"
+
+    # Determine target package(s)
+    actual_pkg = package if package is not None else platform_or_package
+
+    if isinstance(actual_pkg, (list, tuple, set)):
+        pkg_list = [str(p).strip() for p in actual_pkg if str(p).strip()]
         pkg_clean = " ".join(pkg_list)
         pkg_display = ", ".join(pkg_list)
     else:
-        pkg_clean = str(package).strip() if package else ""
+        pkg_clean = str(actual_pkg).strip() if actual_pkg else ""
         pkg_display = pkg_clean
 
-    plat_label = (platform or "apt").upper()
+    plat_label = platform_clean.upper()
     default_reason = f"Install {plat_label} software package '{pkg_display}' onto the system"
     default_task = f"Install '{pkg_display}' via {plat_label} package manager"
 
     success, res, err = run_elevated_helper(
         action="package_install",
-        params={"platform": platform, "package": pkg_clean, "timeout": timeout},
+        params={"platform": platform_clean, "package": pkg_clean, "timeout": timeout},
         reason=reason or default_reason,
         task_description=task_description or default_task,
         risk_level="high",
