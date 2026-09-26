@@ -206,9 +206,7 @@ class AdminPasswordModal(ModalScreen[Optional[str]]):
         height: 3;
     }
     #admin-toggle-box Button {
-        height: 3;
         min-width: 18;
-        border: round #30363d;
     }
     #admin-buttons {
         align: center middle;
@@ -218,8 +216,6 @@ class AdminPasswordModal(ModalScreen[Optional[str]]):
     #admin-buttons Button {
         margin: 0 1;
         min-width: 16;
-        height: 3;
-        border: round;
     }
     """
 
@@ -341,9 +337,7 @@ class ConfirmUninstallModal(ModalScreen[bool]):
     }
     #uninstall-actions Button {
         margin: 0 1;
-        min-width: 18;
-        height: 3;
-        border: round;
+        min-width: 16;
     }
     """
 
@@ -429,9 +423,7 @@ class ConfirmInstallModal(ModalScreen[Optional[PackageSourceInfo]]):
     }
     #install-actions Button {
         margin: 0 1;
-        min-width: 18;
-        height: 3;
-        border: round;
+        min-width: 16;
     }
     """
 
@@ -509,39 +501,29 @@ class PackageInfoApp(App[None]):
     }
 
     #filter-bar {
-        height: 3;
+        height: auto;
+        margin: 1 0 0 0;
         align: left middle;
     }
 
     #filter-bar Button {
-        height: 3;
-        min-width: 15;
         margin-right: 1;
-        border: round #334155;
+        min-width: 16;
     }
 
-    .filter-active {
-        background: #0284c7;
-        color: #ffffff;
-        border: round #38bdf8 !important;
-        text-style: bold;
-    }
-
-    .filter-inactive {
-        background: #111e38;
-        color: #94a3b8;
-        border: round #1e293b !important;
-    }
-
-    #main-content {
+    #main-wrapper {
         height: 1fr;
         margin: 0 1;
     }
 
+    #main-content {
+        height: 1fr;
+    }
+
     /* Broad, generous Results Div */
     #catalog-pane {
-        width: 48%;
-        min-width: 44;
+        width: 45%;
+        min-width: 40;
         height: 100%;
         margin-right: 1;
         border: round #1e293b;
@@ -576,8 +558,8 @@ class PackageInfoApp(App[None]):
 
     /* Deep Details Div */
     #detail-pane {
-        width: 52%;
-        min-width: 34;
+        width: 55%;
+        min-width: 36;
         height: 100%;
         border: round #0284c7;
         background: #0b1120;
@@ -611,11 +593,26 @@ class PackageInfoApp(App[None]):
     #hero-icon {
         margin-right: 1;
         text-style: bold;
+        width: 4;
     }
 
     #hero-title {
         text-style: bold;
         color: #60a5fa;
+        width: 1fr;
+    }
+
+    #hero-badge {
+        height: auto;
+        color: #94a3b8;
+    }
+
+    #hero-status {
+        height: auto;
+        margin-top: 1;
+        padding: 0 1;
+        background: #0a2040;
+        border: solid #1e3a8a;
     }
 
     .card-title {
@@ -643,25 +640,18 @@ class PackageInfoApp(App[None]):
         content-align: left middle;
     }
 
-    /* Bottom Action Bar with isolated rounded buttons */
     #action-bar {
-        height: 4;
-        dock: bottom;
-        margin: 1 1 0 1;
-        padding: 0 1;
+        height: 5;
+        background: #0d1527;
+        border-top: solid #1e3a8a;
         align: center middle;
+        margin: 0 1;
+        padding: 0 1;
     }
 
     #action-bar Button {
         margin: 0 1;
-        min-width: 13;
-        height: 3;
-        border: round;
-    }
-
-    #action-bar Button:disabled {
-        opacity: 0.4;
-        border: round #334155;
+        min-width: 14;
     }
     """
 
@@ -681,58 +671,63 @@ class PackageInfoApp(App[None]):
                 value=self.initial_query,
             )
             with Horizontal(id="filter-bar"):
-                yield Button("🌐 All Items", id="tab-all", classes="filter-active")
-                yield Button("📱 Installed Apps", id="tab-installed", classes="filter-inactive")
-                yield Button("🏪 Store Catalogs", id="tab-store", classes="filter-inactive")
-                yield Button("🔄 Available Updates", id="tab-updates", classes="filter-inactive")
+                yield Button("🌐 All Items", id="tab-all", variant="primary")
+                yield Button("📱 Installed Apps", id="tab-installed", variant="default")
+                yield Button("🏪 Store Catalogs", id="tab-store", variant="default")
+                yield Button("🔄 Available Updates", id="tab-updates", variant="default")
 
-        with Horizontal(id="main-content"):
-            with Vertical(id="catalog-pane"):
-                yield Label("📦 Software Catalog", id="catalog-header")
-                yield DataTable(id="package-table", cursor_type="row")
+        with Vertical(id="main-wrapper"):
+            with Horizontal(id="main-content"):
+                with Vertical(id="catalog-pane"):
+                    yield Label("📦 Software Catalog", id="catalog-header")
+                    yield DataTable(id="package-table", cursor_type="row")
 
-            with Vertical(id="detail-pane"):
-                with VerticalScroll(id="detail-scroll"):
-                    # 1. Hero Showcase
-                    with Vertical(id="hero-card", classes="detail-card"):
-                        with Horizontal(id="hero-header-row"):
-                            yield Label("📦", id="hero-icon")
-                            yield Label("Select an item to inspect", id="hero-title")
-                        yield Static(id="hero-badge")
+                with Vertical(id="detail-pane"):
+                    with VerticalScroll(id="detail-scroll"):
+                        # 1. Hero Showcase
+                        with Vertical(id="hero-card", classes="detail-card"):
+                            with Horizontal(id="hero-header-row"):
+                                yield Label("📦", id="hero-icon")
+                                yield Label("Select an item to inspect", id="hero-title")
+                            yield Static(
+                                "[dim]Search above or select an item from the catalog.[/dim]",
+                                id="hero-badge"
+                            )
+                            yield Static("", id="hero-status")
 
-                    # 2. Key Metrics Grid
-                    with Grid(id="metrics-grid"):
-                        yield Static("🏷️ Version: [bold]--[/bold]", id="metric-version", classes="metric-box")
-                        yield Static("💾 Size: [bold]--[/bold]", id="metric-size", classes="metric-box")
-                        yield Static("⚖️ License: [bold]--[/bold]", id="metric-license", classes="metric-box")
-                        yield Static("📂 Category: [bold]--[/bold]", id="metric-category", classes="metric-box")
+                        # 2. Key Metrics Grid
+                        with Grid(id="metrics-grid"):
+                            yield Static("🏷️ Version: [bold]--[/bold]", id="metric-version", classes="metric-box")
+                            yield Static("💾 Size: [bold]--[/bold]", id="metric-size", classes="metric-box")
+                            yield Static("⚖️ License: [bold]--[/bold]", id="metric-license", classes="metric-box")
+                            yield Static("📂 Category: [bold]--[/bold]", id="metric-category", classes="metric-box")
 
-                    # 3. Overview Description
-                    with Vertical(id="summary-card", classes="detail-card"):
-                        yield Label("📝 About & Overview", classes="card-title")
-                        yield Static(id="summary-body", classes="card-text")
+                        # 3. Overview Description
+                        with Vertical(id="summary-card", classes="detail-card"):
+                            yield Label("📝 About & Overview", classes="card-title")
+                            yield Static(id="summary-body", classes="card-text")
 
-                    # 4. Sources & Repositories
-                    with Vertical(id="sources-card", classes="detail-card"):
-                        yield Label("📦 Available Installation Formats & Repositories", classes="card-title")
-                        yield Static(id="sources-body", classes="card-text")
+                        # 4. Sources & Repositories
+                        with Vertical(id="sources-card", classes="detail-card"):
+                            yield Label("📦 Available Installation Formats & Repositories", classes="card-title")
+                            yield Static(id="sources-body", classes="card-text")
 
-                    # 5. Technical Specifications
-                    with Vertical(id="meta-card", classes="detail-card"):
-                        yield Label("📋 Technical Specifications", classes="card-title")
-                        yield Static(id="meta-body", classes="card-text")
+                        # 5. Technical Specifications
+                        with Vertical(id="meta-card", classes="detail-card"):
+                            yield Label("📋 Technical Specifications", classes="card-title")
+                            yield Static(id="meta-body", classes="card-text")
 
-                    # 6. Dependencies
-                    with Vertical(id="deps-card", classes="detail-card"):
-                        yield Label("🔗 System Dependencies & Runtime", classes="card-title")
-                        yield Static(id="deps-body", classes="card-text")
+                        # 6. Dependencies
+                        with Vertical(id="deps-card", classes="detail-card"):
+                            yield Label("🔗 System Dependencies & Runtime", classes="card-title")
+                            yield Static(id="deps-body", classes="card-text")
 
-        with Horizontal(id="action-bar"):
-            yield Button("🚀 Launch App", variant="success", id="btn-launch")
-            yield Button("⬇️ Install Software", variant="primary", id="btn-install")
-            yield Button("🗑️ Uninstall", variant="error", id="btn-uninstall")
-            yield Button("🔄 Refresh", variant="default", id="btn-refresh")
-            yield Button("❌ Close", variant="default", id="btn-close")
+            with Horizontal(id="action-bar"):
+                yield Button("🚀 Launch", variant="success", id="btn-launch", disabled=True)
+                yield Button("⬇️ Install", variant="primary", id="btn-install", disabled=True)
+                yield Button("🗑️ Uninstall", variant="error", id="btn-uninstall", disabled=True)
+                yield Button("🔄 Refresh", variant="default", id="btn-refresh")
+                yield Button("❌ Close", variant="default", id="btn-close")
 
         yield Footer()
 
@@ -907,17 +902,19 @@ class PackageInfoApp(App[None]):
         self.query_one("#hero-icon", Label).update(candidate.nature_icon)
         self.query_one("#hero-title", Label).update(candidate.name)
 
-        status_text = (
-            "[bold green]✅ Currently Installed on System[/bold green]"
-            if candidate.is_installed
-            else "[bold cyan]🏪 Available in Software Store[/bold cyan]"
-        )
+        if candidate.is_installed:
+            status_detail = "[bold green]✅ Currently Installed on System[/bold green]"
+        else:
+            status_detail = "[bold cyan]🏪 Available in Software Store[/bold cyan]"
+
         badge_static = self.query_one("#hero-badge", Static)
         badge_static.update(
             f"Nature: [bold yellow]{candidate.nature}[/bold yellow]  •  "
-            f"Status: {status_text}  •  "
             f"Version: [bold green]{details['version']}[/bold green]"
         )
+
+        status_static = self.query_one("#hero-status", Static)
+        status_static.update(f"Status: {status_detail}")
 
         # 2. Metrics Grid
         size_display = details["installed_size"] or details["download_size"] or "Standard"
@@ -976,6 +973,7 @@ class PackageInfoApp(App[None]):
         self.query_one("#hero-icon", Label).update("📦")
         self.query_one("#hero-title", Label).update("No Software Item Selected")
         self.query_one("#hero-badge", Static).update("[dim]Type above to search software catalogs or select an item from the left.[/dim]")
+        self.query_one("#hero-status", Static).update("")
         self.query_one("#metric-version", Static).update("🏷️ Version: --")
         self.query_one("#metric-size", Static).update("💾 Size: --")
         self.query_one("#metric-license", Static).update("⚖️ License: --")
@@ -1005,17 +1003,39 @@ class PackageInfoApp(App[None]):
             self._populate_catalog(self.candidates, "📦 Software Catalog")
 
     def check_or_request_admin(self, action_name: str, callback: Callable[[Optional[str]], None]) -> None:
-        """Verify if admin privileges are available, or present the In-TUI AdminPasswordModal."""
+        """Request admin privileges via the In-TUI AdminPasswordModal.
+
+        Clears cached sudo timestamps first so a cached session doesn't silently
+        bypass the password prompt. If sudo is genuinely passwordless (NOPASSWD
+        configured in sudoers), the callback is called directly without a modal.
+        """
         if is_root() or os.geteuid() == 0:
+            # Already root — no password needed
             callback("")
             return
 
-        res = subprocess.run(["sudo", "-n", "true"], capture_output=True)
-        if res.returncode == 0:
-            callback("")
-            return
+        # Clear any cached sudo timestamp so stale sessions don't bypass the modal
+        try:
+            subprocess.run(["sudo", "-k"], capture_output=True, timeout=5)
+        except Exception:
+            pass
 
-        # Prompt password inside TUI modal
+        # After clearing the cache, check if sudo is *genuinely* passwordless
+        # (e.g., NOPASSWD entry in sudoers — common in CI and managed machines).
+        # If -n true still passes after -k, no password is needed at all.
+        try:
+            check = subprocess.run(
+                ["sudo", "-n", "true"],
+                capture_output=True,
+                timeout=5,
+            )
+            if check.returncode == 0:
+                callback("")
+                return
+        except Exception:
+            pass
+
+        # Password is required — show the In-TUI modal
         self.push_screen(AdminPasswordModal(action_name), callback)
 
     def action_launch(self) -> None:
@@ -1086,11 +1106,14 @@ class PackageInfoApp(App[None]):
 
         try:
             with ElevationSession(password=pwd):
-                ok = elevated_package_install(
+                result = elevated_package_install(
                     platform=plat,
                     package=target_pkg,
                     skip_explanation=True,
                 )
+
+            ok = bool(result[0]) if result else False
+            err_msg = result[2] if result and len(result) > 2 else ""
 
             if ok:
                 self.app.call_from_thread(
@@ -1101,13 +1124,15 @@ class PackageInfoApp(App[None]):
                 )
                 self.app.call_from_thread(self.action_refresh_catalog)
             else:
+                display_err = err_msg or f"apt-get install failed for '{target_pkg}'. Check package name."
                 self.app.call_from_thread(
                     self.notify,
-                    f"Installation failed: could not install '{target_pkg}'.",
+                    f"Install failed: {display_err}",
                     title="Install Failed",
                     severity="error",
+                    timeout=12.0,
                 )
-                self.app.call_from_thread(self._set_catalog_status, f"❌ Install failed for '{candidate_name}'.")
+                self.app.call_from_thread(self._set_catalog_status, f"❌ Install failed: {display_err[:60]}")
         except Exception as e:
             self.app.call_from_thread(
                 self.notify,
@@ -1116,6 +1141,7 @@ class PackageInfoApp(App[None]):
                 severity="error",
             )
             self.app.call_from_thread(self._set_catalog_status, f"Error: {e}")
+
 
     def action_uninstall(self) -> None:
         if not self.selected_candidate or not self.selected_candidate.is_installed:

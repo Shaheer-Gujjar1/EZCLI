@@ -431,23 +431,43 @@ def run_elevated_helper(
                 return False, None, "Elevation was declined by user."
 
         # 3. Find python executable and repo path
-        python_bin = sys.executable or "python3"
+        python_bin = sys.executable or shutil.which("python3") or "python3"
         repo_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        helper_script = os.path.join(repo_dir, "ezcli_app", "privileged_helper.py")
         json_payload = json.dumps({"action": action, "params": params})
 
-        # Prepare command for sudo
-        sudo_cmd = [
-            "sudo",
-            "-S",  # Read password from stdin
-            "-p",  # Custom prompt (empty string so sudo doesn't output default prompt)
-            "",
-            "PYTHONPATH=" + repo_dir,
-            python_bin,
-            "-m",
-            "ezcli_app.privileged_helper",
-            "--json",
-            json_payload,
-        ]
+        # Prefer the helper script path to avoid -m module resolution under sudo.
+        # Use 'env' to explicitly forward PYTHONPATH so sudo's env_reset doesn't strip it.
+        if os.path.isfile(helper_script):
+            sudo_cmd = [
+                "sudo",
+                "-S",  # Read password from stdin
+                "-p",  # Custom prompt (empty string to suppress sudo's own prompt)
+                "",
+                "env",
+                "PYTHONPATH=" + repo_dir,
+                "DEBIAN_FRONTEND=noninteractive",
+                python_bin,
+                helper_script,
+                "--json",
+                json_payload,
+            ]
+        else:
+            # Fallback: module invocation with explicit env
+            sudo_cmd = [
+                "sudo",
+                "-S",
+                "-p",
+                "",
+                "env",
+                "PYTHONPATH=" + repo_dir,
+                "DEBIAN_FRONTEND=noninteractive",
+                python_bin,
+                "-m",
+                "ezcli_app.privileged_helper",
+                "--json",
+                json_payload,
+            ]
 
         # If an active session password exists, use it directly without re-prompting
         if _ACTIVE_SESSION_PASSWORD is not None:
