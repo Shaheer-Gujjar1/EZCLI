@@ -828,12 +828,17 @@ def dispatch_helper_request(request: Dict[str, Any], progress_callback: Optional
 
 
 
-def helper_package_install(platform: str, package: str, timeout: int = 300) -> Dict[str, Any]:
+def helper_package_install(platform: str, package: Any, timeout: int = 300) -> Dict[str, Any]:
     """Install a package via APT, Flatpak, or Snap with elevated permissions."""
-    if not package or not package.strip():
+    if isinstance(package, (list, tuple, set)):
+        pkg_list = [str(p).strip() for p in package if str(p).strip()]
+        pkg_clean = " ".join(pkg_list)
+    else:
+        pkg_clean = str(package).strip() if package else ""
+
+    if not pkg_clean:
         return {"success": False, "error": "No package specified for installation."}
 
-    pkg_clean = package.strip()
     platform_clean = (platform or "apt").lower()
 
     env = os.environ.copy()
@@ -841,21 +846,22 @@ def helper_package_install(platform: str, package: str, timeout: int = 300) -> D
     env["LANG"] = "C.UTF-8"
     env["LC_ALL"] = "C.UTF-8"
 
+    pkg_args = pkg_clean.split()
+
     if platform_clean == "apt":
         cmd = [
             "apt-get", "install", "-y", "--with-new-pkgs",
             "-o", "Dpkg::Options::=--force-confdef",
             "-o", "Dpkg::Options::=--force-confold",
-            pkg_clean,
-        ]
+        ] + pkg_args
     elif platform_clean == "snap":
         if not shutil.which("snap"):
             return {"success": False, "error": "Snap is not installed on this system."}
-        cmd = ["snap", "install", pkg_clean]
+        cmd = ["snap", "install"] + pkg_args
     elif platform_clean == "flatpak":
         if not shutil.which("flatpak"):
             return {"success": False, "error": "Flatpak is not installed on this system."}
-        cmd = ["flatpak", "-y", "install", "flathub", pkg_clean]
+        cmd = ["flatpak", "-y", "install", "flathub"] + pkg_args
     else:
         return {"success": False, "error": f"Unsupported installation platform '{platform}'."}
 

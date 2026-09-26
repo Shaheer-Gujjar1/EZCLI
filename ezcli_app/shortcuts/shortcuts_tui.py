@@ -36,6 +36,7 @@ from .shortcuts_engine import (
     delete_shortcut,
     get_shell_rc_path,
     parse_shortcuts,
+    validate_shortcut_name,
 )
 
 
@@ -102,13 +103,30 @@ class AddEditShortcutModal(ModalScreen[Optional[dict]]):
                 yield Button("💾 Save Shortcut", variant="success", id="btn-save")
                 yield Button("❌ Cancel", variant="default", id="btn-cancel")
 
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id == "inp-name":
+            self.query_one("#inp-cmd", Input).focus()
+        elif event.input.id == "inp-cmd":
+            self.save_and_dismiss()
+
+    def save_and_dismiss(self) -> None:
+        name = self.query_one("#inp-name", Input).value.strip()
+        cmd = self.query_one("#inp-cmd", Input).value.strip()
+
+        if not name or not cmd:
+            self.notify("Shortcut name and command cannot be empty.", title="Input Required", severity="warning")
+            return
+
+        valid, msg = validate_shortcut_name(name)
+        if not valid:
+            self.notify(msg, title="Invalid Name", severity="error")
+            return
+
+        self.dismiss({"name": name, "command": cmd})
+
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-save":
-            name = self.query_one("#inp-name", Input).value.strip()
-            cmd = self.query_one("#inp-cmd", Input).value.strip()
-            if not name or not cmd:
-                return
-            self.dismiss({"name": name, "command": cmd})
+            self.save_and_dismiss()
         elif event.button.id == "btn-cancel":
             self.dismiss(None)
 
@@ -142,6 +160,7 @@ class DeleteShortcutModal(ModalScreen[bool]):
     #del-actions {
         align: center middle;
         height: auto;
+        margin-top: 1;
     }
     #del-actions Button {
         margin: 0 1;
@@ -181,7 +200,7 @@ class ShortcutsApp(App[None]):
         Binding("q", "quit", "❌ Close", show=True),
         Binding("a", "add_shortcut", "➕ Add", show=True),
         Binding("e", "edit_shortcut", "✏️ Edit", show=True),
-        Binding("d", "delete_shortcut", "🗑️ Delete", show=True),
+        Binding("d", "delete_shortcut", "🗑 Delete", show=True),
         Binding("r", "refresh_shortcuts", "🔄 Refresh", show=True),
     ]
 
@@ -192,7 +211,8 @@ class ShortcutsApp(App[None]):
     }
 
     #info-banner {
-        height: 3;
+        height: auto;
+        min-height: 3;
         background: #064e3b;
         border: round #22c55e;
         margin: 0 1 1 1;
@@ -281,9 +301,9 @@ class ShortcutsApp(App[None]):
         backup_name = f"{short_rc}.ezcli.bak"
 
         banner.update(
-            f"Config File: [bold cyan]~/{short_rc}[/bold cyan]  |  "
-            f"Backup: [bold green]~/{backup_name} ✅[/bold green]  |  "
-            f"Total Active Shortcuts: [bold yellow]{len(self.shortcuts)}[/bold yellow]"
+            f"Config: [bold cyan]~/{short_rc}[/bold cyan]  •  "
+            f"Backup: [bold green]~/{backup_name} ✅[/bold green]  •  "
+            f"Active Shortcuts: [bold yellow]{len(self.shortcuts)}[/bold yellow]"
         )
 
         table = self.query_one("#shortcuts-table", DataTable)
@@ -300,49 +320,75 @@ class ShortcutsApp(App[None]):
         if self.shortcuts:
             self.selected_item = self.shortcuts[0]
 
+    def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        if event.row_key is not None:
+            key = event.row_key.value if hasattr(event.row_key, "value") else str(event.row_key)
+            self.selected_item = next((s for s in self.shortcuts if s.name == key), None)
+
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
-        key = event.row_key.value if hasattr(event.row_key, "value") else str(event.row_key)
-        self.selected_item = next((s for s in self.shortcuts if s.name == key), None)
+        if event.row_key is not None:
+            key = event.row_key.value if hasattr(event.row_key, "value") else str(event.row_key)
+            self.selected_item = next((s for s in self.shortcuts if s.name == key), None)
+            self.action_edit_shortcut()
+
+    def get_selected_shortcut(self) -> Optional[ShortcutItem]:
+        if self.selected_item:
+            return self.selected_item
+        table = self.query_one("#shortcuts-table", DataTable)
+        if table.cursor_row is not None and 0 <= table.cursor_row < len(self.shortcuts):
+            return self.shortcuts[table.cursor_row]
+        return self.shortcuts[0] if self.shortcuts else None
 
     def action_add_shortcut(self) -> None:
         def on_added(data: Optional[dict]) -> None:
             if data:
-                add_or_update_shortcut(self.rc_path, data["name"], data["command"])
+                ok, msg = add_or_update_shortcut(self.rc_path, data["name"], data["command"])
+                if ok:
+                    self.notify(f"Shortcut '{data['name']}' saved successfully!", severity="information")
+                else:
+                    self.notify(msg, title="Save Failed", severity="error")
                 self.refresh_shortcuts_list()
 
         self.push_screen(AddEditShortcutModal(), on_added)
 
     def action_edit_shortcut(self) -> None:
-        if not self.selected_item:
-            if self.shortcuts:
-                self.selected_item = self.shortcuts[0]
-            else:
-                return
+        item = self.get_selected_shortcut()
+        if not item:
+            self.notify("No shortcut selected to edit. Click 'Add Shortcut' to create one.", title="Notice", severity="information")
+            return
 
         def on_edited(data: Optional[dict]) -> None:
             if data:
-                add_or_update_shortcut(self.rc_path, data["name"], data["command"])
+                ok, msg = add_or_update_shortcut(self.rc_path, data["name"], data["command"])
+                if ok:
+                    self.notify(f"Shortcut '{data['name']}' updated successfully!", severity="information")
+                else:
+                    self.notify(msg, title="Update Failed", severity="error")
                 self.refresh_shortcuts_list()
 
-        self.push_screen(AddEditShortcutModal(existing=self.selected_item), on_edited)
+        self.push_screen(AddEditShortcutModal(existing=item), on_edited)
 
     def action_delete_shortcut(self) -> None:
-        if not self.selected_item:
-            if self.shortcuts:
-                self.selected_item = self.shortcuts[0]
-            else:
-                return
+        item = self.get_selected_shortcut()
+        if not item:
+            self.notify("No shortcut selected to delete.", title="Notice", severity="information")
+            return
 
         def on_confirmed(confirmed: bool) -> None:
-            if confirmed and self.selected_item:
-                delete_shortcut(self.rc_path, self.selected_item.name)
+            if confirmed and item:
+                ok, msg = delete_shortcut(self.rc_path, item.name)
+                if ok:
+                    self.notify(f"Shortcut '{item.name}' removed.", severity="information")
+                else:
+                    self.notify(msg, title="Delete Failed", severity="error")
                 self.selected_item = None
                 self.refresh_shortcuts_list()
 
-        self.push_screen(DeleteShortcutModal(self.selected_item), on_confirmed)
+        self.push_screen(DeleteShortcutModal(item), on_confirmed)
 
     def action_refresh_shortcuts(self) -> None:
         self.refresh_shortcuts_list()
+        self.notify("Shortcuts list refreshed", severity="information")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-add":

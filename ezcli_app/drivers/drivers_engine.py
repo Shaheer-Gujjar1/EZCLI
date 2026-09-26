@@ -133,7 +133,7 @@ def _create_device_from_dict(data: Dict[str, Any]) -> HardwareDeviceDriver:
 
 
 def detect_via_lspci() -> List[HardwareDeviceDriver]:
-    """Fallback hardware driver detection using lspci -nnk and cpuinfo."""
+    """Comprehensive hardware driver detection using lspci -nnk and cpuinfo (Driver Booster engine)."""
     devices: List[HardwareDeviceDriver] = []
     try:
         proc = subprocess.run(
@@ -147,91 +147,130 @@ def detect_via_lspci() -> List[HardwareDeviceDriver]:
     except Exception:
         lspci_out = ""
 
-    # 1. NVIDIA Graphics Card Detection
-    nvidia_match = re.search(
-        r"([0-9a-f]{2}:[0-9a-f]{2}\.[0-9a-f]).*(VGA|3D controller).*NVIDIA.*\[([0-9a-f]{4}:[0-9a-f]{4})\].*\n(?:.*\n)*?.*Kernel driver in use:\s*(\w+)",
-        lspci_out,
-        re.IGNORECASE,
-    )
-    if not nvidia_match:
-        # Loose match without strict block ordering
-        for block in lspci_out.split("\n\n"):
-            if "NVIDIA" in block and ("VGA" in block or "3D" in block):
-                dev_id = block.split()[0] if block.split() else "01:00.0"
-                model_m = re.search(r"controller:\s+NVIDIA Corporation\s+(.+)$", block, re.MULTILINE)
-                model = model_m.group(1).strip() if model_m else "NVIDIA Graphics Processor"
-                driver_m = re.search(r"Kernel driver in use:\s*(\w+)", block)
-                k_drv = driver_m.group(1) if driver_m else "nouveau"
+    blocks: List[str] = []
+    current_block: List[str] = []
+    for line in lspci_out.splitlines():
+        if re.match(r"^[0-9a-f]{2}:[0-9a-f]{2}\.[0-9a-f]", line):
+            if current_block:
+                blocks.append("\n".join(current_block))
+                current_block = []
+        if line.strip() or current_block:
+            current_block.append(line)
+    if current_block:
+        blocks.append("\n".join(current_block))
 
-                is_free = k_drv.lower() in ("nouveau", "none", "")
-                installed_nvidia = is_package_installed("nvidia-driver-535") or is_package_installed("nvidia-driver-550")
-                rec = "nvidia-driver-550"
+    # If strict regex block parsing didn't find blocks, fallback to double newline
+    if not blocks and lspci_out.strip():
+        blocks = [b.strip() for b in lspci_out.split("\n\n") if b.strip()]
 
-                devices.append(
-                    HardwareDeviceDriver(
-                        device_id=dev_id,
-                        model=model,
-                        vendor="NVIDIA",
-                        category="Graphics / GPU",
-                        icon="🖥️",
-                        current_driver=k_drv if not is_free else "nouveau (Open-Source)",
-                        is_free_driver=is_free,
-                        recommended_driver=rec,
-                        available_drivers=["nvidia-driver-550", "nvidia-driver-535", "nvidia-driver-470"],
-                        needs_driver=is_free and not installed_nvidia,
-                        status_badge="Open-Source Active (Proprietary Recommended) ⚠️" if is_free else "Proprietary Active ✅",
-                    )
-                )
+    for block in blocks:
+        first_line = block.splitlines()[0]
+        dev_id_m = re.match(r"^([0-9a-f]{2}:[0-9a-f]{2}\.[0-9a-f])\s+(.+)$", first_line)
+        if not dev_id_m:
+            continue
+        dev_id, desc = dev_id_m.group(1), dev_id_m.group(2)
+        driver_m = re.search(r"Kernel driver in use:\s*([^\s\n]+)", block)
+        k_drv = driver_m.group(1) if driver_m else ""
+
+        # Determine hardware category & icon
+        if any(k in desc for k in ["VGA compatible controller", "3D controller", "Display controller"]):
+            category = "Display Adapters"
+            icon = "🖥️"
+        elif any(k in desc for k in ["Network controller", "Wireless"]):
+            category = "Network & Wi-Fi"
+            icon = "📶"
+        elif "Ethernet controller" in desc:
+            category = "Ethernet Adapters"
+            icon = "🌐"
+        elif "Audio device" in desc or "Audio controller" in desc:
+            category = "Sound & Audio"
+            icon = "🔊"
+        elif any(k in desc for k in ["Non-Volatile memory", "SATA", "RAID", "Mass storage"]):
+            category = "Storage Controllers"
+            icon = "💾"
+        elif "Card Reader" in desc or "Unassigned class" in desc:
+            category = "Card Readers & Peripherals"
+            icon = "🔌"
+        elif not k_drv and not any(k in desc.lower() for k in ["bridge", "smbus", "controller [0580]"]):
+            category = "System Hardware"
+            icon = "⚙️"
+        else:
+            continue
+
+        model = desc
+        if ":" in desc:
+            model = desc.split(":", 1)[1].strip()
+        model = re.sub(r"\s*\(rev\s+[0-9a-f]+\)", "", model).strip()
+
+        # Vendor extraction
+        vendor = "Unknown"
+        for v in ["NVIDIA", "Intel", "Broadcom", "Realtek", "AMD", "Qualcomm", "SK hynix"]:
+            if v.lower() in desc.lower() or v.lower() in block.lower():
+                vendor = v
                 break
-    else:
-        dev_id = nvidia_match.group(1)
-        k_drv = nvidia_match.group(4)
-        is_free = k_drv.lower() == "nouveau"
-        devices.append(
-            HardwareDeviceDriver(
-                device_id=dev_id,
-                model="NVIDIA Graphics Controller",
-                vendor="NVIDIA",
-                category="Graphics / GPU",
-                icon="🖥️",
-                current_driver=k_drv,
-                is_free_driver=is_free,
-                recommended_driver="nvidia-driver-550",
-                available_drivers=["nvidia-driver-550", "nvidia-driver-535"],
-                needs_driver=is_free,
-                status_badge="Proprietary Recommended ⚠️" if is_free else "Proprietary Active ✅",
+
+        if "NVIDIA" in block or vendor == "NVIDIA":
+            is_free = k_drv.lower() in ("nouveau", "none", "")
+            installed_nvidia = is_package_installed("nvidia-driver-535") or is_package_installed("nvidia-driver-550")
+            rec = "nvidia-driver-550"
+            needs_driver = is_free and not installed_nvidia
+            status_badge = "UPDATE AVAILABLE ⚠️" if needs_driver else "OPTIMAL & ACTIVE ✅"
+            devices.append(
+                HardwareDeviceDriver(
+                    device_id=dev_id,
+                    model=model,
+                    vendor="NVIDIA",
+                    category="Display Adapters",
+                    icon="🖥️",
+                    current_driver=k_drv or "nouveau (Generic)",
+                    is_free_driver=is_free,
+                    recommended_driver=rec,
+                    available_drivers=["nvidia-driver-550", "nvidia-driver-535", "nvidia-driver-470"],
+                    needs_driver=needs_driver,
+                    status_badge=status_badge,
+                )
             )
-        )
-
-    # 2. Broadcom Wireless Detection
-    for block in lspci_out.split("\n\n"):
-        if "Broadcom" in block and ("Network" in block or "Wireless" in block):
-            dev_id = block.split()[0] if block.split() else "02:00.0"
-            model_m = re.search(r"controller:\s+Broadcom\s+(.+)$", block, re.MULTILINE)
-            model = model_m.group(1).strip() if model_m else "Broadcom Wireless Network Adapter"
-            driver_m = re.search(r"Kernel driver in use:\s*(\w+)", block)
-            k_drv = driver_m.group(1) if driver_m else "b43 / bcma"
-
+        elif vendor == "Broadcom" and ("Network" in desc or "Wireless" in desc):
             is_wl_installed = is_package_installed("bcmwl-kernel-source")
-            is_free = not is_wl_installed
+            rec = "bcmwl-kernel-source"
+            needs_driver = not is_wl_installed
+            status_badge = "UPDATE AVAILABLE ⚠️" if needs_driver else "OPTIMAL & ACTIVE ✅"
             devices.append(
                 HardwareDeviceDriver(
                     device_id=dev_id,
                     model=model,
                     vendor="Broadcom",
-                    category="Wireless / Wi-Fi",
+                    category="Network & Wi-Fi",
                     icon="📶",
-                    current_driver=k_drv,
-                    is_free_driver=is_free,
-                    recommended_driver="bcmwl-kernel-source",
+                    current_driver=k_drv or "b43 / bcma",
+                    is_free_driver=not is_wl_installed,
+                    recommended_driver=rec,
                     available_drivers=["bcmwl-kernel-source"],
-                    needs_driver=not is_wl_installed,
-                    status_badge="Broadcom STA Driver Recommended ⚠️" if not is_wl_installed else "Active ✅",
+                    needs_driver=needs_driver,
+                    status_badge=status_badge,
                 )
             )
-            break
+        else:
+            needs_driver = not bool(k_drv)
+            status_badge = "MISSING 🚫" if needs_driver else "OPTIMAL & ACTIVE ✅"
+            rec = "linux-firmware" if needs_driver else f"{k_drv} (Active)"
+            devices.append(
+                HardwareDeviceDriver(
+                    device_id=dev_id,
+                    model=model,
+                    vendor=vendor,
+                    category=category,
+                    icon=icon,
+                    current_driver=k_drv or "None (Missing Driver)",
+                    is_free_driver=True,
+                    recommended_driver=rec,
+                    available_drivers=[rec],
+                    needs_driver=needs_driver,
+                    status_badge=status_badge,
+                )
+            )
 
-    # 3. CPU Microcode Detection
+    # CPU Microcode Firmware Detection
     try:
         if os.path.exists("/proc/cpuinfo"):
             with open("/proc/cpuinfo", "r", encoding="utf-8") as f:
@@ -250,7 +289,7 @@ def detect_via_lspci() -> List[HardwareDeviceDriver]:
                             recommended_driver="intel-microcode",
                             available_drivers=["intel-microcode"],
                             needs_driver=not installed,
-                            status_badge="Up to date ✅" if installed else "Microcode Update Available ⚠️",
+                            status_badge="OPTIMAL & ACTIVE ✅" if installed else "UPDATE AVAILABLE ⚠️",
                         )
                     )
                 elif "AuthenticAMD" in c_info:
@@ -267,7 +306,7 @@ def detect_via_lspci() -> List[HardwareDeviceDriver]:
                             recommended_driver="amd64-microcode",
                             available_drivers=["amd64-microcode"],
                             needs_driver=not installed,
-                            status_badge="Up to date ✅" if installed else "Microcode Update Available ⚠️",
+                            status_badge="OPTIMAL & ACTIVE ✅" if installed else "UPDATE AVAILABLE ⚠️",
                         )
                     )
     except Exception:
@@ -277,13 +316,20 @@ def detect_via_lspci() -> List[HardwareDeviceDriver]:
 
 
 def detect_hardware_drivers() -> List[HardwareDeviceDriver]:
-    """Master hardware driver detector."""
+    """Master hardware driver detector combining proprietary and system scan."""
     devices: List[HardwareDeviceDriver] = []
     if has_ubuntu_drivers():
         devices = parse_ubuntu_drivers_devices()
 
+    lspci_devs = detect_via_lspci()
     if not devices:
-        devices = detect_via_lspci()
+        devices = lspci_devs
+    else:
+        existing_models = {d.model.lower() for d in devices}
+        existing_ids = {d.device_id for d in devices}
+        for d in lspci_devs:
+            if d.device_id not in existing_ids and not any(m in d.model.lower() for m in existing_models):
+                devices.append(d)
 
     return devices
 
@@ -320,6 +366,61 @@ def simulate_driver_installation(driver_package: str) -> Dict[str, Any]:
             "target_package": driver_package,
             "error": str(e),
         }
+
+
+def simulate_all_drivers_installation(driver_packages: List[str]) -> Dict[str, Any]:
+    """Simulate apt installation for multiple driver packages in a single batch."""
+    if not driver_packages:
+        return {"success": True, "new_packages": 0, "download_size": "0 B", "packages": []}
+
+    unique_pkgs = list(dict.fromkeys(driver_packages))
+    try:
+        proc = subprocess.run(
+            ["apt-get", "install", "-s", "-y"] + unique_pkgs,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=12,
+        )
+        out = proc.stdout
+        packages_m = re.search(r"(\d+)\s+upgraded,\s+(\d+)\s+newly installed", out)
+        disk_m = re.search(r"Need to get\s+([\d\.]+\s+[kKmMgG]?B)", out)
+
+        new_pkgs = int(packages_m.group(2)) if packages_m else len(unique_pkgs)
+        download_size = disk_m.group(1) if disk_m else "Approx. 50-300 MB"
+
+        return {
+            "success": proc.returncode == 0,
+            "new_packages": new_pkgs,
+            "download_size": download_size,
+            "packages": unique_pkgs,
+            "raw_output": out,
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "new_packages": len(unique_pkgs),
+            "download_size": "Approx. 50-300 MB",
+            "packages": unique_pkgs,
+            "error": str(e),
+        }
+
+
+def install_all_drivers(driver_packages: List[str], console: Optional[Any] = None) -> Tuple[bool, str]:
+    """Install multiple recommended driver packages in a single 1-click batch operation."""
+    if not driver_packages:
+        return True, "All system hardware is already using optimal drivers."
+
+    unique_pkgs = list(dict.fromkeys(driver_packages))
+    success = elevated_package_install(
+        unique_pkgs,
+        reason=f"Install recommended proprietary hardware drivers ({', '.join(unique_pkgs)})",
+        task_description="Install Recommended Hardware Drivers",
+        console=console,
+    )
+    if success:
+        return True, f"Successfully installed {len(unique_pkgs)} driver package(s). Please reboot your system to activate."
+    return False, "Failed to complete driver installation."
 
 
 def install_driver_package(driver_package: str, console: Optional[Any] = None) -> Tuple[bool, str]:

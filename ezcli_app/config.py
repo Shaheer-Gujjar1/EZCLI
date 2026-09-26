@@ -595,8 +595,8 @@ FEATURES: List[FeatureTemplate] = [
         renderer_name="run_permissions_cli",
     ),
     FeatureTemplate(
-        id="speedtest",
-        subcommand="speedtest",
+        id="speed-test",
+        subcommand="speed-test",
         title="Internet Speed Test",
         icon="⚡",
         description="Real-time internet download, upload bandwidth, and latency speedometer",

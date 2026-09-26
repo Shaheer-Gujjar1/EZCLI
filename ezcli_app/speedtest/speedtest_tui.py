@@ -31,7 +31,7 @@ from .speedtest_engine import SpeedTestResult, execute_speedtest
 class SpeedtestApp(App[None]):
     """Textual interactive terminal speed test dashboard."""
 
-    TITLE = "EasyCLI Speedtest"
+    TITLE = "EasyCLI Speed Test"
     SUB_TITLE = "Real-Time Internet Bandwidth, Latency & Connection Performance"
 
     BINDINGS = [
@@ -129,7 +129,7 @@ class SpeedtestApp(App[None]):
 
     def __init__(self) -> None:
         super().__init__()
-        self.is_running = False
+        self.test_in_progress = False
         self.result: Optional[SpeedTestResult] = None
 
     def compose(self) -> ComposeResult:
@@ -159,9 +159,9 @@ class SpeedtestApp(App[None]):
         self.start_test()
 
     def start_test(self) -> None:
-        if self.is_running:
+        if self.test_in_progress:
             return
-        self.is_running = True
+        self.test_in_progress = True
         self.query_one("#test-progress", ProgressBar).update(progress=10)
         self.query_one("#progress-label", Label).update("Connecting to optimal speed test server...")
         self.query_one("#val-ping", Label).update("-- ms")
@@ -185,7 +185,7 @@ class SpeedtestApp(App[None]):
         self.query_one("#test-progress", ProgressBar).update(progress=int(frac * 100))
 
     def _finish_test(self, res: SpeedTestResult) -> None:
-        self.is_running = False
+        self.test_in_progress = False
         self.result = res
 
         self.query_one("#test-progress", ProgressBar).update(progress=100)

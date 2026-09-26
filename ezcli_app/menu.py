@@ -294,7 +294,7 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
                 from .permissions import run_permissions_cli
                 run_permissions_cli(targets=args_values, console=console)
                 return
-            elif feature.id == "speedtest":
+            elif feature.id in ("speed-test", "speedtest"):
                 from .speedtest import run_speedtest_cli
                 run_speedtest_cli(console=console)
                 return

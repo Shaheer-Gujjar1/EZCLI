@@ -51,6 +51,7 @@ def prompt_password_dots(prompt_text: str = "🔑 Admin password: ") -> Optional
     import termios
     import tty
 
+    sys.stdout.write("\x1b[?25h")
     sys.stdout.write(prompt_text)
     sys.stdout.flush()
 
@@ -415,140 +416,156 @@ def run_elevated_helper(
         return False, None, res.get("error", "Helper operation failed.")
 
     # 2. Explain to the user in plain English what & why if not in active session
-    if not skip_explanation and _ACTIVE_SESSION_PASSWORD is None:
-        approved = explain_elevation(reason, task_description, risk_level, console=console)
-        if not approved:
-            return False, None, "Elevation was declined by user."
-
-    # 3. Find python executable and repo path
-    python_bin = sys.executable or "python3"
-    repo_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    json_payload = json.dumps({"action": action, "params": params})
-
-    # Prepare command for sudo
-    sudo_cmd = [
-        "sudo",
-        "-S",  # Read password from stdin
-        "-p",  # Custom prompt (empty string so sudo doesn't output default prompt)
-        "",
-        "PYTHONPATH=" + repo_dir,
-        python_bin,
-        "-m",
-        "ezcli_app.privileged_helper",
-        "--json",
-        json_payload,
-    ]
-
-    # If an active session password exists, use it directly without re-prompting
-    if _ACTIVE_SESSION_PASSWORD is not None:
-        pwd_input = (_ACTIVE_SESSION_PASSWORD + "\n") if _ACTIVE_SESSION_PASSWORD else ""
+    live_to_resume = None
+    if _ACTIVE_SESSION_PASSWORD is None and console and hasattr(console, "_live") and console._live and getattr(console._live, "is_started", False):
+        live_to_resume = console._live
         try:
-            rc, stdout_data, stderr_data, final_resp = _run_helper_process(
-                sudo_cmd, pwd_input, timeout, on_progress
-            )
-        except subprocess.TimeoutExpired:
-            return False, None, "Elevation helper operation timed out."
-        except Exception as e:
-            return False, None, f"Elevation execution encountered an error ({e.__class__.__name__})."
+            live_to_resume.stop()
+        except Exception:
+            live_to_resume = None
 
-        if rc != 0 and not stdout_data:
-            clean_err = stderr_data.strip()
-            return False, None, clean_err or f"Elevation failed (exit code {rc})."
+    try:
+        if not skip_explanation and _ACTIVE_SESSION_PASSWORD is None:
+            approved = explain_elevation(reason, task_description, risk_level, console=console)
+            if not approved:
+                return False, None, "Elevation was declined by user."
 
-        if final_resp is not None:
-            if final_resp.get("success"):
-                return True, final_resp, ""
-            return False, None, final_resp.get("error", "Operation failed in helper.")
+        # 3. Find python executable and repo path
+        python_bin = sys.executable or "python3"
+        repo_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        json_payload = json.dumps({"action": action, "params": params})
 
-        try:
-            for line in (stdout_data or "").splitlines():
-                line_clean = line.strip()
-                if line_clean.startswith("{") and line_clean.endswith("}"):
-                    resp = json.loads(line_clean)
-                    if resp.get("event") == "progress":
-                        continue
-                    if resp.get("success"):
-                        return True, resp, ""
-                    else:
-                        return False, None, resp.get("error", "Operation failed in helper.")
-            return False, None, "Invalid response from privileged helper."
-        except json.JSONDecodeError:
-            return False, None, "Could not parse response from privileged helper."
+        # Prepare command for sudo
+        sudo_cmd = [
+            "sudo",
+            "-S",  # Read password from stdin
+            "-p",  # Custom prompt (empty string so sudo doesn't output default prompt)
+            "",
+            "PYTHONPATH=" + repo_dir,
+            python_bin,
+            "-m",
+            "ezcli_app.privileged_helper",
+            "--json",
+            json_payload,
+        ]
 
-    max_attempts = 3
-    attempt = 0
-
-    while attempt < max_attempts:
-        attempt += 1
-        password = prompt_password_dots("🔑 Admin password: ")
-
-        if password is None:
-            return False, None, "Password entry cancelled."
-
-        try:
+        # If an active session password exists, use it directly without re-prompting
+        if _ACTIVE_SESSION_PASSWORD is not None:
+            pwd_input = (_ACTIVE_SESSION_PASSWORD + "\n") if _ACTIVE_SESSION_PASSWORD else ""
             try:
                 rc, stdout_data, stderr_data, final_resp = _run_helper_process(
-                    sudo_cmd, password + "\n", timeout, on_progress
+                    sudo_cmd, pwd_input, timeout, on_progress
                 )
             except subprocess.TimeoutExpired:
                 return False, None, "Elevation helper operation timed out."
             except Exception as e:
-                # Sanitized error message: Never include stdin, password, or raw process info
                 return False, None, f"Elevation execution encountered an error ({e.__class__.__name__})."
-        finally:
-            wipe_password(password)
-            password = None
 
-        # 1. Missing case: User is not in sudoers file / lacks sudo rights entirely
-        err_lower = stderr_data.lower()
-        if (
-            "not in the sudoers file" in err_lower
-            or "not in sudoers" in err_lower
-            or "is not allowed to run sudo" in err_lower
-            or "incident will be reported" in err_lower
-        ):
-            return False, None, "Your account does not have admin rights on this machine."
+            if rc != 0 and not stdout_data:
+                clean_err = stderr_data.strip()
+                return False, None, clean_err or f"Elevation failed (exit code {rc})."
 
-        # 2. Check for wrong password
-        if (
-            "incorrect password" in err_lower
-            or "try again" in err_lower
-            or "password" in err_lower
-        ) and rc != 0 and not stdout_data:
-            if attempt < max_attempts:
-                console.print("[yellow]Wrong password — no problem, try again.[/yellow]")
-                continue
-            else:
-                return False, None, "Incorrect password entered 3 times. Elevation cancelled."
+            if final_resp is not None:
+                if final_resp.get("success"):
+                    return True, final_resp, ""
+                return False, None, final_resp.get("error", "Operation failed in helper.")
 
-        # 3. Sudo failed for another reason
-        if rc != 0 and not stdout_data:
-            clean_err = stderr_data.strip()
-            if "lecture" in clean_err.lower():
-                clean_err = "Permission was not granted."
-            return False, None, clean_err or f"Elevation failed (exit code {rc})."
+            try:
+                for line in (stdout_data or "").splitlines():
+                    line_clean = line.strip()
+                    if line_clean.startswith("{") and line_clean.endswith("}"):
+                        resp = json.loads(line_clean)
+                        if resp.get("event") == "progress":
+                            continue
+                        if resp.get("success"):
+                            return True, resp, ""
+                        else:
+                            return False, None, resp.get("error", "Operation failed in helper.")
+                return False, None, "Invalid response from privileged helper."
+            except json.JSONDecodeError:
+                return False, None, "Could not parse response from privileged helper."
 
-        # 4. Parse helper's structured JSON response from stdout
-        if final_resp is not None:
-            if final_resp.get("success"):
-                return True, final_resp, ""
-            return False, None, final_resp.get("error", "Operation failed in helper.")
+        max_attempts = 3
+        attempt = 0
 
-        try:
-            for line in (stdout_data or "").splitlines():
-                line_clean = line.strip()
-                if line_clean.startswith("{") and line_clean.endswith("}"):
-                    resp = json.loads(line_clean)
-                    if resp.get("event") == "progress":
-                        continue
-                    if resp.get("success"):
-                        return True, resp, ""
-                    else:
-                        return False, None, resp.get("error", "Operation failed in helper.")
+        while attempt < max_attempts:
+            attempt += 1
+            password = prompt_password_dots("🔑 Admin password: ")
 
-            return False, None, "Invalid response from privileged helper."
-        except json.JSONDecodeError:
-            return False, None, "Could not parse response from privileged helper."
+            if password is None:
+                return False, None, "Password entry cancelled."
+
+            try:
+                try:
+                    rc, stdout_data, stderr_data, final_resp = _run_helper_process(
+                        sudo_cmd, password + "\n", timeout, on_progress
+                    )
+                except subprocess.TimeoutExpired:
+                    return False, None, "Elevation helper operation timed out."
+                except Exception as e:
+                    # Sanitized error message: Never include stdin, password, or raw process info
+                    return False, None, f"Elevation execution encountered an error ({e.__class__.__name__})."
+            finally:
+                wipe_password(password)
+                password = None
+
+            # 1. Missing case: User is not in sudoers file / lacks sudo rights entirely
+            err_lower = stderr_data.lower()
+            if (
+                "not in the sudoers file" in err_lower
+                or "not in sudoers" in err_lower
+                or "is not allowed to run sudo" in err_lower
+                or "incident will be reported" in err_lower
+            ):
+                return False, None, "Your account does not have admin rights on this machine."
+
+            # 2. Check for wrong password
+            if (
+                "incorrect password" in err_lower
+                or "try again" in err_lower
+                or "password" in err_lower
+            ) and rc != 0 and not stdout_data:
+                if attempt < max_attempts:
+                    console.print("[yellow]Wrong password — no problem, try again.[/yellow]")
+                    continue
+                else:
+                    return False, None, "Incorrect password entered 3 times. Elevation cancelled."
+
+            # 3. Sudo failed for another reason
+            if rc != 0 and not stdout_data:
+                clean_err = stderr_data.strip()
+                if "lecture" in clean_err.lower():
+                    clean_err = "Permission was not granted."
+                return False, None, clean_err or f"Elevation failed (exit code {rc})."
+
+            # 4. Parse helper's structured JSON response from stdout
+            if final_resp is not None:
+                if final_resp.get("success"):
+                    return True, final_resp, ""
+                return False, None, final_resp.get("error", "Operation failed in helper.")
+
+            try:
+                for line in (stdout_data or "").splitlines():
+                    line_clean = line.strip()
+                    if line_clean.startswith("{") and line_clean.endswith("}"):
+                        resp = json.loads(line_clean)
+                        if resp.get("event") == "progress":
+                            continue
+                        if resp.get("success"):
+                            return True, resp, ""
+                        else:
+                            return False, None, resp.get("error", "Operation failed in helper.")
+
+                return False, None, "Invalid response from privileged helper."
+            except json.JSONDecodeError:
+                return False, None, "Could not parse response from privileged helper."
+
+    finally:
+        if live_to_resume:
+            try:
+                live_to_resume.start()
+            except Exception:
+                pass
 
     return False, None, "Elevation cancelled."
 
@@ -876,28 +893,64 @@ def elevated_timeshift_snapshot(
     return False, None, err
 
 
+class ElevationResult(tuple):
+    """3-tuple (success: bool, data: Optional[Dict[str, Any]], error: str) that also evaluates as boolean."""
+    def __bool__(self) -> bool:
+        return bool(self[0])
+
+
 def elevated_package_install(
-    platform: str,
-    package: str,
+    platform_or_package: Any,
+    package: Optional[Any] = None,
+    reason: Optional[str] = None,
+    task_description: Optional[str] = None,
     skip_explanation: bool = False,
     console: Optional[Console] = None,
     timeout: int = 300,
-) -> Tuple[bool, Optional[Dict[str, Any]], str]:
-    """Install a software package via the privileged helper (APT, Flatpak, Snap)."""
+) -> ElevationResult:
+    """Install a software package or list of packages via the privileged helper (APT, Flatpak, Snap).
+    
+    Supports both calling conventions:
+      - elevated_package_install(platform, package, console=console)
+      - elevated_package_install(package_or_packages, reason=..., task_description=..., console=console)
+    """
+    console = console or Console()
+
+    if package is None:
+        platform = "apt"
+        package = platform_or_package
+    elif isinstance(platform_or_package, (list, tuple, set)):
+        platform = "apt"
+        package = platform_or_package
+    elif str(platform_or_package).lower() in ("apt", "snap", "flatpak"):
+        platform = str(platform_or_package).lower()
+    else:
+        platform = "apt"
+        package = platform_or_package
+
+    if isinstance(package, (list, tuple, set)):
+        pkg_list = [str(p).strip() for p in package if str(p).strip()]
+        pkg_clean = " ".join(pkg_list)
+        pkg_display = ", ".join(pkg_list)
+    else:
+        pkg_clean = str(package).strip() if package else ""
+        pkg_display = pkg_clean
+
     plat_label = (platform or "apt").upper()
+    default_reason = f"Install {plat_label} software package '{pkg_display}' onto the system"
+    default_task = f"Install '{pkg_display}' via {plat_label} package manager"
+
     success, res, err = run_elevated_helper(
         action="package_install",
-        params={"platform": platform, "package": package, "timeout": timeout},
-        reason=f"Install {plat_label} software package '{package}' onto the system",
-        task_description=f"Install '{package}' via {plat_label} package manager",
-        risk_level="medium",
+        params={"platform": platform, "package": pkg_clean, "timeout": timeout},
+        reason=reason or default_reason,
+        task_description=task_description or default_task,
+        risk_level="high",
         skip_explanation=skip_explanation,
         console=console,
         timeout=timeout + 30,
     )
-    if success and isinstance(res, dict):
-        return True, res, ""
-    return False, None, err
+    return ElevationResult((success, res if isinstance(res, dict) else None, err))
 
 
 def elevated_package_uninstall(

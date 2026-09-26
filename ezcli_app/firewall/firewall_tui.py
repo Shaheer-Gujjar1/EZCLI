@@ -77,6 +77,15 @@ class SshWarningModal(ModalScreen[bool]):
     #warning-actions Button {
         margin: 0 1;
     }
+    #btn-cancel {
+        background: #334155;
+        color: #f8fafc;
+        border: tall #1e293b;
+    }
+    #btn-cancel:hover {
+        background: #475569;
+        border: tall #334155;
+    }
     """
 
     def compose(self) -> ComposeResult:
@@ -90,13 +99,14 @@ class SshWarningModal(ModalScreen[bool]):
                 id="warning-text",
             )
             with Horizontal(id="warning-actions"):
-                yield Button("🛡️ Add SSH (22) Rule First", variant="success", id="btn-add-ssh")
+                yield Button("🛡 Add SSH (22) Rule First", variant="success", id="btn-add-ssh")
                 yield Button("⚠️ Enable Anyway", variant="error", id="btn-force-enable")
                 yield Button("❌ Cancel", variant="default", id="btn-cancel")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "btn-add-ssh":
-            add_firewall_rule("allow", "22", "tcp")
+            with self.app.suspend():
+                add_firewall_rule("allow", "22", "tcp")
             self.dismiss(True)
         elif event.button.id == "btn-force-enable":
             self.dismiss(True)
@@ -148,6 +158,15 @@ class AddRuleModal(ModalScreen[Optional[dict]]):
     }
     #dialog-actions Button {
         margin: 0 1;
+    }
+    #btn-cancel {
+        background: #334155;
+        color: #f8fafc;
+        border: tall #1e293b;
+    }
+    #btn-cancel:hover {
+        background: #475569;
+        border: tall #334155;
     }
     """
 
@@ -221,6 +240,15 @@ class DeleteRuleModal(ModalScreen[bool]):
     #del-actions Button {
         margin: 0 1;
     }
+    #btn-cancel {
+        background: #334155;
+        color: #f8fafc;
+        border: tall #1e293b;
+    }
+    #btn-cancel:hover {
+        background: #475569;
+        border: tall #334155;
+    }
     """
 
     def __init__(self, rule: FirewallRule) -> None:
@@ -229,14 +257,14 @@ class DeleteRuleModal(ModalScreen[bool]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="del-dialog"):
-            yield Label("🗑️ Confirm Rule Deletion", id="del-title")
+            yield Label("🗑 Confirm Rule Deletion", id="del-title")
             yield Label(
                 f"Delete Rule #{self.rule.index}?\n\n"
                 f"Target: [bold yellow]{self.rule.to_port}[/bold yellow] ({self.rule.action} from {self.rule.from_ip})",
                 id="del-text",
             )
             with Horizontal(id="del-actions"):
-                yield Button("🗑️ Delete", variant="error", id="btn-confirm-del")
+                yield Button("🗑 Delete", variant="error", id="btn-confirm-del")
                 yield Button("❌ Cancel", variant="default", id="btn-cancel")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -255,7 +283,7 @@ class FirewallApp(App[None]):
     BINDINGS = [
         Binding("t", "toggle_firewall", "⚡ Toggle ON/OFF", show=True),
         Binding("a", "add_rule", "➕ Add Rule", show=True),
-        Binding("d", "delete_rule", "🗑️ Delete Rule", show=True),
+        Binding("d", "delete_rule", "🗑 Delete Rule", show=True),
         Binding("r", "refresh_status", "🔄 Refresh", show=True),
         Binding("q", "quit", "❌ Close", show=True),
     ]
@@ -267,17 +295,19 @@ class FirewallApp(App[None]):
     }
 
     #status-card {
-        height: 5;
+        height: auto;
+        min-height: 4;
         background: #1a2234;
         border: round #f59e0b;
         margin: 0 1 1 1;
-        padding: 0 2;
-        content-align: center middle;
+        padding: 1 2;
+        overflow: hidden hidden;
     }
 
     #status-state {
         text-style: bold;
         text-align: center;
+        margin-bottom: 1;
     }
 
     #status-meta {
@@ -334,8 +364,8 @@ class FirewallApp(App[None]):
         with Horizontal(id="action-bar"):
             yield Button("⚡ Toggle ON/OFF", variant="primary", id="btn-toggle")
             yield Button("➕ Add Rule", variant="success", id="btn-add")
-            yield Button("🗑️ Delete Rule", variant="error", id="btn-delete")
-            yield Button("🔄 Refresh", variant="default", id="btn-refresh")
+            yield Button("🗑 Delete Rule", variant="error", id="btn-delete")
+            yield Button("🔄 Refresh", variant="warning", id="btn-refresh")
             yield Button("❌ Close", variant="default", id="btn-close")
         yield Footer()
 
@@ -392,6 +422,35 @@ class FirewallApp(App[None]):
                 key=str(rule.index),
             )
 
+    def get_current_selected_rule(self) -> Optional[FirewallRule]:
+        try:
+            table = self.query_one("#rules-table", DataTable)
+            if 0 <= table.cursor_row < len(self.status.rules):
+                return self.status.rules[table.cursor_row]
+        except Exception:
+            pass
+        if self.selected_rule:
+            return self.selected_rule
+        if self.status.rules:
+            return self.status.rules[0]
+        return None
+
+    def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        try:
+            row_idx = event.cursor_row
+            if 0 <= row_idx < len(self.status.rules):
+                self.selected_rule = self.status.rules[row_idx]
+        except Exception:
+            pass
+
+    def on_data_table_cell_selected(self, event: DataTable.CellSelected) -> None:
+        try:
+            row_idx = event.coordinate.row
+            if 0 <= row_idx < len(self.status.rules):
+                self.selected_rule = self.status.rules[row_idx]
+        except Exception:
+            pass
+
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         key = event.row_key.value if hasattr(event.row_key, "value") else str(event.row_key)
         self.selected_rule = next((r for r in self.status.rules if str(r.index) == key), None)
@@ -401,37 +460,39 @@ class FirewallApp(App[None]):
         if not self.status.active and not self.status.has_ssh_rule:
             def on_ssh_confirmed(proceed: bool) -> None:
                 if proceed:
-                    toggle_firewall(True)
+                    with self.suspend():
+                        toggle_firewall(True)
                     self.refresh_firewall_status()
 
             self.push_screen(SshWarningModal(), on_ssh_confirmed)
             return
 
-        toggle_firewall(not self.status.active)
+        with self.suspend():
+            toggle_firewall(not self.status.active)
         self.refresh_firewall_status()
 
     def action_add_rule(self) -> None:
         def on_rule_added(data: Optional[dict]) -> None:
             if data:
-                add_firewall_rule(data["action"], data["port"], data.get("proto", ""))
+                with self.suspend():
+                    add_firewall_rule(data["action"], data["port"], data.get("proto", ""))
                 self.refresh_firewall_status()
 
         self.push_screen(AddRuleModal(), on_rule_added)
 
     def action_delete_rule(self) -> None:
-        if not self.selected_rule:
-            if self.status.rules:
-                self.selected_rule = self.status.rules[0]
-            else:
-                return
+        rule = self.get_current_selected_rule()
+        if not rule:
+            return
 
         def on_del_confirmed(confirmed: bool) -> None:
-            if confirmed and self.selected_rule:
-                delete_firewall_rule(self.selected_rule.index)
+            if confirmed and rule:
+                with self.suspend():
+                    delete_firewall_rule(rule.index)
                 self.selected_rule = None
                 self.refresh_firewall_status()
 
-        self.push_screen(DeleteRuleModal(self.selected_rule), on_del_confirmed)
+        self.push_screen(DeleteRuleModal(rule), on_del_confirmed)
 
     def action_refresh_status(self) -> None:
         self.refresh_firewall_status()

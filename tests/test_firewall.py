@@ -95,6 +95,21 @@ New profiles: skip
         self.assertIn("3", mock_elevated.call_args[1]["cmd"])
         self.assertIn("delete", mock_elevated.call_args[1]["cmd"])
 
+    @patch("subprocess.run")
+    @patch("shutil.which", return_value="/usr/sbin/ufw")
+    def test_get_firewall_status_fast_cached(self, mock_which, mock_run):
+        mock_proc = MagicMock()
+        mock_proc.returncode = 0
+        mock_proc.stdout = "Status: active\nDefault: deny (incoming), allow (outgoing)\n[ 1] 22/tcp ALLOW IN Anywhere\n"
+        mock_run.return_value = mock_proc
+
+        status = get_firewall_status()
+        self.assertTrue(status.installed)
+        self.assertTrue(status.active)
+        self.assertEqual(status.default_incoming, "deny")
+        self.assertEqual(len(status.rules), 1)
+        self.assertTrue(status.has_ssh_rule)
+
 
 if __name__ == "__main__":
     unittest.main()

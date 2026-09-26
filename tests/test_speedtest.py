@@ -68,6 +68,12 @@ class TestSpeedtest(unittest.TestCase):
         self.assertIn("Cloudflare", res.server_name)
         self.assertTrue(len(res.rating) > 0)
 
+    def test_speedtest_app_instantiation(self):
+        from ezcli_app.speedtest.speedtest_tui import SpeedtestApp
+        app = SpeedtestApp()
+        self.assertFalse(app.test_in_progress)
+        self.assertIsNotNone(app)
+
 
 if __name__ == "__main__":
     unittest.main()

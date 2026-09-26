@@ -119,63 +119,84 @@ def get_firewall_status() -> FirewallStatus:
 
     ufw_bin = shutil.which("ufw") or "/usr/sbin/ufw"
 
-    # Try non-elevated read first (some distros allow reading ufw status or reading /etc/ufw/)
-    try:
-        proc = subprocess.run(
-            [ufw_bin, "status", "numbered"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-            timeout=5,
-        )
-        if proc.returncode == 0 and ("Status:" in proc.stdout or "Status: inactive" in proc.stdout):
-            active, in_def, out_def, rules, has_ssh = parse_ufw_status_output(proc.stdout)
-            return FirewallStatus(
-                installed=True,
-                active=active,
-                default_incoming=in_def,
-                default_outgoing=out_def,
-                rules=rules,
-                has_ssh_rule=has_ssh,
-                raw_output=proc.stdout,
+    # 1. Try non-elevated read or cached credentials first
+    for cmd_prefix in ([], ["sudo", "-n"]):
+        try:
+            cmd = cmd_prefix + [ufw_bin, "status", "numbered"]
+            proc = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=2,
             )
+            if proc.returncode == 0 and ("Status:" in proc.stdout or "Status: inactive" in proc.stdout):
+                active, in_def, out_def, rules, has_ssh = parse_ufw_status_output(proc.stdout)
+                return FirewallStatus(
+                    installed=True,
+                    active=active,
+                    default_incoming=in_def,
+                    default_outgoing=out_def,
+                    rules=rules,
+                    has_ssh_rule=has_ssh,
+                    raw_output=proc.stdout,
+                )
+        except Exception:
+            pass
+
+    # 2. If an elevated session password was already established or running as root, query helper
+    try:
+        from ..elevation import _ACTIVE_SESSION_PASSWORD, is_root
+        if is_root() or _ACTIVE_SESSION_PASSWORD is not None:
+            success, stdout, _ = elevated_run_command(
+                cmd=[ufw_bin, "status", "numbered"],
+                reason="Read UFW firewall status and active rules",
+                task_description="Firewall Status Check",
+                timeout=5,
+                skip_explanation=True,
+            )
+            if success and "Status:" in stdout:
+                active, in_def, out_def, rules, has_ssh = parse_ufw_status_output(stdout)
+                return FirewallStatus(
+                    installed=True,
+                    active=active,
+                    default_incoming=in_def,
+                    default_outgoing=out_def,
+                    rules=rules,
+                    has_ssh_rule=has_ssh,
+                    raw_output=stdout,
+                )
     except Exception:
         pass
 
-    # If non-elevated failed or produced permission error, try via elevated read
-    success, stdout, _ = elevated_run_command(
-        cmd=[ufw_bin, "status", "numbered"],
-        reason="Read UFW firewall status and active rules",
-        task_description="Firewall Status Check",
-        timeout=10,
-        skip_explanation=True,
-    )
-    if success and "Status:" in stdout:
-        active, in_def, out_def, rules, has_ssh = parse_ufw_status_output(stdout)
-        return FirewallStatus(
-            installed=True,
-            active=active,
-            default_incoming=in_def,
-            default_outgoing=out_def,
-            rules=rules,
-            has_ssh_rule=has_ssh,
-            raw_output=stdout,
-        )
-
-    # Fallback: check status file /etc/ufw/ufw.conf
+    # 3. Fast passive inspection via system configuration files (instant, non-blocking)
     is_active = False
+    in_def = "deny"
+    out_def = "allow"
     try:
         if os.path.exists("/etc/ufw/ufw.conf"):
             with open("/etc/ufw/ufw.conf", "r", encoding="utf-8") as f:
-                content = f.read()
-                if "ENABLED=yes" in content:
-                    is_active = True
+                for line in f:
+                    if line.strip().startswith("ENABLED="):
+                        val = line.strip().split("=", 1)[1].strip().strip("\"'")
+                        is_active = val.lower() in ("yes", "true", "1")
+        if os.path.exists("/etc/default/ufw"):
+            with open("/etc/default/ufw", "r", encoding="utf-8") as f:
+                for line in f:
+                    if line.strip().startswith("DEFAULT_INPUT_POLICY="):
+                        val = line.strip().split("=", 1)[1].strip().strip("\"'")
+                        in_def = "deny" if val.lower() in ("drop", "reject", "deny") else "allow"
+                    elif line.strip().startswith("DEFAULT_OUTPUT_POLICY="):
+                        val = line.strip().split("=", 1)[1].strip().strip("\"'")
+                        out_def = "allow" if val.lower() in ("accept", "allow") else "deny"
     except Exception:
         pass
 
     return FirewallStatus(
         installed=True,
         active=is_active,
+        default_incoming=in_def,
+        default_outgoing=out_def,
         rules=[],
         has_ssh_rule=False,
     )

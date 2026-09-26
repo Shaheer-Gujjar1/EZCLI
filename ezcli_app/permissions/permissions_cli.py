@@ -63,16 +63,29 @@ def run_permissions_cli(targets: Optional[List[str]] = None, console: Optional[C
             return
 
     # Fallback Rich console display
+    from .permissions_engine import explain_permissions, get_preset_name
+
     perms = get_file_permissions(resolved_path)
-    file_type = "Directory" if perms.is_dir else "File"
+    file_type = "📁 Directory" if perms.is_dir else "📄 File"
+    preset_name = get_preset_name(perms.octal, perms.is_dir)
+    owner_exp, group_exp, others_exp = explain_permissions(
+        perms.is_dir,
+        perms.owner_r, perms.owner_w, perms.owner_x,
+        perms.group_r, perms.group_w, perms.group_x,
+        perms.other_r, perms.other_w, perms.other_x,
+        group_name=perms.group_name,
+    )
+
     console.print(
         Panel(
             f"Target: [bold cyan]{perms.path}[/bold cyan] ({file_type})\n"
-            f"Octal Mode: [bold green]{perms.octal}[/bold green]  |  Symbolic: [bold]{perms.symbolic}[/bold]\n"
+            f"Configuration: [bold yellow]{preset_name}[/bold yellow]  |  "
+            f"Octal: [bold green]{perms.octal}[/bold green]  |  "
+            f"Symbolic: [bold]{perms.symbolic}[/bold]\n"
             f"Ownership: [bold]{perms.owner_name}:{perms.group_name}[/bold]\n\n"
-            f"Owner:   Read={'✓' if perms.owner_r else '✗'}, Write={'✓' if perms.owner_w else '✗'}, Exec={'✓' if perms.owner_x else '✗'}\n"
-            f"Group:   Read={'✓' if perms.group_r else '✗'}, Write={'✓' if perms.group_w else '✗'}, Exec={'✓' if perms.group_x else '✗'}\n"
-            f"Others:  Read={'✓' if perms.other_r else '✗'}, Write={'✓' if perms.other_w else '✗'}, Exec={'✓' if perms.other_x else '✗'}",
+            f"• [bold green]👤 You (Owner):[/bold green] {owner_exp}\n"
+            f"• [bold cyan]👥 Group ({perms.group_name}):[/bold cyan] {group_exp}\n"
+            f"• [bold magenta]🌐 Everyone Else:[/bold magenta] {others_exp}",
             title="🔐 [bold cyan]EasyCLI File Permissions[/bold cyan]",
             border_style="cyan",
             box=box.ROUNDED,

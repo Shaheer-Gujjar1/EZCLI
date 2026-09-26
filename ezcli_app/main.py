@@ -153,11 +153,11 @@ COMMAND_INTENT_MAP: dict = {
     "chmod": ["permissions"],
     "chown": ["permissions"],
     "rights": ["permissions"],
-    "speedtest": ["speedtest"],
-    "speed": ["speedtest"],
-    "bandwidth": ["speedtest"],
-    "fast": ["speedtest"],
-    "speed-test": ["speedtest"],
+    "speed-test": ["speed-test"],
+    "speedtest": ["speed-test"],
+    "speed": ["speed-test"],
+    "bandwidth": ["speed-test"],
+    "fast": ["speed-test"],
     "shortcuts": ["shortcuts"],
     "shortcut": ["shortcuts"],
     "aliases": ["shortcuts"],
@@ -480,7 +480,7 @@ def dispatch_subcommand(feature, sub_args: list[str], console: Console) -> None:
     elif feature.id == "permissions":
         from .permissions import run_permissions_cli
         run_permissions_cli(targets=sub_args, console=console)
-    elif feature.id == "speedtest":
+    elif feature.id in ("speed-test", "speedtest"):
         from .speedtest import run_speedtest_cli
         run_speedtest_cli(console=console)
     elif feature.id == "shortcuts":
@@ -556,10 +556,15 @@ def main() -> None:
         run_cli_package_info(target, console=console)
         return
 
-    # Backwards-compatible alias for installed-packages
-    if first_arg == "installed-packages":
-        first_arg = "list-installed-packages"
-        args[0] = "list-installed-packages"
+    # Backwards-compatible aliases
+    if first_arg in ("installed-packages", "install", "speedtest"):
+        aliases = {
+            "installed-packages": "list-installed-packages",
+            "install": "package-info",
+            "speedtest": "speed-test",
+        }
+        first_arg = aliases.get(first_arg, first_arg)
+        args[0] = first_arg
 
     # 4. Validate canonical subcommand
     if first_arg not in FEATURES_BY_SUBCOMMAND:

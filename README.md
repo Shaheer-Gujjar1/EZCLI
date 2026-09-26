@@ -222,7 +222,7 @@ ez help
 | 📡 | `ez bluetooth` | **v0.6.5** | `bluetoothctl` | Terminal Bluetooth device manager modeled on Wi-Fi TUI: device scan, signal bars, paired/connected badges, connect, disconnect, pair, and remove. |
 | 🖥️ | `ez drivers` | **v0.6.5** | `ubuntu-drivers`, `lspci` | Proprietary hardware driver detector & installer for NVIDIA GPUs, Broadcom Wi-Fi, and CPU microcode with simulation preview and safe elevated install. |
 | 🔐 | `ez permissions [target \| choose-directory]` | **v0.6.5** | `chmod`, `chown` | Interactive visual chmod & chown editor: dual-mode target, 3x3 R/W/X matrix for Owner/Group/Others, live octal & symbolic preview, and 777 danger warnings. |
-| ⚡ | `ez speedtest` | **v0.6.5** | `speedtest-cli`, `socket` | Internet speed test with animated real-time progress gauge and summary card (ping, download, upload, server, quality rating). Works with or without speedtest-cli. |
+| ⚡ | `ez speed-test` | **v0.6.5** | `speedtest-cli`, `socket` | Internet speed test with animated real-time progress gauge and summary card (ping, download, upload, server, quality rating). Works with or without speedtest-cli. |
 | ⌨️ | `ez shortcuts` | **v0.6.5** | `alias`, `bashrc` | Shell command shortcut manager: list existing shortcuts, add, edit, and delete with automatic shell rc backup. Strictly avoids technical jargon. |
 
 
@@ -1045,7 +1045,7 @@ EZCLI/
   - In-terminal Bluetooth device manager (`ez bluetooth`) modeled on Wi-Fi TUI with device scan, RSSI signal bars, paired/connected badges, connection actions, and friendly missing-adapter panel.
   - Hardware driver detector & installer (`ez drivers`) for NVIDIA GPUs, Broadcom Wi-Fi, and CPU microcode with simulation preview and elevated installation.
   - Interactive visual permissions and ownership editor (`ez permissions [target | choose-directory]`) with 3x3 R/W/X checkbox grid, live octal/symbolic preview, and dangerous 777 combination guards.
-  - Internet speed test (`ez speedtest`) with animated real-time progress gauge, ping, download, upload measurements, and dependency-free fallback engine.
+  - Internet speed test (`ez speed-test`) with animated real-time progress gauge, ping, download, upload measurements, and dependency-free fallback engine.
   - Shell command shortcuts manager (`ez shortcuts`) managing custom terminal shortcuts in `~/.bashrc` with automatic backup and zero jargon.
 
 ---

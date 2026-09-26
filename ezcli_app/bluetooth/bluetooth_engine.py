@@ -78,6 +78,7 @@ class BluetoothManager:
 
     def __init__(self) -> None:
         self.bin = shutil.which("bluetoothctl")
+        self.device_cache: Dict[str, BluetoothDevice] = {}
 
     def is_available(self) -> bool:
         return self.bin is not None
@@ -191,7 +192,7 @@ class BluetoothManager:
         macs_seen = set()
 
         try:
-            # Query devices
+            # 1. Fetch all known/discovered devices
             proc = subprocess.run(
                 [self.bin, "devices"],
                 stdout=subprocess.PIPE,
@@ -209,7 +210,7 @@ class BluetoothManager:
                         dev = self.get_device_info(mac, fallback_name=raw_name)
                         devices.append(dev)
 
-            # Query paired-devices to ensure none missed
+            # 2. Query paired devices (supports legacy 'paired-devices' and modern 'devices Paired')
             proc_p = subprocess.run(
                 [self.bin, "paired-devices"],
                 stdout=subprocess.PIPE,
@@ -217,6 +218,18 @@ class BluetoothManager:
                 text=True,
                 timeout=4,
             )
+            if proc_p.returncode != 0 or not proc_p.stdout.strip():
+                try:
+                    proc_p = subprocess.run(
+                        [self.bin, "devices", "Paired"],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        timeout=3,
+                    )
+                except Exception:
+                    pass
+
             for line in proc_p.stdout.splitlines():
                 m = re.match(r"Device\s+([0-9A-F:]{17})\s*(.*)$", line.strip(), re.IGNORECASE)
                 if m:
@@ -230,7 +243,19 @@ class BluetoothManager:
         except Exception:
             pass
 
-        # Sort: connected first, paired second, then by name
+        # Update cache with currently active devices
+        for dev in devices:
+            self.device_cache[dev.mac] = dev
+
+        # Include previously known devices so they don't vanish upon disconnection
+        for mac, cached_dev in list(self.device_cache.items()):
+            if mac not in macs_seen:
+                # Device was seen/connected earlier but temporarily dropped by BlueZ
+                cached_dev.connected = False
+                devices.append(cached_dev)
+                macs_seen.add(mac)
+
+        # Sort: connected first, paired second, then alphabetically
         devices.sort(key=lambda d: (not d.connected, not d.paired, d.name.lower()))
         return devices
 
@@ -239,9 +264,18 @@ class BluetoothManager:
         if not self.is_available():
             return False, "bluetoothctl is not installed."
         try:
+            subprocess.run([self.bin, "power", "on"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=3)
+            subprocess.run([self.bin, "trust", mac], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=3)
             proc = subprocess.run([self.bin, "connect", mac], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=12)
-            if proc.returncode == 0 or "Connection successful" in proc.stdout:
+            out = proc.stdout + " " + (proc.stderr or "")
+            if proc.returncode == 0 or "Connection successful" in out or "already connected" in out.lower():
+                if mac in self.device_cache:
+                    self.device_cache[mac].connected = True
+                    self.device_cache[mac].bars = "▂▄▆█"
                 return True, "Connected successfully."
+            fail_m = re.search(r"Failed to connect:\s+(.+)$", out, re.MULTILINE)
+            if fail_m:
+                return False, fail_m.group(1).strip()
             return False, proc.stderr.strip() or proc.stdout.strip() or "Connection failed."
         except Exception as e:
             return False, str(e)
@@ -252,22 +286,53 @@ class BluetoothManager:
             return False, "bluetoothctl is not installed."
         try:
             proc = subprocess.run([self.bin, "disconnect", mac], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=8)
+            # Update cache so the device stays visible in the UI in disconnected state
+            if mac in self.device_cache:
+                self.device_cache[mac].connected = False
+                if not self.device_cache[mac].paired:
+                    self.device_cache[mac].bars = "▂▄__"
             return True, proc.stdout.strip() or "Disconnected."
         except Exception as e:
             return False, str(e)
 
     def pair(self, mac: str) -> Tuple[bool, str]:
-        """Pair with a Bluetooth device."""
+        """Pair with a Bluetooth device using an active agent session."""
         if not self.is_available():
             return False, "bluetoothctl is not installed."
         try:
-            # Trust device first to facilitate automatic reconnects
-            subprocess.run([self.bin, "trust", mac], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=4)
-            proc = subprocess.run([self.bin, "pair", mac], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=15)
-            if proc.returncode == 0 or "Pairing successful" in proc.stdout:
+            # 1. Power on adapter
+            subprocess.run([self.bin, "power", "on"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=3)
+            # 2. Run pairing session with registered default agent and trust
+            script = f"power on\nagent on\ndefault-agent\npair {mac}\ntrust {mac}\nquit\n"
+            proc = subprocess.run(
+                [self.bin],
+                input=script,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=18,
+            )
+            out = proc.stdout + " " + (proc.stderr or "")
+            if "Pairing successful" in out or "already paired" in out.lower() or proc.returncode == 0:
+                # Also try quick connect after pairing
+                try:
+                    subprocess.run([self.bin, "connect", mac], stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=6)
+                except Exception:
+                    pass
                 return True, "Pairing successful."
+            # Check for specific error message
+            fail_m = re.search(r"Failed to pair:\s+(.+)$", out, re.MULTILINE)
+            if fail_m:
+                return False, fail_m.group(1).strip()
             return False, proc.stderr.strip() or proc.stdout.strip() or "Pairing failed."
         except Exception as e:
+            # Fallback to direct pair invocation
+            try:
+                proc = subprocess.run([self.bin, "pair", mac], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=12)
+                if proc.returncode == 0 or "Pairing successful" in proc.stdout:
+                    return True, "Pairing successful."
+            except Exception:
+                pass
             return False, str(e)
 
     def remove(self, mac: str) -> Tuple[bool, str]:
@@ -276,6 +341,7 @@ class BluetoothManager:
             return False, "bluetoothctl is not installed."
         try:
             proc = subprocess.run([self.bin, "remove", mac], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=8)
+            self.device_cache.pop(mac, None)
             return True, proc.stdout.strip() or "Device removed."
         except Exception as e:
             return False, str(e)

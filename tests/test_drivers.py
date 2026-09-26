@@ -7,8 +7,10 @@ from ezcli_app.drivers.drivers_engine import (
     HardwareDeviceDriver,
     detect_hardware_drivers,
     detect_via_lspci,
+    install_all_drivers,
     install_driver_package,
     parse_ubuntu_drivers_devices,
+    simulate_all_drivers_installation,
     simulate_driver_installation,
 )
 
@@ -77,18 +79,32 @@ driver   : xserver-xorg-video-nouveau - distro free builtin
         self.assertEqual(sim["download_size"], "145 MB")
         self.assertEqual(sim["target_package"], "nvidia-driver-550")
 
+    @patch("subprocess.run")
+    def test_simulate_all_drivers_installation(self, mock_run):
+        mock_run.return_value = MagicMock(
+            returncode=0,
+            stdout="0 upgraded, 18 newly installed, 0 to remove and 0 not upgraded.\nNeed to get 180 MB of archives.",
+            stderr="",
+        )
+        sim = simulate_all_drivers_installation(["nvidia-driver-550", "intel-microcode"])
+        self.assertTrue(sim["success"])
+        self.assertEqual(sim["new_packages"], 18)
+        self.assertEqual(sim["download_size"], "180 MB")
+        self.assertEqual(len(sim["packages"]), 2)
+
     @patch("ezcli_app.drivers.drivers_engine.elevated_package_install")
-    def test_install_driver_package(self, mock_install):
+    def test_install_all_drivers(self, mock_install):
         mock_install.return_value = True
-        success, msg = install_driver_package("nvidia-driver-550")
+        success, msg = install_all_drivers(["nvidia-driver-550", "bcmwl-kernel-source"])
         self.assertTrue(success)
         mock_install.assert_called_once_with(
-            ["nvidia-driver-550"],
-            reason="Install recommended proprietary hardware driver 'nvidia-driver-550'",
-            task_description="Install Hardware Driver",
+            ["nvidia-driver-550", "bcmwl-kernel-source"],
+            reason="Install recommended proprietary hardware drivers (nvidia-driver-550, bcmwl-kernel-source)",
+            task_description="Install Recommended Hardware Drivers",
             console=None,
         )
 
 
 if __name__ == "__main__":
     unittest.main()
+

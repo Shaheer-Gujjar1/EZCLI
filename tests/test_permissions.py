@@ -81,6 +81,29 @@ class TestPermissions(unittest.TestCase):
         perms = get_file_permissions(self.sample_file)
         self.assertEqual(perms.octal, "0755")
 
+    def test_explain_permissions_and_presets(self):
+        from ezcli_app.permissions.permissions_engine import (
+            explain_permissions,
+            explain_role_permissions,
+            get_preset_name,
+        )
+
+        # File tests
+        o_exp, g_exp, others_exp = explain_permissions(
+            False, True, True, True, True, False, True, True, False, False, group_name="developers"
+        )
+        self.assertIn("Full access", o_exp)
+        self.assertIn("run as program", g_exp)
+        self.assertIn("Read-only", others_exp)
+
+        # Presets identification
+        self.assertEqual(get_preset_name("0600", False), "🔒 Private (Only Me)")
+        self.assertEqual(get_preset_name("0644", False), "📄 Standard Document")
+        self.assertEqual(get_preset_name("0755", False), "⚡ Runnable Script / App")
+        self.assertEqual(get_preset_name("0755", True), "📂 Standard Folder")
+        self.assertEqual(get_preset_name("0777", False), "⚠️ Full Access (Open)")
+        self.assertEqual(get_preset_name("0700", True), "🔒 Private (Only Me)")
+
     @patch("ezcli_app.permissions.permissions_engine.elevated_run_command")
     def test_apply_permissions_elevated_fallback(self, mock_elevated):
         mock_elevated.return_value = (True, "mode of /etc/shadow changed", "")

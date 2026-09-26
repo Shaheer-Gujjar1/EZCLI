@@ -22,12 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Device classification by type with emoji icons (🎧 Headphones, 📱 Phones, ⌨️ Keyboards, 🖱️ Mice, 💻 PCs).
   - Connect, Disconnect, Pair, and Remove with confirmation dialogs.
   - Graceful diagnostic panel for missing Bluetooth adapter or rfkill-blocked states.
-- **Proprietary Hardware Driver Detector & Installer (`ez drivers`)**:
-  - Dedicated Textual TUI (`DriversApp`) in emerald/teal hardware theme.
-  - Automatically identifies hardware needing proprietary drivers (NVIDIA GPUs, Broadcom Wi-Fi, Intel/AMD CPU microcode) via `ubuntu-drivers` with `lspci -nnk` fallback.
-  - One card per device with vendor, current driver, and recommended driver.
-  - Installation simulation preview modal showing package count, download size, and reboot notices.
-  - One-click elevated installation via the administrator helper.
+- **Hardware Driver Booster & Installer (`ez drivers`)**:
+  - Dedicated Textual TUI (`DriversApp`) designed after **IObit Driver Booster** with sleek dark aesthetic and neon cyan/emerald accents.
+  - Comprehensive full-system hardware scan across Display Adapters, Network & Wi-Fi, Ethernet, Sound & Audio, Storage Controllers, Peripherals, and CPU Microcode.
+  - Driver status detection flagging missing drivers (`MISSING 🚫`), outdated/generic drivers (`UPDATE AVAILABLE ⚠️`), and up-to-date drivers (`OPTIMAL & ACTIVE ✅`).
+  - Prominent **⚡ 1-Click Install All** button to download and install all missing or outdated drivers in a single batch.
+  - Batch & individual installation simulation preview modals showing affected devices, package counts, download sizes, and safety notices.
+  - Non-blocking background hardware rescan using Textual worker threads (`@work(thread=True)`).
+  - Clean terminal suspension during elevated installation preventing stdin collision or TUI freezing.
 - **Visual Permissions & Ownership Editor (`ez permissions`)**:
   - Dedicated Textual TUI (`PermissionsApp`) in deep purple/violet security theme.
   - Follows the dual-mode convention: direct target in current directory or `choose-directory` visual picker.
@@ -35,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Live octal (`0755`) and symbolic (`-rwxr-xr-x`) mode calculation.
   - Security warning banner dynamically triggered on dangerous combinations (e.g. `0777` or world-writable).
   - Owner and group changer with elevation fallback for protected files.
-- **Internet Speed Test (`ez speedtest`)**:
+- **Internet Speed Test (`ez speed-test`)**:
   - Dedicated Textual TUI (`SpeedtestApp`) in cyberpunk cyan/magenta neon theme.
   - Real-time animated speedometer progress gauge for Latency (ms), Download (Mbps), and Upload (Mbps).
   - Works with `speedtest-cli` when available, or seamlessly uses built-in high-performance HTTP fallback without external dependencies.

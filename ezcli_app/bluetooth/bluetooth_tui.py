@@ -19,6 +19,7 @@ venv_site = (
 if venv_site and venv_site[0] not in sys.path:
     sys.path.insert(0, venv_site[0])
 
+from textual import work  # type: ignore
 from textual.app import App, ComposeResult  # type: ignore
 from textual.binding import Binding  # type: ignore
 from textual.containers import Horizontal, Vertical  # type: ignore
@@ -77,7 +78,7 @@ class ConfirmRemoveModal(ModalScreen[bool]):
 
     def compose(self) -> ComposeResult:
         with Vertical(id="remove-box"):
-            yield Label("🗑️ Remove Bluetooth Device", id="remove-title")
+            yield Label("🗑 Remove Bluetooth Device", id="remove-title")
             yield Label(
                 f"Remove and unpair [bold yellow]{self.device.icon} {self.device.name}[/bold yellow]?\n\n"
                 f"MAC: [dim]{self.device.mac}[/dim]\n"
@@ -85,7 +86,7 @@ class ConfirmRemoveModal(ModalScreen[bool]):
                 id="remove-desc",
             )
             with Horizontal(id="remove-actions"):
-                yield Button("🗑️ Remove", variant="error", id="btn-confirm-remove")
+                yield Button("🗑 Remove", variant="error", id="btn-confirm-remove")
                 yield Button("❌ Cancel", variant="default", id="btn-cancel")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
@@ -107,7 +108,7 @@ class BluetoothApp(App[None]):
         Binding("c", "connect_device", "🔗 Connect", show=True),
         Binding("p", "pair_device", "🔒 Pair", show=True),
         Binding("d", "disconnect_device", "🚫 Disconnect", show=True),
-        Binding("x", "remove_device", "🗑️ Remove", show=True),
+        Binding("x", "remove_device", "🗑 Remove", show=True),
         Binding("t", "toggle_power", "⚡ Power Toggle", show=True),
         Binding("/", "focus_search", "🔍 Filter", show=True),
     ]
@@ -119,13 +120,15 @@ class BluetoothApp(App[None]):
     }
 
     #controller-banner {
-        height: 3;
+        height: auto;
+        min-height: 3;
         background: #1c2541;
         border: round #3a86ff;
         margin: 0 1 1 1;
         padding: 0 1;
         content-align: center middle;
         text-style: bold;
+        overflow: hidden hidden;
     }
 
     #search-box {
@@ -175,6 +178,7 @@ class BluetoothApp(App[None]):
         self.devices: List[BluetoothDevice] = []
         self.filtered_devices: List[BluetoothDevice] = []
         self.selected_device: Optional[BluetoothDevice] = None
+        self.status_msg: str = ""
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -186,10 +190,10 @@ class BluetoothApp(App[None]):
             yield Button("🔗 Connect", variant="primary", id="btn-connect")
             yield Button("🔒 Pair", variant="success", id="btn-pair")
             yield Button("🚫 Disconnect", variant="warning", id="btn-disconnect")
-            yield Button("🗑️ Remove", variant="error", id="btn-remove")
-            yield Button("🔄 Scan", variant="default", id="btn-scan")
-            yield Button("⚡ Power", variant="default", id="btn-power")
-            yield Button("❌ Close", variant="default", id="btn-close")
+            yield Button("🗑 Remove", variant="error", id="btn-remove")
+            yield Button("🔄 Scan", id="btn-scan")
+            yield Button("⚡ Power", id="btn-power")
+            yield Button("❌ Close", id="btn-close")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -202,22 +206,32 @@ class BluetoothApp(App[None]):
 
         self.refresh_all()
 
-    def refresh_all(self) -> None:
-        self.controller = self.manager.get_controller()
-        banner = self.query_one("#controller-banner", Static)
+    def set_status(self, msg: str) -> None:
+        self.status_msg = msg
+        self.update_banner()
 
+    def update_banner(self) -> None:
+        banner = self.query_one("#controller-banner", Static)
         if not self.controller.available:
             banner.update("[bold red]⚠️ No Bluetooth Adapter Detected or Controller Offline[/bold red]")
-        else:
-            power_badge = "[bold green]ON ⚡[/bold green]" if self.controller.powered else "[bold red]OFF[/bold red]"
-            disc_badge = "Active" if self.controller.discovering else "Idle"
-            banner.update(
-                f"📡 Controller: [bold cyan]{self.controller.name}[/bold cyan] ({self.controller.mac})  |  "
-                f"Power: {power_badge}  |  "
-                f"Scan: [bold]{disc_badge}[/bold]"
-            )
+            return
 
+        if self.status_msg:
+            banner.update(self.status_msg)
+            return
+
+        power_badge = "[bold green]ON ⚡[/bold green]" if self.controller.powered else "[bold red]OFF[/bold red]"
+        disc_badge = "[bold yellow]Active 🔍[/bold yellow]" if self.controller.discovering else "[dim]Idle[/dim]"
+        banner.update(
+            f"📡 Controller: [bold cyan]{self.controller.name}[/bold cyan] ({self.controller.mac})  |  "
+            f"Power: {power_badge}  |  "
+            f"Scan: {disc_badge}"
+        )
+
+    def refresh_all(self) -> None:
+        self.controller = self.manager.get_controller()
         self.devices = self.manager.list_devices()
+        self.update_banner()
         self.apply_filter()
 
     def apply_filter(self) -> None:
@@ -257,59 +271,111 @@ class BluetoothApp(App[None]):
         if event.input.id == "search-box":
             self.apply_filter()
 
+    def get_current_selected_device(self) -> Optional[BluetoothDevice]:
+        try:
+            table = self.query_one("#bt-table", DataTable)
+            if 0 <= table.cursor_row < len(self.filtered_devices):
+                return self.filtered_devices[table.cursor_row]
+        except Exception:
+            pass
+        if self.selected_device:
+            return self.selected_device
+        if self.filtered_devices:
+            return self.filtered_devices[0]
+        return None
+
+    def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        try:
+            row_idx = event.cursor_row
+            if 0 <= row_idx < len(self.filtered_devices):
+                self.selected_device = self.filtered_devices[row_idx]
+        except Exception:
+            pass
+
+    def on_data_table_cell_selected(self, event: DataTable.CellSelected) -> None:
+        try:
+            row_idx = event.coordinate.row
+            if 0 <= row_idx < len(self.filtered_devices):
+                self.selected_device = self.filtered_devices[row_idx]
+        except Exception:
+            pass
+
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
-        key = event.row_key.value if hasattr(event.row_key, "value") else str(event.row_key)
-        self.selected_device = next((d for d in self.devices if d.mac == key), None)
+        try:
+            row_idx = event.cursor_row
+            if 0 <= row_idx < len(self.filtered_devices):
+                self.selected_device = self.filtered_devices[row_idx]
+                if self.selected_device.connected:
+                    self.action_disconnect_device()
+                else:
+                    self.action_connect_device()
+        except Exception:
+            pass
 
     def action_focus_search(self) -> None:
         self.query_one("#search-box", Input).focus()
 
+    @work(thread=True)
     def action_refresh_devices(self) -> None:
-        # Trigger short background scan
+        self.call_from_thread(self.set_status, "[bold yellow]🔍 Scanning for nearby Bluetooth devices... (3s)[/bold yellow]")
         self.manager.scan_devices(timeout=3)
-        self.refresh_all()
+        self.call_from_thread(self.set_status, "")
+        self.call_from_thread(self.refresh_all)
 
+    @work(thread=True)
     def action_connect_device(self) -> None:
-        if not self.selected_device:
-            if self.filtered_devices:
-                self.selected_device = self.filtered_devices[0]
-            else:
-                return
-        self.manager.connect(self.selected_device.mac)
-        self.refresh_all()
+        dev = self.get_current_selected_device()
+        if not dev:
+            return
+        self.call_from_thread(self.set_status, f"[bold cyan]⏳ Connecting to {dev.name} ({dev.mac})...[/bold cyan]")
+        ok, msg = self.manager.connect(dev.mac)
+        if ok:
+            self.call_from_thread(self.set_status, f"[bold green]✓ Connected to {dev.name} successfully![/bold green]")
+        else:
+            self.call_from_thread(self.set_status, f"[bold red]❌ Connection failed: {msg}[/bold red]")
+        self.call_from_thread(self.refresh_all)
 
+    @work(thread=True)
     def action_disconnect_device(self) -> None:
-        if not self.selected_device:
-            if self.filtered_devices:
-                self.selected_device = self.filtered_devices[0]
-            else:
-                return
-        self.manager.disconnect(self.selected_device.mac)
-        self.refresh_all()
+        dev = self.get_current_selected_device()
+        if not dev:
+            return
+        self.call_from_thread(self.set_status, f"[bold yellow]⏳ Disconnecting {dev.name}...[/bold yellow]")
+        self.manager.disconnect(dev.mac)
+        self.call_from_thread(self.set_status, f"[bold green]✓ Disconnected {dev.name}.[/bold green]")
+        self.call_from_thread(self.refresh_all)
 
+    @work(thread=True)
     def action_pair_device(self) -> None:
-        if not self.selected_device:
-            if self.filtered_devices:
-                self.selected_device = self.filtered_devices[0]
-            else:
-                return
-        self.manager.pair(self.selected_device.mac)
-        self.refresh_all()
+        dev = self.get_current_selected_device()
+        if not dev:
+            return
+        self.call_from_thread(self.set_status, f"[bold cyan]⏳ Pairing with {dev.name}... (confirm prompt on device if required)[/bold cyan]")
+        ok, msg = self.manager.pair(dev.mac)
+        if ok:
+            self.call_from_thread(self.set_status, f"[bold green]✓ Paired with {dev.name} successfully![/bold green]")
+        else:
+            self.call_from_thread(self.set_status, f"[bold red]❌ Pairing failed: {msg}[/bold red]")
+        self.call_from_thread(self.refresh_all)
 
     def action_remove_device(self) -> None:
-        if not self.selected_device:
-            if self.filtered_devices:
-                self.selected_device = self.filtered_devices[0]
-            else:
-                return
+        dev = self.get_current_selected_device()
+        if not dev:
+            return
 
         def on_confirmed(confirmed: bool) -> None:
-            if confirmed and self.selected_device:
-                self.manager.remove(self.selected_device.mac)
-                self.selected_device = None
-                self.refresh_all()
+            if confirmed:
+                self.do_remove(dev)
 
-        self.push_screen(ConfirmRemoveModal(self.selected_device), on_confirmed)
+        self.push_screen(ConfirmRemoveModal(dev), on_confirmed)
+
+    @work(thread=True)
+    def do_remove(self, dev: BluetoothDevice) -> None:
+        self.call_from_thread(self.set_status, f"[bold yellow]⏳ Removing {dev.name}...[/bold yellow]")
+        self.manager.remove(dev.mac)
+        self.selected_device = None
+        self.call_from_thread(self.set_status, f"[bold green]✓ Removed {dev.name}.[/bold green]")
+        self.call_from_thread(self.refresh_all)
 
     def action_toggle_power(self) -> None:
         new_power = not self.controller.powered

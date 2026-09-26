@@ -134,6 +134,38 @@ RSSI: -82
         ok, msg = manager.remove("11:22:33:44:55:66")
         self.assertTrue(ok)
 
+    @patch("subprocess.run")
+    def test_pair(self, mock_run):
+        mock_run.return_value = MagicMock(returncode=0, stdout="Pairing successful\n", stderr="")
+        manager = BluetoothManager()
+        manager.bin = "/usr/bin/bluetoothctl"
+
+        ok, msg = manager.pair("11:22:33:44:55:66")
+        self.assertTrue(ok)
+        self.assertIn("successful", msg.lower())
+
+    @patch("subprocess.run")
+    def test_disconnect_retains_device_in_list(self, mock_run):
+        manager = BluetoothManager()
+        manager.bin = "/usr/bin/bluetoothctl"
+
+        # Initially populate cache with a connected device
+        dev = BluetoothDevice(mac="11:22:33:44:55:66", name="Headphones", connected=True)
+        manager.device_cache[dev.mac] = dev
+
+        # Disconnect device
+        mock_run.return_value = MagicMock(returncode=0, stdout="Successful disconnected\n", stderr="")
+        ok, msg = manager.disconnect("11:22:33:44:55:66")
+        self.assertTrue(ok)
+        self.assertFalse(manager.device_cache["11:22:33:44:55:66"].connected)
+
+        # Even if bluetoothctl devices returns empty, the device is preserved in list_devices()
+        mock_run.return_value = MagicMock(returncode=0, stdout="", stderr="")
+        devices = manager.list_devices()
+        self.assertEqual(len(devices), 1)
+        self.assertEqual(devices[0].mac, "11:22:33:44:55:66")
+        self.assertFalse(devices[0].connected)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -71,16 +71,91 @@ def check_dangerous_permissions(
 
     if o_w:
         if raw_octal == "777":
-            return True, "⚠️ DANGEROUS: 0777 grants full read, write, and execute access to ANY user or malware on the system!"
+            return True, "🚨 DANGEROUS (0777): Anyone or any process on this system can read, modify, or execute this!"
         elif raw_octal == "666":
-            return True, "⚠️ DANGEROUS: 0666 makes this file world-writable — anyone on the system can alter or erase it."
+            return True, "⚠️ WORLD-WRITABLE (0666): Anyone on this computer can alter or delete this file."
         else:
-            return True, f"⚠️ SECURITY RISK: Others have Write permission ({octal}). Any unprivileged process can modify this file."
+            return True, f"⚠️ SECURITY RISK: Public write enabled ({octal}). Any unprivileged process can modify this file."
 
     if is_dir and not u_x:
-        return True, "⚠️ CAUTION: Directory requires Execute permission for the owner to list or open files inside."
+        return True, "⚠️ CAUTION: Directory requires Execute permission for you to enter and open files inside."
 
     return False, ""
+
+
+def explain_role_permissions(r: bool, w: bool, x: bool, is_dir: bool) -> str:
+    """Generate a friendly plain-English description for a single role's permissions."""
+    if is_dir:
+        if r and w and x:
+            return "Full access: list files, add or delete contents, and enter folder"
+        elif r and not w and x:
+            return "Can view contents and open folder (cannot add or delete files)"
+        elif not r and w and x:
+            return "Can enter folder and add files (cannot list existing contents)"
+        elif r and w and not x:
+            return "Can list and modify files, but cannot enter or navigate into folder"
+        elif r and not w and not x:
+            return "Can list file names only (cannot open or enter folder)"
+        elif not r and not w and x:
+            return "Can enter folder if exact filename is known (cannot browse)"
+        elif not r and w and not x:
+            return "Drop-box only: can write files without seeing contents"
+        else:
+            return "No access (completely locked out)"
+    else:
+        if r and w and x:
+            return "Full access: can view, edit, and run as a program/script"
+        elif r and w and not x:
+            return "Can view and edit/modify (cannot run as program)"
+        elif r and not w and x:
+            return "Can view and run as program (read-only, cannot edit)"
+        elif r and not w and not x:
+            return "Read-only: can view, but cannot edit or run"
+        elif not r and w and x:
+            return "Can modify and execute, but cannot read content"
+        elif not r and w and not x:
+            return "Write-only: can modify or append, cannot read content"
+        elif not r and not w and x:
+            return "Execute-only: can run as program, cannot read or edit"
+        else:
+            return "No access (completely locked out)"
+
+
+def explain_permissions(
+    is_dir: bool,
+    u_r: bool, u_w: bool, u_x: bool,
+    g_r: bool, g_w: bool, g_x: bool,
+    o_r: bool, o_w: bool, o_x: bool,
+    group_name: str = "group",
+) -> Tuple[str, str, str]:
+    """Return plain-English explanations for Owner, Group, and Everyone Else."""
+    owner_desc = explain_role_permissions(u_r, u_w, u_x, is_dir)
+    group_desc = explain_role_permissions(g_r, g_w, g_x, is_dir)
+    others_desc = explain_role_permissions(o_r, o_w, o_x, is_dir)
+    return owner_desc, group_desc, others_desc
+
+
+def get_preset_name(octal: str, is_dir: bool) -> str:
+    """Identify matching common preset name for a given octal code."""
+    raw = octal.lstrip("0") or "0"
+    if is_dir:
+        presets = {
+            "700": "🔒 Private (Only Me)",
+            "755": "📂 Standard Folder",
+            "775": "👥 Team Shared Folder",
+            "555": "🛡️ Read-Only Locked Folder",
+            "777": "⚠️ Full Access (Open)",
+        }
+    else:
+        presets = {
+            "600": "🔒 Private (Only Me)",
+            "644": "📄 Standard Document",
+            "755": "⚡ Runnable Script / App",
+            "664": "👥 Team Shared File",
+            "444": "🛡️ Read-Only Locked",
+            "777": "⚠️ Full Access (Open)",
+        }
+    return presets.get(raw, "⚙️ Custom Settings")
 
 
 def get_file_permissions(path: str) -> FilePermissions:

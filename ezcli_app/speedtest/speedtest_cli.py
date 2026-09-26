@@ -14,7 +14,7 @@ from .speedtest_engine import execute_speedtest, has_speedtest_cli
 
 
 def run_speedtest_cli(console: Optional[Console] = None) -> None:
-    """Entry point for `ez speedtest`."""
+    """Entry point for `ez speed-test`."""
     if console is None:
         console = Console()
 
