@@ -592,7 +592,43 @@ class TestPackageInfo(unittest.TestCase):
 
         asyncio.run(_test())
 
+    def test_live_status_system_and_details_modal(self):
+        import asyncio
+        from textual.widgets import Label, Button, Static  # type: ignore
+        from ezcli_app.package_info_tui import PackageInfoApp, OperationDetailsModal
+
+        async def _test():
+            app = PackageInfoApp()
+            async with app.run_test(size=(100, 30)) as pilot:
+                # Check status bar presence
+                self.assertIsNotNone(pilot.app.query_one("#status-bar"))
+                badge = pilot.app.query_one("#status-badge", Label)
+                msg = pilot.app.query_one("#status-msg", Label)
+
+                # Set status
+                pilot.app.set_live_status("busy", "Testing busy message...")
+                self.assertIn("BUSY", str(badge.render()))
+                self.assertIn("Testing busy message", str(msg.render()))
+
+                pilot.app.set_live_status("success", "Operation successful!", details="Log output here")
+                self.assertIn("DONE", str(badge.render()))
+                self.assertIn("Operation successful", str(msg.render()))
+                self.assertEqual(pilot.app.last_operation_log["details"], "Log output here")
+
+                # Test clicking details button opens OperationDetailsModal
+                await pilot.click("#status-details-btn")
+                self.assertIsInstance(pilot.app.screen, OperationDetailsModal)
+                self.assertIn("📋", str(pilot.app.screen.query_one("#op-title", Label).render()))
+                self.assertIsNotNone(pilot.app.screen.query_one("#op-log-text", Static))
+
+                # Dismiss modal
+                await pilot.click("#op-btn-close")
+                self.assertNotIsInstance(pilot.app.screen, OperationDetailsModal)
+
+        asyncio.run(_test())
+
 
 if __name__ == "__main__":
     unittest.main()
+
 

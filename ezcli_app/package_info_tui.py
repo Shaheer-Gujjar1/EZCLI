@@ -13,6 +13,8 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
+import time
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 venv_site = (
@@ -531,6 +533,80 @@ class ConfirmUpdateAllModal(ModalScreen[bool]):
             self.dismiss(False)
 
 
+class OperationDetailsModal(ModalScreen[None]):
+    """Detailed modal displaying complete execution output, exit codes, and diagnostics."""
+
+    DEFAULT_CSS = """
+    OperationDetailsModal {
+        align: center middle;
+        background: rgba(0, 0, 0, 0.75);
+    }
+
+    #op-dialog {
+        width: 78;
+        height: auto;
+        max-height: 22;
+        background: #0f172a;
+        border: round #38bdf8;
+        padding: 1 2;
+    }
+
+    #op-title {
+        text-style: bold;
+        color: #38bdf8;
+        margin-bottom: 1;
+    }
+
+    #op-status-badge {
+        margin-bottom: 1;
+        color: #94a3b8;
+    }
+
+    #op-log-scroll {
+        height: 10;
+        background: #020617;
+        border: solid #1e293b;
+        padding: 0 1;
+        margin-bottom: 1;
+        scrollbar-gutter: stable;
+        scrollbar-size-vertical: 1;
+    }
+
+    #op-log-text {
+        color: #cbd5e1;
+    }
+
+    #op-btn-row {
+        align: right middle;
+        height: 3;
+    }
+
+    #op-btn-close {
+        min-width: 10;
+    }
+    """
+
+    def __init__(self, title: str, badge: str, details: str, timestamp: str = "") -> None:
+        super().__init__()
+        self.op_title = title
+        self.badge = badge
+        self.details = details
+        self.timestamp = timestamp or time.strftime("%H:%M:%S")
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="op-dialog"):
+            yield Label(f"📋 {self.op_title}", id="op-title")
+            yield Label(f"{self.badge}  •  Recorded at {self.timestamp}", id="op-status-badge")
+            with VerticalScroll(id="op-log-scroll"):
+                yield Static(self.details, id="op-log-text")
+            with Horizontal(id="op-btn-row"):
+                yield Button("Close", variant="primary", id="op-btn-close")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "op-btn-close":
+            self.dismiss()
+
+
 # ==============================================================================
 # Main Package Info Explorer App
 # ==============================================================================
@@ -548,6 +624,7 @@ class PackageInfoApp(App[None]):
         Binding("i", "action_install", "⬇️ Install/Update", show=True),
         Binding("u", "action_uninstall", "🗑️ Uninstall", show=True),
         Binding("U", "action_update_all", "⚡ Update All", show=True),
+        Binding("d", "action_show_details", "📋 Logs", show=True),
         Binding("r", "refresh_catalog", "🔄 Refresh", show=True),
     ]
 
@@ -718,6 +795,39 @@ class PackageInfoApp(App[None]):
         content-align: left middle;
     }
 
+    #status-bar {
+        height: 2;
+        background: #0b1322;
+        border-top: solid #1e3a8a;
+        padding: 0 1;
+        align: left middle;
+    }
+
+    #status-badge {
+        text-style: bold;
+        margin-right: 1;
+        min-width: 10;
+    }
+
+    #status-msg {
+        width: 1fr;
+        color: #e2e8f0;
+    }
+
+    #status-details-btn {
+        min-width: 12;
+        height: 1;
+        border: none;
+        padding: 0 1;
+        background: #1e293b;
+        color: #38bdf8;
+    }
+
+    #status-details-btn:hover {
+        background: #0284c7;
+        color: #ffffff;
+    }
+
     #action-bar {
         height: 4;
         background: #0d1527;
@@ -748,6 +858,57 @@ class PackageInfoApp(App[None]):
         self.current_filter: str = "all"
         self.candidates: List[PackageCandidate] = []
         self.selected_candidate: Optional[PackageCandidate] = None
+        self.last_operation_log: Dict[str, str] = {
+            "title": "System Ready",
+            "badge": "[bold cyan]● READY[/bold cyan]",
+            "details": "EasyCLI Package & App Explorer initialized.\nNo operations executed yet.",
+            "time": time.strftime("%H:%M:%S"),
+        }
+
+    def set_live_status(self, kind: str, message: str, details: Optional[str] = None) -> None:
+        """Update the persistent live status bar with state icon, message, and diagnostic logs."""
+        if threading.current_thread() is not threading.main_thread():
+            self.app.call_from_thread(self._set_live_status_ui, kind, message, details)
+        else:
+            self._set_live_status_ui(kind, message, details)
+
+    def _set_live_status_ui(self, kind: str, message: str, details: Optional[str] = None) -> None:
+        kind_lower = kind.lower()
+        if kind_lower in ("busy", "working", "loading", "progress"):
+            badge = "[bold yellow]⏳ BUSY[/bold yellow]"
+        elif kind_lower in ("success", "ok", "done"):
+            badge = "[bold green]✅ DONE[/bold green]"
+        elif kind_lower in ("error", "failed", "danger"):
+            badge = "[bold red]❌ ERROR[/bold red]"
+        elif kind_lower in ("warning", "warn"):
+            badge = "[bold yellow]⚠️ WARN[/bold yellow]"
+        else:
+            badge = "[bold cyan]● READY[/bold cyan]"
+
+        curr_time = time.strftime("%H:%M:%S")
+        self.last_operation_log = {
+            "title": message,
+            "badge": badge,
+            "details": details or message,
+            "time": curr_time,
+        }
+
+        try:
+            badge_widget = self.query_one("#status-badge", Label)
+            msg_widget = self.query_one("#status-msg", Label)
+            badge_widget.update(badge)
+            msg_widget.update(message)
+        except Exception:
+            pass
+
+    def action_show_details(self) -> None:
+        """Show full diagnostics and terminal output for the latest operation."""
+        log = self.last_operation_log
+        title = log.get("title", "Operation Diagnostics")
+        badge = log.get("badge", "[bold cyan]● READY[/bold cyan]")
+        details = log.get("details") or "No operation logs recorded yet."
+        t = log.get("time", "")
+        self.push_screen(OperationDetailsModal(title=title, badge=badge, details=details, timestamp=t))
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -809,6 +970,11 @@ class PackageInfoApp(App[None]):
                         yield Label("🔗 System Dependencies & Runtime", classes="card-title")
                         yield Static(id="deps-body", classes="card-text")
 
+        with Horizontal(id="status-bar"):
+            yield Label("[bold cyan]● READY[/bold cyan]", id="status-badge")
+            yield Label("Software catalog ready.", id="status-msg")
+            yield Button("📋 Details", id="status-details-btn")
+
         with Horizontal(id="action-bar"):
             yield Button("🚀 Launch", variant="success", id="btn-launch", disabled=True)
             yield Button("⬇️ Install", variant="primary", id="btn-install", disabled=True)
@@ -843,7 +1009,7 @@ class PackageInfoApp(App[None]):
     @work(thread=True)
     def load_default_catalog(self) -> None:
         """Load default installed applications and local catalog."""
-        self.app.call_from_thread(self._set_catalog_status, "🔄 Scanning local software catalog...")
+        self.set_live_status("busy", "Scanning local system software catalog...")
         try:
             res = collect_installed_packages(filter_term="", category="both")
             matches = res.get("matches", [])
@@ -877,22 +1043,22 @@ class PackageInfoApp(App[None]):
                 )
             self.app.call_from_thread(self._populate_catalog, candidates, "📦 Software Catalog")
         except Exception as e:
-            self.app.call_from_thread(self._set_catalog_status, f"Error: {e}")
+            self.set_live_status("error", f"Error scanning catalog: {e}", str(e))
 
     @work(thread=True)
     def execute_search(self, query: str) -> None:
         """Perform a multi-source search across local machine and remote stores."""
-        self.app.call_from_thread(self._set_catalog_status, f"🔍 Searching catalogs for '{query}'...")
+        self.set_live_status("busy", f"Searching repositories for '{query}'...")
         try:
             candidates, _, _ = resolve_package_info(query)
             self.app.call_from_thread(self._populate_catalog, candidates, f"🔍 Results for '{query}'")
         except Exception as e:
-            self.app.call_from_thread(self._set_catalog_status, f"Search failed: {e}")
+            self.set_live_status("error", f"Search failed: {e}", str(e))
 
     @work(thread=True)
     def load_available_updates(self) -> None:
         """Collect and display pending package updates."""
-        self.app.call_from_thread(self._set_catalog_status, "🔄 Checking repositories for pending updates...")
+        self.set_live_status("busy", "Checking system repositories for pending updates...")
         try:
             res = collect_available_updates()
             up_list = res.get("updates", [])
@@ -922,7 +1088,7 @@ class PackageInfoApp(App[None]):
             self.app.call_from_thread(self._populate_catalog, candidates, "🔄 Available Software Updates")
             self.app.call_from_thread(self._update_all_button_state, len(candidates))
         except Exception as e:
-            self.app.call_from_thread(self._set_catalog_status, f"Updates check failed: {e}")
+            self.set_live_status("error", f"Updates check failed: {e}", str(e))
 
     def _update_all_button_state(self, count: int) -> None:
         try:
@@ -932,7 +1098,11 @@ class PackageInfoApp(App[None]):
             pass
 
     def _set_catalog_status(self, text: str) -> None:
-        self.query_one("#catalog-header", Label).update(text)
+        try:
+            self.query_one("#catalog-header", Label).update(text)
+        except Exception:
+            pass
+        self.set_live_status("busy", text)
 
     def _populate_catalog(self, candidates: List[PackageCandidate], header_title: str) -> None:
         seen_names = set()
@@ -949,6 +1119,13 @@ class PackageInfoApp(App[None]):
         filtered = self._apply_filter(self.candidates)
         header_lbl = self.query_one("#catalog-header", Label)
         header_lbl.update(f"{header_title} ({len(filtered)} items)")
+
+        if header_title.startswith("🔍"):
+            self.set_live_status("ready", f"Search completed: {len(filtered)} items matched query.")
+        elif "Updates" in header_title:
+            self.set_live_status("ready", f"Updates check: {len(filtered)} package update(s) pending.")
+        else:
+            self.set_live_status("ready", f"Software catalog ready ({len(filtered)} items listed).")
 
         for idx, c in enumerate(filtered):
             status_chip = "[bold green]✅ Installed[/bold green]" if c.is_installed else "[bold cyan]🏪 Store[/bold cyan]"
@@ -1172,7 +1349,7 @@ class PackageInfoApp(App[None]):
 
     def action_launch(self) -> None:
         if not self.selected_candidate or not self.selected_candidate.is_installed:
-            self.notify("Selected item is not installed or runnable.", severity="warning")
+            self.set_live_status("warn", "Selected item is not installed or runnable.")
             return
 
         name = self.selected_candidate.name
@@ -1181,17 +1358,17 @@ class PackageInfoApp(App[None]):
             if desktop_file and shutil.which("gtk-launch"):
                 base_name = os.path.basename(desktop_file).replace(".desktop", "")
                 subprocess.Popen(["gtk-launch", base_name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-                self.notify(f"Launched '{name}' successfully!", severity="information")
+                self.set_live_status("success", f"Launched '{name}' desktop application successfully.")
                 return
 
             if shutil.which(name):
                 subprocess.Popen([name], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
-                self.notify(f"Launched executable '{name}'!", severity="information")
+                self.set_live_status("success", f"Launched executable '{name}' from PATH.")
                 return
 
-            self.notify(f"Executable for '{name}' was not found on system PATH.", severity="error")
+            self.set_live_status("error", f"Executable for '{name}' was not found on system PATH.")
         except Exception as e:
-            self.notify(f"Failed to launch '{name}': {e}", severity="error")
+            self.set_live_status("error", f"Failed to launch '{name}': {e}", str(e))
 
     def action_install(self) -> None:
         if not self.selected_candidate:
@@ -1203,7 +1380,7 @@ class PackageInfoApp(App[None]):
             return
 
         if candidate.is_installed:
-            self.notify(f"'{candidate.name}' is already installed on your system.", title="Already Installed", severity="information")
+            self.set_live_status("warn", f"'{candidate.name}' is already installed on your system.")
             return
 
         uninstalled_sources = [s for s in candidate.sources if not s.is_installed]
@@ -1226,7 +1403,7 @@ class PackageInfoApp(App[None]):
 
             def on_admin_ready(pwd: Optional[str]) -> None:
                 if pwd is None:
-                    self.notify("Installation cancelled: Admin rights were not granted.", title="Cancelled", severity="warning")
+                    self.set_live_status("warn", f"Installation of '{candidate.name}' cancelled: Admin rights not granted.")
                     return
                 self.run_install_worker(target_pkg, plat, candidate.name, pwd)
 
@@ -1248,14 +1425,7 @@ class PackageInfoApp(App[None]):
 
     @work(thread=True)
     def run_install_worker(self, target_pkg: str, plat: str, candidate_name: str, pwd: str) -> None:
-        self.app.call_from_thread(
-            self.notify,
-            f"Installing '{candidate_name}' via {plat.upper()}... Please wait.",
-            title="Installation In Progress",
-            severity="information",
-            timeout=8.0,
-        )
-        self.app.call_from_thread(self._set_catalog_status, f"⏳ Installing '{candidate_name}' ({plat.upper()})...")
+        self.set_live_status("busy", f"Installing '{candidate_name}' via {plat.upper()}... Running privileged helper")
 
         try:
             with ElevationSession(password=pwd):
@@ -1269,31 +1439,28 @@ class PackageInfoApp(App[None]):
             err_msg = result[2] if result and len(result) > 2 else ""
 
             if ok:
-                self.app.call_from_thread(
-                    self.notify,
-                    f"Successfully installed '{candidate_name}'!",
-                    title="Installation Complete",
-                    severity="information",
-                )
+                self.set_live_status("success", f"Successfully installed '{candidate_name}' ({plat.upper()})! Refreshing catalog...")
                 self.app.call_from_thread(self.action_refresh_catalog)
             else:
-                display_err = err_msg or f"apt-get install failed for '{target_pkg}'. Check package name."
+                display_err = err_msg or f"Package installation failed for '{target_pkg}'."
+                full_err = display_err
+                if result and len(result) > 1 and isinstance(result[1], dict):
+                    diag = (result[1].get("stderr") or result[1].get("stdout") or "").strip()
+                    if diag:
+                        full_err = f"{full_err}\n\n[Terminal Diagnostic Output]:\n{diag}"
+
+                self.set_live_status("error", f"Install failed: {display_err}", full_err)
                 self.app.call_from_thread(
-                    self.notify,
-                    f"Install failed: {display_err}",
-                    title="Install Failed",
-                    severity="error",
-                    timeout=12.0,
+                    self.push_screen,
+                    OperationDetailsModal(
+                        title=f"Installation Failed: '{candidate_name}'",
+                        badge="[bold red]❌ INSTALLATION FAILED[/bold red]",
+                        details=full_err,
+                        timestamp=time.strftime("%H:%M:%S"),
+                    ),
                 )
-                self.app.call_from_thread(self._set_catalog_status, f"❌ Install failed: {display_err[:60]}")
         except Exception as e:
-            self.app.call_from_thread(
-                self.notify,
-                f"Error installing '{target_pkg}': {e}",
-                title="Error",
-                severity="error",
-            )
-            self.app.call_from_thread(self._set_catalog_status, f"Error: {e}")
+            self.set_live_status("error", f"Error installing '{target_pkg}': {e}", str(e))
 
     def action_update_single(self, candidate: PackageCandidate) -> None:
         """Update a single selected package to its latest candidate version."""
@@ -1301,7 +1468,7 @@ class PackageInfoApp(App[None]):
 
         def on_admin_ready(pwd: Optional[str]) -> None:
             if pwd is None:
-                self.notify(f"Update of '{pkg_name}' cancelled: Admin rights were not granted.", title="Cancelled", severity="warning")
+                self.set_live_status("warn", f"Update of '{pkg_name}' cancelled: Admin rights not granted.")
                 return
             self.run_update_single_worker(pkg_name, pwd)
 
@@ -1309,14 +1476,7 @@ class PackageInfoApp(App[None]):
 
     @work(thread=True)
     def run_update_single_worker(self, pkg_name: str, pwd: str) -> None:
-        self.app.call_from_thread(
-            self.notify,
-            f"Updating '{pkg_name}' to latest version... Please wait.",
-            title="Update In Progress",
-            severity="information",
-            timeout=8.0,
-        )
-        self.app.call_from_thread(self._set_catalog_status, f"⏳ Updating '{pkg_name}'...")
+        self.set_live_status("busy", f"Updating '{pkg_name}' to latest version via APT... Running privileged helper")
 
         try:
             with ElevationSession(password=pwd):
@@ -1330,31 +1490,28 @@ class PackageInfoApp(App[None]):
             err_msg = result[2] if result and len(result) > 2 else ""
 
             if ok:
-                self.app.call_from_thread(
-                    self.notify,
-                    f"Successfully updated '{pkg_name}'!",
-                    title="Update Complete",
-                    severity="information",
-                )
+                self.set_live_status("success", f"Successfully updated '{pkg_name}'! Refreshing updates...")
                 self.app.call_from_thread(self.load_available_updates)
             else:
                 display_err = err_msg or f"Failed to update '{pkg_name}'."
+                full_err = display_err
+                if result and len(result) > 1 and isinstance(result[1], dict):
+                    diag = (result[1].get("stderr") or result[1].get("stdout") or "").strip()
+                    if diag:
+                        full_err = f"{full_err}\n\n[Terminal Diagnostic Output]:\n{diag}"
+
+                self.set_live_status("error", f"Update failed: {display_err}", full_err)
                 self.app.call_from_thread(
-                    self.notify,
-                    f"Update failed: {display_err}",
-                    title="Update Failed",
-                    severity="error",
-                    timeout=12.0,
+                    self.push_screen,
+                    OperationDetailsModal(
+                        title=f"Update Failed: '{pkg_name}'",
+                        badge="[bold red]❌ UPDATE FAILED[/bold red]",
+                        details=full_err,
+                        timestamp=time.strftime("%H:%M:%S"),
+                    ),
                 )
-                self.app.call_from_thread(self._set_catalog_status, f"❌ Update failed: {display_err[:60]}")
         except Exception as e:
-            self.app.call_from_thread(
-                self.notify,
-                f"Error updating '{pkg_name}': {e}",
-                title="Error",
-                severity="error",
-            )
-            self.app.call_from_thread(self._set_catalog_status, f"Error: {e}")
+            self.set_live_status("error", f"Error updating '{pkg_name}': {e}", str(e))
 
     def action_update_all(self) -> None:
         """Batch upgrade all pending system package updates."""
@@ -1369,7 +1526,7 @@ class PackageInfoApp(App[None]):
             count = len(updates)
 
         if count == 0:
-            self.notify("All system packages are already up to date!", title="System Up To Date", severity="information")
+            self.set_live_status("success", "All system packages are already up to date!")
             return
 
         def on_confirmed(proceed: bool) -> None:
@@ -1378,7 +1535,7 @@ class PackageInfoApp(App[None]):
 
             def on_admin_ready(pwd: Optional[str]) -> None:
                 if pwd is None:
-                    self.notify("Upgrade cancelled: Admin rights were not granted.", title="Cancelled", severity="warning")
+                    self.set_live_status("warn", "System upgrade cancelled: Admin rights not granted.")
                     return
                 self.run_update_all_worker(pwd)
 
@@ -1388,46 +1545,35 @@ class PackageInfoApp(App[None]):
 
     @work(thread=True)
     def run_update_all_worker(self, pwd: str) -> None:
-        self.app.call_from_thread(
-            self.notify,
-            "Upgrading all system packages... Please wait.",
-            title="System Upgrade In Progress",
-            severity="information",
-            timeout=10.0,
-        )
-        self.app.call_from_thread(self._set_catalog_status, "⏳ Upgrading system packages via APT...")
+        self.set_live_status("busy", "Upgrading all system packages via APT... Running privileged helper")
 
         try:
             with ElevationSession(password=pwd):
                 ok, res, err = elevated_apt_upgrade(skip_explanation=True)
 
             if ok:
-                self.app.call_from_thread(
-                    self.notify,
-                    "All system packages were successfully upgraded!",
-                    title="Upgrade Complete",
-                    severity="information",
-                    timeout=8.0,
-                )
+                self.set_live_status("success", "All system packages were successfully upgraded! Refreshing updates...")
                 self.app.call_from_thread(self.load_available_updates)
             else:
                 display_err = err or "System upgrade failed."
+                full_err = display_err
+                if res and isinstance(res, dict):
+                    diag = (res.get("stderr") or res.get("stdout") or "").strip()
+                    if diag:
+                        full_err = f"{full_err}\n\n[Terminal Diagnostic Output]:\n{diag}"
+
+                self.set_live_status("error", f"System upgrade failed: {display_err}", full_err)
                 self.app.call_from_thread(
-                    self.notify,
-                    f"Upgrade failed: {display_err}",
-                    title="Upgrade Failed",
-                    severity="error",
-                    timeout=12.0,
+                    self.push_screen,
+                    OperationDetailsModal(
+                        title="System Package Upgrade Failed",
+                        badge="[bold red]❌ UPGRADE FAILED[/bold red]",
+                        details=full_err,
+                        timestamp=time.strftime("%H:%M:%S"),
+                    ),
                 )
-                self.app.call_from_thread(self._set_catalog_status, f"❌ Upgrade failed: {display_err[:60]}")
         except Exception as e:
-            self.app.call_from_thread(
-                self.notify,
-                f"Error during system upgrade: {e}",
-                title="Error",
-                severity="error",
-            )
-            self.app.call_from_thread(self._set_catalog_status, f"Error: {e}")
+            self.set_live_status("error", f"Error during system upgrade: {e}", str(e))
 
     def action_uninstall(self) -> None:
         if not self.selected_candidate or not self.selected_candidate.is_installed:
@@ -1453,7 +1599,7 @@ class PackageInfoApp(App[None]):
 
             def on_admin_ready(pwd: Optional[str]) -> None:
                 if pwd is None:
-                    self.notify("Uninstallation cancelled: Admin rights were not granted.", title="Cancelled", severity="warning")
+                    self.set_live_status("warn", f"Uninstallation of '{candidate.name}' cancelled: Admin rights not granted.")
                     return
                 self.run_uninstall_worker(target_pkg, plat, candidate.name, pwd)
 
@@ -1463,14 +1609,7 @@ class PackageInfoApp(App[None]):
 
     @work(thread=True)
     def run_uninstall_worker(self, target_pkg: str, plat: str, candidate_name: str, pwd: str) -> None:
-        self.app.call_from_thread(
-            self.notify,
-            f"Uninstalling '{candidate_name}'... Please wait.",
-            title="Uninstall In Progress",
-            severity="information",
-            timeout=8.0,
-        )
-        self.app.call_from_thread(self._set_catalog_status, f"⏳ Removing '{candidate_name}'...")
+        self.set_live_status("busy", f"Uninstalling '{candidate_name}' via {plat.upper()}... Running privileged helper")
 
         try:
             with ElevationSession(password=pwd):
@@ -1481,29 +1620,22 @@ class PackageInfoApp(App[None]):
                 )
 
             if ok:
-                self.app.call_from_thread(
-                    self.notify,
-                    f"Successfully uninstalled '{candidate_name}'!",
-                    title="Uninstall Complete",
-                    severity="information",
-                )
+                self.set_live_status("success", f"Successfully uninstalled '{candidate_name}'! Refreshing catalog...")
                 self.app.call_from_thread(self.action_refresh_catalog)
             else:
+                display_err = err or f"Failed to uninstall '{candidate_name}'."
+                self.set_live_status("error", f"Removal failed: {display_err}", display_err)
                 self.app.call_from_thread(
-                    self.notify,
-                    f"Uninstallation failed: {err}",
-                    title="Uninstall Failed",
-                    severity="error",
+                    self.push_screen,
+                    OperationDetailsModal(
+                        title=f"Uninstallation Failed: '{candidate_name}'",
+                        badge="[bold red]❌ UNINSTALLATION FAILED[/bold red]",
+                        details=display_err,
+                        timestamp=time.strftime("%H:%M:%S"),
+                    ),
                 )
-                self.app.call_from_thread(self._set_catalog_status, f"❌ Removal failed: {err}")
         except Exception as e:
-            self.app.call_from_thread(
-                self.notify,
-                f"Error uninstalling '{target_pkg}': {e}",
-                title="Error",
-                severity="error",
-            )
-            self.app.call_from_thread(self._set_catalog_status, f"Error: {e}")
+            self.set_live_status("error", f"Error uninstalling '{target_pkg}': {e}", str(e))
 
     def action_refresh_catalog(self) -> None:
         q = self.query_one("#search-input", Input).value.strip()
@@ -1532,5 +1664,7 @@ class PackageInfoApp(App[None]):
             self.action_uninstall()
         elif btn_id == "btn-refresh":
             self.action_refresh_catalog()
+        elif btn_id == "status-details-btn":
+            self.action_show_details()
         elif btn_id == "btn-close":
             self.exit()
