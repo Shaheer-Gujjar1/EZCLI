@@ -11,9 +11,9 @@ real_dir = os.path.dirname(real_file)
 
 # Ensure local ezcli_app is in Python search path
 search_dirs = [
-    real_dir,
-    os.path.expanduser("~/.local/share/ez/app"),
     os.path.expanduser("~/.local/share/ez"),
+    os.path.expanduser("~/.local/share/ez/app"),
+    real_dir,
 ]
 for p in search_dirs:
     if os.path.isdir(p) and p not in sys.path:

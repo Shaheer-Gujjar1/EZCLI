@@ -38,7 +38,7 @@ fi
 
 APP_NAME="EasyCLI"
 APP_BIN="ez"
-APP_VERSION="0.6.0"
+APP_VERSION="0.6.5"
 EZ_HOME="$HOME/.local/share/ez"
 APP_DIR="$EZ_HOME/app"
 VENV_DIR="$EZ_HOME/venv"

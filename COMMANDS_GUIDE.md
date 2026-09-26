@@ -61,6 +61,12 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
 | 38 | `ez profile` | `whoami`, `id`, `passwd`, `chpasswd` | User information card (username, GECOS, groups, sudo rights, home, shell) and change password TUI modal with dot feedback, show/hide toggle, arbitrary length support, and secure stdin chpasswd. |
 | 39 | `ez fix-packages` | `dpkg --configure -a`, `apt --fix-broken install` | Automated broken package repair: detects interrupted installations and missing dependencies, displays simulation preview and risk badge, with elevated repair execution and all-clear status card. |
 | 40 | `ez startup-apps [name]` | `systemctl enable/disable`, `~/.config/autostart` | Manage login applications and boot services: interactive TUI with two tabs (Login Apps & Boot Services), non-root desktop overrides, elevated systemd toggles, preview lines, and typed confirmation for critical services. Direct mode supported. |
+| 41 | `ez firewall` | `ufw status`, `ufw enable`, `ufw allow`, `ufw delete`, `iptables` | Beginner-friendly UFW firewall frontend with live active/inactive status card, one-key toggle, rules table, rule deletion, and SSH remote lockout prevention. |
+| 42 | `ez bluetooth` | `bluetoothctl`, `rfkill`, `bluez` | Visual terminal Bluetooth device manager modeled on Wi-Fi TUI with device scanning, RSSI signal bars, paired/connected badges, connection actions, and missing-adapter panel. |
+| 43 | `ez drivers` | `ubuntu-drivers`, `lspci -nnk`, `modprobe` | Detects hardware needing proprietary drivers (NVIDIA GPUs, Broadcom Wi-Fi, CPU microcode) with simulation preview and safe elevated installation. |
+| 44 | `ez permissions [target \| choose-directory]` | `chmod`, `chown`, `stat` | Interactive visual chmod/chown editor with 3x3 R/W/X checkbox grid for Owner/Group/Others, live octal & symbolic preview, and 777 dangerous combo warnings. |
+| 45 | `ez speedtest` | `speedtest-cli`, `fast`, `ping`, `iperf` | Real-time internet bandwidth speedometer with animated progress gauge and summary card (ping, download, upload, server, quality rating). Built-in fallback without speedtest-cli. |
+| 46 | `ez shortcuts` | `alias`, `~/.bashrc`, `~/.zshrc` | Shell command shortcut manager: list existing shortcuts, add, edit, and delete with automatic shell rc backup. Strictly avoids technical jargon. |
 
 
 ---
@@ -741,6 +747,90 @@ Every file management command in EasyCLI (`copy`, `move`, `paste`, `delete`, `ed
   ez startup-apps NetworkManager
   ```
 
+---
 
+#### `ez firewall`
+- **Replaces:** `ufw status`, `ufw enable`, `ufw disable`, `ufw allow`, `ufw delete`, `iptables`
+- **Why it's better:** Provides a beginner-friendly frontend for UFW (Uncomplicated Firewall):
+  - **Live Status Card:** Displays active/inactive state with color-coded badges, default policies (Incoming: Deny, Outgoing: Allow).
+  - **SSH Lockout Protection:** Warns before enabling if no SSH rule exists to avoid locking remote users out.
+  - **Rules Table:** Lists numbered rules with traffic direction, ports, protocols, and IP versions.
+  - **Interactive Actions:** Add rules (allow/deny + port/service + protocol), delete rules with confirmation dialogs, and toggle firewall state via the elevation layer.
+- **Syntax:**
+  ```bash
+  ez firewall
+  ```
 
+---
 
+#### `ez bluetooth`
+- **Replaces:** `bluetoothctl`, `bluez`, `rfkill`
+- **Why it's better:** In-terminal graphical Bluetooth manager modeled on `ez connect-wifi`:
+  - **Device Scanning:** Real-time discovery of nearby peripherals with visual signal bars (`▂▄▆█`).
+  - **State Badges:** Instant recognition of Connected, Paired, and Available devices with emoji category icons (🎧 Headphones, 📱 Phones, ⌨️ Keyboards, 🖱️ Mice, 💻 PCs).
+  - **Actions:** Connect, Disconnect, Pair, and Remove with confirmation dialogs.
+  - **Adapter Diagnostics:** Graceful, friendly diagnostic panels if no Bluetooth adapter is found or if blocked by hardware/rfkill.
+- **Syntax:**
+  ```bash
+  ez bluetooth
+  ```
+
+---
+
+#### `ez drivers`
+- **Replaces:** `ubuntu-drivers`, `lspci -nnk`, `modprobe`, manual PPA driver hunting
+- **Why it's better:** Detects proprietary hardware drivers for NVIDIA graphics cards, Broadcom wireless cards, and CPU microcode:
+  - **Hardware Cards:** Displays each component, vendor, current loaded driver, and recommended proprietary driver.
+  - **Simulation Preview:** Tests installation pre-flight to report package count, download size, and reboot requirements.
+  - **One-Click Installation:** Safely invokes package installation through the administrator elevation layer.
+- **Syntax:**
+  ```bash
+  ez drivers
+  ```
+
+---
+
+#### `ez permissions [target | choose-directory]`
+- **Replaces:** `chmod`, `chown`, `stat`
+- **Why it's better:** Visual permissions and ownership editor following the dual-mode convention:
+  - **Dual-Mode:** Direct file/folder in current directory (`ez permissions script.sh`) or visual picker (`ez permissions choose-directory`).
+  - **3x3 Matrix:** Checkboxes for Read, Write, and Execute across Owner, Group, and Others.
+  - **Live Octal & Symbolic Preview:** Real-time calculation of modes (e.g. `0755` ➔ `-rwxr-xr-x`).
+  - **Dangerous Combo Guard:** Dynamic warning banners on dangerous permissions (e.g. `0777` or world-writable modes).
+  - **Ownership:** Easy user:group changer with automated fallback to the elevation layer when modifying root-owned files.
+- **Syntax:**
+  ```bash
+  # Current directory target
+  ez permissions script.sh
+  ez permissions my_folder/
+
+  # Visual picker across filesystem
+  ez permissions choose-directory
+  ```
+
+---
+
+#### `ez speedtest`
+- **Replaces:** `speedtest-cli`, `fast`, `iperf`, manual ping diagnostics
+- **Why it's better:** Internet connection speedometer with real-time animated gauges:
+  - **Metrics Dashboard:** Tests ping latency (ms), download bandwidth (Mbps), and upload bandwidth (Mbps).
+  - **Server & Rating:** Reports server location, ISP, and connection capability verdict (4K Streaming, Cloud Gaming).
+  - **Universal Fallback:** Works seamlessly with `speedtest-cli` if installed, or utilizes an integrated high-performance HTTP fallback engine if missing — never crashes or requires external dependencies.
+- **Syntax:**
+  ```bash
+  ez speedtest
+  ```
+
+---
+
+#### `ez shortcuts`
+- **Replaces:** `alias`, editing `~/.bashrc` / `~/.zshrc`
+- **Why it's better:** Beginner-friendly command shortcuts manager (strictly avoids confusing "alias" jargon):
+  - **Shortcuts Table:** View all existing custom shortcuts and their underlying commands.
+  - **Interactive Management:** Add, edit, or delete shortcuts with name validation (prevents shadowing critical built-ins).
+  - **Automatic Safety Backup:** Automatically creates a backup (`~/.bashrc.ezcli.bak`) before the first write.
+  - **Clean Blocks:** Isolates managed shortcuts in clean delimited blocks inside the user's shell configuration.
+- **Syntax:**
+  ```bash
+  ez shortcuts
+  ```

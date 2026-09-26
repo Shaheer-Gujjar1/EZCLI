@@ -135,6 +135,34 @@ COMMAND_INTENT_MAP: dict = {
     "autostart": ["startup-apps"],
     "boot": ["startup-apps"],
     "boot-services": ["startup-apps"],
+    "firewall": ["firewall"],
+    "ufw": ["firewall"],
+    "ports-filter": ["firewall"],
+    "bluetooth": ["bluetooth"],
+    "bt": ["bluetooth"],
+    "bluez": ["bluetooth"],
+    "headphone": ["bluetooth"],
+    "headset": ["bluetooth"],
+    "drivers": ["drivers"],
+    "driver": ["drivers"],
+    "nvidia": ["drivers"],
+    "gpu": ["drivers"],
+    "hardware-drivers": ["drivers"],
+    "permissions": ["permissions"],
+    "permission": ["permissions"],
+    "chmod": ["permissions"],
+    "chown": ["permissions"],
+    "rights": ["permissions"],
+    "speedtest": ["speedtest"],
+    "speed": ["speedtest"],
+    "bandwidth": ["speedtest"],
+    "fast": ["speedtest"],
+    "speed-test": ["speedtest"],
+    "shortcuts": ["shortcuts"],
+    "shortcut": ["shortcuts"],
+    "aliases": ["shortcuts"],
+    "alias": ["shortcuts"],
+    "bashrc": ["shortcuts"],
 }
 
 
@@ -440,6 +468,24 @@ def dispatch_subcommand(feature, sub_args: list[str], console: Console) -> None:
         from .startup_apps import run_startup_apps_cli
         target_item = " ".join(sub_args).strip() if sub_args else None
         run_startup_apps_cli(target=target_item, console=console)
+    elif feature.id == "firewall":
+        from .firewall import run_firewall_cli
+        run_firewall_cli(console=console)
+    elif feature.id == "bluetooth":
+        from .bluetooth import run_bluetooth_cli
+        run_bluetooth_cli(console=console)
+    elif feature.id == "drivers":
+        from .drivers import run_drivers_cli
+        run_drivers_cli(console=console)
+    elif feature.id == "permissions":
+        from .permissions import run_permissions_cli
+        run_permissions_cli(targets=sub_args, console=console)
+    elif feature.id == "speedtest":
+        from .speedtest import run_speedtest_cli
+        run_speedtest_cli(console=console)
+    elif feature.id == "shortcuts":
+        from .shortcuts import run_shortcuts_cli
+        run_shortcuts_cli(console=console)
 
 
 def main() -> None:

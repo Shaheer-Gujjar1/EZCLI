@@ -7,6 +7,51 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.6.5] - 2026-09-26
+
+### Added
+- **UFW Firewall Frontend (`ez firewall`)**:
+  - Dedicated Textual TUI (`FirewallApp`) with amber/crimson security theme.
+  - Active/inactive state detection and default incoming/outgoing policies display.
+  - SSH Remote Lockout Guard: warns with `SshWarningModal` before enabling if port 22/SSH rule is missing.
+  - Interactive rules table, Add Rule modal (allow/deny, port/service, protocol), and Delete Rule confirmation modal.
+  - All privileged actions elevated safely via the elevation layer.
+- **Terminal Bluetooth Manager (`ez bluetooth`)**:
+  - Dedicated Textual TUI (`BluetoothApp`) modeled on `ez connect-wifi` with Bluetooth blue/indigo theme.
+  - Active device discovery and scanning with real-time RSSI signal bars (`▂▄▆█`).
+  - Device classification by type with emoji icons (🎧 Headphones, 📱 Phones, ⌨️ Keyboards, 🖱️ Mice, 💻 PCs).
+  - Connect, Disconnect, Pair, and Remove with confirmation dialogs.
+  - Graceful diagnostic panel for missing Bluetooth adapter or rfkill-blocked states.
+- **Proprietary Hardware Driver Detector & Installer (`ez drivers`)**:
+  - Dedicated Textual TUI (`DriversApp`) in emerald/teal hardware theme.
+  - Automatically identifies hardware needing proprietary drivers (NVIDIA GPUs, Broadcom Wi-Fi, Intel/AMD CPU microcode) via `ubuntu-drivers` with `lspci -nnk` fallback.
+  - One card per device with vendor, current driver, and recommended driver.
+  - Installation simulation preview modal showing package count, download size, and reboot notices.
+  - One-click elevated installation via the administrator helper.
+- **Visual Permissions & Ownership Editor (`ez permissions`)**:
+  - Dedicated Textual TUI (`PermissionsApp`) in deep purple/violet security theme.
+  - Follows the dual-mode convention: direct target in current directory or `choose-directory` visual picker.
+  - Interactive 3x3 R/W/X checkbox matrix for Owner, Group, and Others.
+  - Live octal (`0755`) and symbolic (`-rwxr-xr-x`) mode calculation.
+  - Security warning banner dynamically triggered on dangerous combinations (e.g. `0777` or world-writable).
+  - Owner and group changer with elevation fallback for protected files.
+- **Internet Speed Test (`ez speedtest`)**:
+  - Dedicated Textual TUI (`SpeedtestApp`) in cyberpunk cyan/magenta neon theme.
+  - Real-time animated speedometer progress gauge for Latency (ms), Download (Mbps), and Upload (Mbps).
+  - Works with `speedtest-cli` when available, or seamlessly uses built-in high-performance HTTP fallback without external dependencies.
+  - Summary card with server information, ISP details, and connection rating badges.
+- **Shell Command Shortcuts Manager (`ez shortcuts`)**:
+  - Dedicated Textual TUI (`ShortcutsApp`) in monospace green terminal theme.
+  - Beginner-friendly: strictly avoids confusing "alias" technical jargon in all user-facing interfaces.
+  - View all custom shortcuts, add new shortcuts (name + command with validation), edit, and delete with confirmation.
+  - Automatic safety backup (`~/.bashrc.ezcli.bak`) created prior to first write.
+  - Clean block management inside `~/.bashrc` (or user's `$SHELL` rc file).
+- **Test Suite**:
+  - Added dedicated test files under `tests/`: `test_firewall.py`, `test_bluetooth.py`, `test_drivers.py`, `test_permissions.py`, `test_speedtest.py`, and `test_shortcuts.py`.
+  - Full test suite now contains 453 tests with 100% passing rate.
+
+---
+
 ## [0.6.0] - 2026-09-26
 
 ### Added

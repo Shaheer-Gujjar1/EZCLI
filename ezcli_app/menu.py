@@ -77,9 +77,10 @@ def build_features_table(term_width: int) -> Table:
         table.add_column("Full Command", style="bold cyan", ratio=3, overflow="fold")
         table.add_column("Description", style="white", ratio=5)
         for idx, feat in enumerate(FEATURES, 1):
+            clean_icon = feat.icon.replace("\ufe0f", "")
             table.add_row(
                 str(idx),
-                feat.icon,
+                clean_icon,
                 feat.title,
                 f"ez {feat.subcommand}",
                 feat.description,
@@ -90,9 +91,10 @@ def build_features_table(term_width: int) -> Table:
         table.add_column("Full Command", style="bold cyan", ratio=3, overflow="fold")
         table.add_column("Description", style="white", ratio=4)
         for idx, feat in enumerate(FEATURES, 1):
+            clean_icon = feat.icon.replace("\ufe0f", "")
             table.add_row(
                 str(idx),
-                f"{feat.icon} {feat.title}",
+                f"{clean_icon} {feat.title}",
                 f"ez {feat.subcommand}",
                 feat.description,
             )
@@ -101,18 +103,20 @@ def build_features_table(term_width: int) -> Table:
         table.add_column("Feature", style="bold white", ratio=1)
         table.add_column("Full Command", style="bold cyan", ratio=1, overflow="fold")
         for idx, feat in enumerate(FEATURES, 1):
+            clean_icon = feat.icon.replace("\ufe0f", "")
             table.add_row(
                 str(idx),
-                f"{feat.icon} {feat.title}",
+                f"{clean_icon} {feat.title}",
                 f"ez {feat.subcommand}",
             )
     else:
         table.add_column("#", justify="right", style="bold yellow", width=3, no_wrap=True)
         table.add_column("Command", style="bold cyan", ratio=1, overflow="fold")
         for idx, feat in enumerate(FEATURES, 1):
+            clean_icon = feat.icon.replace("\ufe0f", "")
             table.add_row(
                 str(idx),
-                f"{feat.icon} ez {feat.subcommand}",
+                f"{clean_icon} ez {feat.subcommand}",
             )
     return table
 
@@ -273,6 +277,30 @@ def run_feature(console: Console, feature: FeatureTemplate) -> None:
                 from .startup_apps import run_startup_apps_cli
                 target_val = args_values[0] if (args_values and args_values[0]) else None
                 run_startup_apps_cli(target=target_val, console=console)
+                return
+            elif feature.id == "firewall":
+                from .firewall import run_firewall_cli
+                run_firewall_cli(console=console)
+                return
+            elif feature.id == "bluetooth":
+                from .bluetooth import run_bluetooth_cli
+                run_bluetooth_cli(console=console)
+                return
+            elif feature.id == "drivers":
+                from .drivers import run_drivers_cli
+                run_drivers_cli(console=console)
+                return
+            elif feature.id == "permissions":
+                from .permissions import run_permissions_cli
+                run_permissions_cli(targets=args_values, console=console)
+                return
+            elif feature.id == "speedtest":
+                from .speedtest import run_speedtest_cli
+                run_speedtest_cli(console=console)
+                return
+            elif feature.id == "shortcuts":
+                from .shortcuts import run_shortcuts_cli
+                run_shortcuts_cli(console=console)
                 return
             elif renderer_fn is not None:
                 if feature.subcommand == "big_files" or feature.id == "big_files":

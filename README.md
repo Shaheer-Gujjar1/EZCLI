@@ -1,4 +1,4 @@
-# EasyCLI (`ez`) v0.6.0
+# EasyCLI (`ez`) v0.6.5
 
 **EasyCLI** is a beginner-friendly terminal frontend wrapper for Linux commands built specifically for Debian-based systems. It simplifies complex and verbose Linux tasks into beautiful, color-coded terminal cards, interactive menus, a modern graphical file explorer, safety-first file operations with reversible undo, modern file creation/deletion, and seamless automatic privilege elevation.
 
@@ -218,6 +218,12 @@ ez help
 | 👤 | `ez profile` | **v0.6** | `whoami`, `id`, `chpasswd` | User information card (username, GECOS, groups, sudo rights, home, shell) and change password TUI modal with dot feedback, show/hide toggle, arbitrary length support, and secure stdin chpasswd. |
 | 🔧 | `ez fix-packages` | **v0.6** | `dpkg --configure -a`, `apt-get --fix-broken install` | Automated broken package repair: detects interrupted installations and missing dependencies, displays simulation preview and risk badge, with elevated repair execution and all-clear status card. |
 | 🚀 | `ez startup-apps [name]` | **v0.6** | `systemctl enable/disable`, `autostart` | Manage login applications and boot services: interactive TUI with two tabs (Login Apps & Boot Services), non-root desktop overrides, elevated systemd toggles, preview lines, and typed confirmation for critical services. Direct mode supported. |
+| 🛡️ | `ez firewall` | **v0.6.5** | `ufw` | Beginner-friendly UFW firewall frontend: active status card, one-key toggle, rules table (allow/deny + port), rule deletion, and SSH lockout prevention. |
+| 📡 | `ez bluetooth` | **v0.6.5** | `bluetoothctl` | Terminal Bluetooth device manager modeled on Wi-Fi TUI: device scan, signal bars, paired/connected badges, connect, disconnect, pair, and remove. |
+| 🖥️ | `ez drivers` | **v0.6.5** | `ubuntu-drivers`, `lspci` | Proprietary hardware driver detector & installer for NVIDIA GPUs, Broadcom Wi-Fi, and CPU microcode with simulation preview and safe elevated install. |
+| 🔐 | `ez permissions [target \| choose-directory]` | **v0.6.5** | `chmod`, `chown` | Interactive visual chmod & chown editor: dual-mode target, 3x3 R/W/X matrix for Owner/Group/Others, live octal & symbolic preview, and 777 danger warnings. |
+| ⚡ | `ez speedtest` | **v0.6.5** | `speedtest-cli`, `socket` | Internet speed test with animated real-time progress gauge and summary card (ping, download, upload, server, quality rating). Works with or without speedtest-cli. |
+| ⌨️ | `ez shortcuts` | **v0.6.5** | `alias`, `bashrc` | Shell command shortcut manager: list existing shortcuts, add, edit, and delete with automatic shell rc backup. Strictly avoids technical jargon. |
 
 
 ---
@@ -1034,6 +1040,14 @@ EZCLI/
   - Broken package state repair (`ez fix-packages`) replacing manual `apt --fix-broken install` and `dpkg --configure -a` with simulation preview, risk badges, and elevated repair execution.
   - Startup applications & boot services manager (`ez startup-apps`) providing an interactive 2-tab TUI with root-free autostart overrides, elevated systemd toggles, and typed confirmation locks on critical services.
 
+- **v0.6.5 — Security, Wireless, Hardware & Productivity Suite**:
+  - Beginner-friendly UFW firewall frontend (`ez firewall`) with active/inactive status card, one-key toggle with SSH lockout prevention, rules table, and elevated rule addition/deletion.
+  - In-terminal Bluetooth device manager (`ez bluetooth`) modeled on Wi-Fi TUI with device scan, RSSI signal bars, paired/connected badges, connection actions, and friendly missing-adapter panel.
+  - Hardware driver detector & installer (`ez drivers`) for NVIDIA GPUs, Broadcom Wi-Fi, and CPU microcode with simulation preview and elevated installation.
+  - Interactive visual permissions and ownership editor (`ez permissions [target | choose-directory]`) with 3x3 R/W/X checkbox grid, live octal/symbolic preview, and dangerous 777 combination guards.
+  - Internet speed test (`ez speedtest`) with animated real-time progress gauge, ping, download, upload measurements, and dependency-free fallback engine.
+  - Shell command shortcuts manager (`ez shortcuts`) managing custom terminal shortcuts in `~/.bashrc` with automatic backup and zero jargon.
+
 ---
 
 ## 🧪 Running Tests
@@ -1043,6 +1057,6 @@ To run the automated unit test suite:
 python3 -m unittest discover tests/
 ```
 
-All 420 unit tests validate distro detection, collector safety, file operations, conflict policies, cross-filesystem moves, undo engine, command parsing, file/folder creation, safe deletion with force prompts, mini text editor validation, binary file protection, permission-denied simulations, live stats metrics, privileged catalog updates, multi-source system upgrade simulations, safe application uninstallation, Windows-style task manager, universal version checking, internet connectivity diagnostics, in-terminal Wi-Fi management, multi-format compression, safe archive extraction, universal application execution with safe guided mode, unified directory listing with background folder sizing, standalone Time Machine snapshot engine and modals, safe system cleaner with desktop-critical guards, user profile card and secure password updating, broken package repair diagnostics, and startup applications/boot services management.
+All 453 unit tests validate distro detection, collector safety, file operations, conflict policies, cross-filesystem moves, undo engine, command parsing, file/folder creation, safe deletion with force prompts, mini text editor validation, binary file protection, permission-denied simulations, live stats metrics, privileged catalog updates, multi-source system upgrade simulations, safe application uninstallation, Windows-style task manager, universal version checking, internet connectivity diagnostics, in-terminal Wi-Fi management, multi-format compression, safe archive extraction, universal application execution with safe guided mode, unified directory listing with background folder sizing, standalone Time Machine snapshot engine and modals, safe system cleaner with desktop-critical guards, user profile card and secure password updating, broken package repair diagnostics, startup applications/boot services management, UFW firewall management, Bluetooth device management, proprietary hardware driver detection, visual permissions matrix, internet speed testing, and shell command shortcuts.
 
 
