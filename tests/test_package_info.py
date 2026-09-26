@@ -437,17 +437,70 @@ class TestPackageInfo(unittest.TestCase):
 
     def test_package_info_tui_app_lifecycle(self):
         import asyncio
-        from ezcli_app.package_info_tui import PackageInfoApp
+        from ezcli_app.package_info_tui import PackageInfoApp, AdminPasswordModal
 
         async def _test():
             app = PackageInfoApp()
-            async with app.run_test() as pilot:
+            async with app.run_test(size=(120, 36)) as pilot:
                 self.assertIsNotNone(pilot.app.query_one("#search-input"))
                 self.assertIsNotNone(pilot.app.query_one("#package-table"))
+                self.assertIsNotNone(pilot.app.query_one("#catalog-pane"))
+                self.assertIsNotNone(pilot.app.query_one("#detail-pane"))
                 self.assertIsNotNone(pilot.app.query_one("#detail-scroll"))
+                self.assertIsNotNone(pilot.app.query_one("#btn-install"))
+                self.assertIsNotNone(pilot.app.query_one("#btn-uninstall"))
                 await pilot.click("#btn-close")
 
         asyncio.run(_test())
+
+    def test_admin_password_modal_lifecycle(self):
+        import asyncio
+        from textual.app import App
+        from textual.widgets import Input, Label
+        from ezcli_app.package_info_tui import AdminPasswordModal
+
+        class DummyApp(App[None]):
+            def on_mount(self):
+                self.push_screen(AdminPasswordModal("installation of test-pkg"), self.on_done)
+            def on_done(self, result):
+                self.result = result
+                self.exit()
+
+        async def _test():
+            app = DummyApp()
+            with patch("subprocess.run") as mock_sub:
+                mock_sub.return_value = MagicMock(returncode=0)
+                async with app.run_test() as pilot:
+                    inp = pilot.app.screen.query_one("#admin-input", Input)
+                    inp.value = "secret123"
+                    await pilot.click("#btn-auth")
+                self.assertEqual(app.result, "secret123")
+
+            app2 = DummyApp()
+            with patch("subprocess.run") as mock_sub:
+                mock_sub.return_value = MagicMock(returncode=1)
+                async with app2.run_test() as pilot:
+                    inp = pilot.app.screen.query_one("#admin-input", Input)
+                    inp.value = "wrong"
+                    await pilot.click("#btn-auth")
+                    err = pilot.app.screen.query_one("#admin-err", Label)
+                    self.assertIn("Incorrect password", str(err.render()))
+                    await pilot.click("#btn-cancel-auth")
+                self.assertIsNone(app2.result)
+
+        asyncio.run(_test())
+
+    def test_check_or_request_admin_passwordless(self):
+        from ezcli_app.package_info_tui import PackageInfoApp
+        app = PackageInfoApp()
+        result = []
+        with patch("os.geteuid", return_value=1000), \
+             patch("ezcli_app.package_info_tui.is_root", return_value=False), \
+             patch("subprocess.run") as mock_sub:
+            mock_sub.return_value = MagicMock(returncode=0)
+            app.check_or_request_admin("test action", result.append)
+
+        self.assertEqual(result, [""])
 
 
 if __name__ == "__main__":

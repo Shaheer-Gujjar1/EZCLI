@@ -4,7 +4,7 @@ Provides a rich App-Store experience with:
 - Dual-pane master-detail layout (Software Catalog on left, Deep Specifications on right).
 - High-depth inspection: full descriptions, licenses, sizes, categories, dependencies, and official homepages.
 - Multi-repository support: inspect and install across APT, Flatpak (Flathub), and Snap.
-- Safe 1-Click Launch, Install, and Elevation-Integrated Uninstall with dependency impact previews.
+- Native In-TUI Admin Password Modal (like ez-setup.sh) for seamless elevated installations and removals.
 """
 
 import glob
@@ -13,7 +13,7 @@ import re
 import shutil
 import subprocess
 import sys
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 venv_site = (
     glob.glob(os.path.expanduser("~/.local/share/ez/venv/lib/python*/site-packages"))
@@ -40,7 +40,7 @@ from textual.widgets import (  # type: ignore
 )
 
 from .collectors import collect_available_updates, collect_installed_packages, run_command_safe
-from .elevation import elevated_package_install, elevated_package_uninstall
+from .elevation import ElevationSession, elevated_package_install, elevated_package_uninstall, is_root
 from .package_info import (
     PackageCandidate,
     PackageSourceInfo,
@@ -70,7 +70,6 @@ def fetch_deep_package_details(candidate: PackageCandidate) -> Dict[str, Any]:
     flatpak_source = next((s for s in candidate.sources if s.source_type in ("flathub", "flatpak")), None)
     if flatpak_source and shutil.which("flatpak"):
         app_id = flatpak_source.app_id or candidate.name
-        # Try remote-info or local info
         cmd = ["flatpak", "info", app_id] if flatpak_source.is_installed else ["flatpak", "remote-info", "flathub", f"{app_id}//stable"]
         rc, out, _ = run_command_safe(cmd, timeout=3)
         if rc != 0 and not flatpak_source.is_installed:
@@ -160,6 +159,148 @@ def fetch_deep_package_details(candidate: PackageCandidate) -> Dict[str, Any]:
     return details
 
 
+# ==============================================================================
+# In-TUI Elevation Modal Screen
+# ==============================================================================
+
+class AdminPasswordModal(ModalScreen[Optional[str]]):
+    """Modal dialog for securely requesting sudo password inside the TUI."""
+
+    DEFAULT_CSS = """
+    AdminPasswordModal {
+        align: center middle;
+        background: rgba(0, 0, 0, 0.85);
+    }
+    #admin-dialog {
+        width: 70;
+        max-width: 90%;
+        height: auto;
+        border: round #388bfd;
+        background: #161b22;
+        padding: 1 2;
+    }
+    #admin-title {
+        text-style: bold;
+        color: #58a6ff;
+        text-align: center;
+        margin-bottom: 1;
+    }
+    #admin-desc {
+        color: #c9d1d9;
+        text-align: center;
+        margin-bottom: 1;
+    }
+    #admin-input {
+        margin-bottom: 1;
+        border: solid #388bfd;
+    }
+    #admin-err {
+        color: #f85149;
+        text-align: center;
+        margin-bottom: 1;
+        height: 1;
+    }
+    #admin-toggle-box {
+        align: center middle;
+        margin-bottom: 1;
+        height: 3;
+    }
+    #admin-toggle-box Button {
+        height: 3;
+        min-width: 18;
+        border: round #30363d;
+    }
+    #admin-buttons {
+        align: center middle;
+        height: auto;
+        margin-top: 1;
+    }
+    #admin-buttons Button {
+        margin: 0 1;
+        min-width: 16;
+        height: 3;
+        border: round;
+    }
+    """
+
+    def __init__(self, action_name: str = "package management") -> None:
+        super().__init__()
+        self.action_name = action_name
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="admin-dialog"):
+            yield Label("🔐 Administrator Rights Required", id="admin-title")
+            yield Label(
+                f"Administrator privileges are required to perform {self.action_name}.\n"
+                "Please enter your sudo password below:",
+                id="admin-desc",
+            )
+            yield Input(placeholder="Enter sudo password...", password=True, id="admin-input")
+            yield Label("", id="admin-err")
+            with Horizontal(id="admin-toggle-box"):
+                yield Button("👁️ Show Password", id="btn-toggle-pwd", variant="default")
+            with Horizontal(id="admin-buttons"):
+                yield Button("🔐 Authenticate", variant="primary", id="btn-auth")
+                yield Button("❌ Cancel", variant="default", id="btn-cancel-auth")
+
+    def on_mount(self) -> None:
+        self.query_one("#admin-input", Input).focus()
+
+    def on_key(self, event) -> None:
+        if event.key == "escape":
+            self.dismiss(None)
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-toggle-pwd":
+            inp = self.query_one("#admin-input", Input)
+            if inp.password:
+                inp.password = False
+                event.button.label = "🙈 Hide Password"
+            else:
+                inp.password = True
+                event.button.label = "👁️ Show Password"
+        elif event.button.id == "btn-auth":
+            self.submit()
+        elif event.button.id == "btn-cancel-auth":
+            self.dismiss(None)
+
+    def on_input_submitted(self, event: Input.Submitted) -> None:
+        if event.input.id == "admin-input":
+            self.submit()
+
+    def submit(self) -> None:
+        inp = self.query_one("#admin-input", Input)
+        pwd = inp.value
+        err_lbl = self.query_one("#admin-err", Label)
+
+        if not pwd:
+            err_lbl.update("Password cannot be empty.")
+            return
+
+        try:
+            # Validate with sudo -S -p "" -v (reads password from stdin, no terminal hijacking)
+            res = subprocess.run(
+                ["sudo", "-S", "-p", "", "-v"],
+                input=pwd.encode() + b"\n",
+                capture_output=True,
+                timeout=10,
+            )
+            if res.returncode == 0:
+                self.dismiss(pwd)
+            else:
+                err_lbl.update("❌ Incorrect password. Please try again.")
+                inp.value = ""
+                inp.focus()
+        except FileNotFoundError:
+            err_lbl.update("❌ 'sudo' command is not available on this system.")
+        except Exception as e:
+            err_lbl.update(f"❌ Error: {e}")
+
+
+# ==============================================================================
+# Confirmation Modals
+# ==============================================================================
+
 class ConfirmUninstallModal(ModalScreen[bool]):
     """Confirmation modal for safely uninstalling an application or package."""
 
@@ -169,7 +310,7 @@ class ConfirmUninstallModal(ModalScreen[bool]):
         background: rgba(0, 0, 0, 0.85);
     }
     #uninstall-dialog {
-        width: 72;
+        width: 74;
         max-width: 90%;
         height: auto;
         border: round #ef4444;
@@ -200,6 +341,9 @@ class ConfirmUninstallModal(ModalScreen[bool]):
     }
     #uninstall-actions Button {
         margin: 0 1;
+        min-width: 18;
+        height: 3;
+        border: round;
     }
     """
 
@@ -217,7 +361,7 @@ class ConfirmUninstallModal(ModalScreen[bool]):
                 f"Target Software: [bold white]{self.candidate.name}[/bold white] ({self.candidate.nature})\n"
                 f"Source: [bold cyan]{src_desc}[/bold cyan] {ver_desc}\n\n"
                 "Personal documents in your home directory will be kept intact.\n"
-                "Administrator privileges will be requested to proceed with removal."
+                "Administrator privileges will be verified before removal."
             )
             yield Label(details, id="uninstall-details")
 
@@ -255,7 +399,7 @@ class ConfirmInstallModal(ModalScreen[Optional[PackageSourceInfo]]):
         background: rgba(0, 0, 0, 0.85);
     }
     #install-dialog {
-        width: 74;
+        width: 76;
         max-width: 90%;
         height: auto;
         border: round #0284c7;
@@ -285,6 +429,9 @@ class ConfirmInstallModal(ModalScreen[Optional[PackageSourceInfo]]):
     }
     #install-actions Button {
         margin: 0 1;
+        min-width: 18;
+        height: 3;
+        border: round;
     }
     """
 
@@ -322,6 +469,10 @@ class ConfirmInstallModal(ModalScreen[Optional[PackageSourceInfo]]):
             self.dismiss(None)
 
 
+# ==============================================================================
+# Main Package Info Explorer App
+# ==============================================================================
+
 class PackageInfoApp(App[None]):
     """Full-featured interactive TUI application for software inspection and package management."""
 
@@ -346,24 +497,40 @@ class PackageInfoApp(App[None]):
     #header-area {
         height: auto;
         margin: 0 1 1 1;
-        background: #0f172a;
-        border: round #0284c7;
-        padding: 0 1;
+        background: #0d1527;
+        border: round #1e3a8a;
+        padding: 1 1;
     }
 
     #search-input {
-        margin: 1 0 0 0;
-        border: solid #0284c7;
+        margin-bottom: 1;
+        border: round #38bdf8;
+        background: #111e38;
     }
 
     #filter-bar {
-        height: auto;
-        margin: 1 0;
+        height: 3;
         align: left middle;
     }
 
     #filter-bar Button {
+        height: 3;
+        min-width: 15;
         margin-right: 1;
+        border: round #334155;
+    }
+
+    .filter-active {
+        background: #0284c7;
+        color: #ffffff;
+        border: round #38bdf8 !important;
+        text-style: bold;
+    }
+
+    .filter-inactive {
+        background: #111e38;
+        color: #94a3b8;
+        border: round #1e293b !important;
     }
 
     #main-content {
@@ -371,9 +538,10 @@ class PackageInfoApp(App[None]):
         margin: 0 1;
     }
 
+    /* Broad, generous Results Div */
     #catalog-pane {
-        width: 44;
-        min-width: 32;
+        width: 48%;
+        min-width: 44;
         height: 100%;
         margin-right: 1;
         border: round #1e293b;
@@ -406,8 +574,10 @@ class PackageInfoApp(App[None]):
         text-style: bold;
     }
 
+    /* Deep Details Div */
     #detail-pane {
-        width: 1fr;
+        width: 52%;
+        min-width: 34;
         height: 100%;
         border: round #0284c7;
         background: #0b1120;
@@ -432,6 +602,22 @@ class PackageInfoApp(App[None]):
         margin-top: 1;
     }
 
+    #hero-header-row {
+        height: auto;
+        align: left middle;
+        margin-bottom: 1;
+    }
+
+    #hero-icon {
+        margin-right: 1;
+        text-style: bold;
+    }
+
+    #hero-title {
+        text-style: bold;
+        color: #60a5fa;
+    }
+
     .card-title {
         text-style: bold;
         color: #60a5fa;
@@ -450,22 +636,32 @@ class PackageInfoApp(App[None]):
     }
 
     .metric-box {
-        background: #13223f;
-        border: solid #1e3a8a;
+        background: #111e38;
+        border: round #1e3a8a;
         padding: 0 1;
         height: 3;
         content-align: left middle;
     }
 
+    /* Bottom Action Bar with isolated rounded buttons */
     #action-bar {
-        height: auto;
+        height: 4;
         dock: bottom;
-        margin: 1;
+        margin: 1 1 0 1;
+        padding: 0 1;
         align: center middle;
     }
 
     #action-bar Button {
         margin: 0 1;
+        min-width: 13;
+        height: 3;
+        border: round;
+    }
+
+    #action-bar Button:disabled {
+        opacity: 0.4;
+        border: round #334155;
     }
     """
 
@@ -485,10 +681,10 @@ class PackageInfoApp(App[None]):
                 value=self.initial_query,
             )
             with Horizontal(id="filter-bar"):
-                yield Button("🌐 All Items", id="tab-all", variant="primary")
-                yield Button("📱 Installed Apps", id="tab-installed", variant="default")
-                yield Button("🏪 Store Catalogs", id="tab-store", variant="default")
-                yield Button("🔄 Available Updates", id="tab-updates", variant="default")
+                yield Button("🌐 All Items", id="tab-all", classes="filter-active")
+                yield Button("📱 Installed Apps", id="tab-installed", classes="filter-inactive")
+                yield Button("🏪 Store Catalogs", id="tab-store", classes="filter-inactive")
+                yield Button("🔄 Available Updates", id="tab-updates", classes="filter-inactive")
 
         with Horizontal(id="main-content"):
             with Vertical(id="catalog-pane"):
@@ -499,7 +695,9 @@ class PackageInfoApp(App[None]):
                 with VerticalScroll(id="detail-scroll"):
                     # 1. Hero Showcase
                     with Vertical(id="hero-card", classes="detail-card"):
-                        yield Label("Select an item to inspect", id="hero-title", classes="card-title")
+                        with Horizontal(id="hero-header-row"):
+                            yield Label("📦", id="hero-icon")
+                            yield Label("Select an item to inspect", id="hero-title")
                         yield Static(id="hero-badge")
 
                     # 2. Key Metrics Grid
@@ -540,9 +738,9 @@ class PackageInfoApp(App[None]):
 
     def on_mount(self) -> None:
         table = self.query_one("#package-table", DataTable)
-        table.add_column("Package / App", width=19)
-        table.add_column("Status", width=12)
-        table.add_column("Source", width=10)
+        table.add_column("Package / App", width=26)
+        table.add_column("Status", width=15)
+        table.add_column("Source", width=16)
 
         if self.initial_query:
             self.execute_search(self.initial_query)
@@ -646,7 +844,6 @@ class PackageInfoApp(App[None]):
         self.query_one("#catalog-header", Label).update(text)
 
     def _populate_catalog(self, candidates: List[PackageCandidate], header_title: str) -> None:
-        # Deduplicate candidates by name
         seen_names = set()
         deduped: List[PackageCandidate] = []
         for c in candidates:
@@ -658,16 +855,14 @@ class PackageInfoApp(App[None]):
         table = self.query_one("#package-table", DataTable)
         table.clear()
 
-        # Apply current tab filter
         filtered = self._apply_filter(self.candidates)
-
         header_lbl = self.query_one("#catalog-header", Label)
         header_lbl.update(f"{header_title} ({len(filtered)} items)")
 
         for idx, c in enumerate(filtered):
             status_chip = "[bold green]✅ Installed[/bold green]" if c.is_installed else "[bold cyan]🏪 Store[/bold cyan]"
             src_name = c.sources[0].source_name if c.sources else "Local"
-            src_chip = f"{c.sources[0].source_icon} {src_name[:6]}" if c.sources else "📦 System"
+            src_chip = f"{c.sources[0].source_icon} {src_name}" if c.sources else "📦 System"
             table.add_row(
                 f"{c.nature_icon} {c.name}",
                 status_chip,
@@ -709,8 +904,8 @@ class PackageInfoApp(App[None]):
         details = fetch_deep_package_details(candidate)
 
         # 1. Hero Showcase
-        title_lbl = self.query_one("#hero-title", Label)
-        title_lbl.update(f"{candidate.nature_icon} [bold white]{candidate.name}[/bold white]")
+        self.query_one("#hero-icon", Label).update(candidate.nature_icon)
+        self.query_one("#hero-title", Label).update(candidate.name)
 
         status_text = (
             "[bold green]✅ Currently Installed on System[/bold green]"
@@ -778,6 +973,7 @@ class PackageInfoApp(App[None]):
         btn_install.disabled = candidate.is_installed
 
     def clear_detail_view(self) -> None:
+        self.query_one("#hero-icon", Label).update("📦")
         self.query_one("#hero-title", Label).update("No Software Item Selected")
         self.query_one("#hero-badge", Static).update("[dim]Type above to search software catalogs or select an item from the left.[/dim]")
         self.query_one("#metric-version", Static).update("🏷️ Version: --")
@@ -794,15 +990,33 @@ class PackageInfoApp(App[None]):
 
     def set_filter_tab(self, filter_name: str) -> None:
         self.current_filter = filter_name
-        self.query_one("#tab-all", Button).variant = "primary" if filter_name == "all" else "default"
-        self.query_one("#tab-installed", Button).variant = "primary" if filter_name == "installed" else "default"
-        self.query_one("#tab-store", Button).variant = "primary" if filter_name == "store" else "default"
-        self.query_one("#tab-updates", Button).variant = "primary" if filter_name == "updates" else "default"
+        for tid in ("all", "installed", "store", "updates"):
+            btn = self.query_one(f"#tab-{tid}", Button)
+            if tid == filter_name:
+                btn.remove_class("filter-inactive")
+                btn.add_class("filter-active")
+            else:
+                btn.remove_class("filter-active")
+                btn.add_class("filter-inactive")
 
         if filter_name == "updates":
             self.load_available_updates()
         else:
             self._populate_catalog(self.candidates, "📦 Software Catalog")
+
+    def check_or_request_admin(self, action_name: str, callback: Callable[[Optional[str]], None]) -> None:
+        """Verify if admin privileges are available, or present the In-TUI AdminPasswordModal."""
+        if is_root() or os.geteuid() == 0:
+            callback("")
+            return
+
+        res = subprocess.run(["sudo", "-n", "true"], capture_output=True)
+        if res.returncode == 0:
+            callback("")
+            return
+
+        # Prompt password inside TUI modal
+        self.push_screen(AdminPasswordModal(action_name), callback)
 
     def action_launch(self) -> None:
         if not self.selected_candidate or not self.selected_candidate.is_installed:
@@ -831,83 +1045,153 @@ class PackageInfoApp(App[None]):
         if not self.selected_candidate:
             return
 
-        sources = self.selected_candidate.sources
+        candidate = self.selected_candidate
+        sources = candidate.sources
 
-        def on_confirmed(chosen_source: Optional[PackageSourceInfo]) -> None:
-            if chosen_source:
-                # Determine correct platform and package ID
-                raw_plat = chosen_source.source_type.lower()
-                if raw_plat in ("flathub", "flatpak"):
-                    plat = "flatpak"
-                    target_pkg = chosen_source.app_id or self.selected_candidate.name
-                elif raw_plat in ("snap_store", "snap"):
-                    plat = "snap"
-                    target_pkg = chosen_source.name
-                else:
-                    plat = "apt"
-                    target_pkg = chosen_source.name or self.selected_candidate.name
+        def on_source_chosen(chosen_source: Optional[PackageSourceInfo]) -> None:
+            if not chosen_source:
+                return
 
-                try:
-                    with self.suspend():
-                        ok = elevated_package_install(
-                            platform=plat,
-                            package=target_pkg,
-                            skip_explanation=True,
-                        )
-                except Exception:
-                    ok = elevated_package_install(
-                        platform=plat,
-                        package=target_pkg,
-                        skip_explanation=True,
-                    )
+            raw_plat = chosen_source.source_type.lower()
+            if raw_plat in ("flathub", "flatpak"):
+                plat = "flatpak"
+                target_pkg = chosen_source.app_id or candidate.name
+            elif raw_plat in ("snap_store", "snap"):
+                plat = "snap"
+                target_pkg = chosen_source.name
+            else:
+                plat = "apt"
+                target_pkg = chosen_source.name or candidate.name
 
-                if ok:
-                    self.notify(f"Successfully installed '{self.selected_candidate.name}'!", severity="information")
-                    self.action_refresh_catalog()
-                else:
-                    self.notify(f"Installation failed: could not install '{target_pkg}'", title="Error", severity="error")
+            def on_admin_ready(pwd: Optional[str]) -> None:
+                if pwd is None:
+                    self.notify("Installation cancelled: Admin rights were not granted.", title="Cancelled", severity="warning")
+                    return
+                self.run_install_worker(target_pkg, plat, candidate.name, pwd)
 
-        self.push_screen(ConfirmInstallModal(self.selected_candidate, sources), on_confirmed)
+            self.check_or_request_admin(f"installation of '{candidate.name}'", on_admin_ready)
+
+        self.push_screen(ConfirmInstallModal(candidate, sources), on_source_chosen)
+
+    @work(thread=True)
+    def run_install_worker(self, target_pkg: str, plat: str, candidate_name: str, pwd: str) -> None:
+        self.app.call_from_thread(
+            self.notify,
+            f"Installing '{candidate_name}' via {plat.upper()}... Please wait.",
+            title="Installation In Progress",
+            severity="information",
+            timeout=8.0,
+        )
+        self.app.call_from_thread(self._set_catalog_status, f"⏳ Installing '{candidate_name}' ({plat.upper()})...")
+
+        try:
+            with ElevationSession(password=pwd):
+                ok = elevated_package_install(
+                    platform=plat,
+                    package=target_pkg,
+                    skip_explanation=True,
+                )
+
+            if ok:
+                self.app.call_from_thread(
+                    self.notify,
+                    f"Successfully installed '{candidate_name}'!",
+                    title="Installation Complete",
+                    severity="information",
+                )
+                self.app.call_from_thread(self.action_refresh_catalog)
+            else:
+                self.app.call_from_thread(
+                    self.notify,
+                    f"Installation failed: could not install '{target_pkg}'.",
+                    title="Install Failed",
+                    severity="error",
+                )
+                self.app.call_from_thread(self._set_catalog_status, f"❌ Install failed for '{candidate_name}'.")
+        except Exception as e:
+            self.app.call_from_thread(
+                self.notify,
+                f"Error installing '{target_pkg}': {e}",
+                title="Error",
+                severity="error",
+            )
+            self.app.call_from_thread(self._set_catalog_status, f"Error: {e}")
 
     def action_uninstall(self) -> None:
         if not self.selected_candidate or not self.selected_candidate.is_installed:
             return
 
-        def on_confirmed(proceed: bool) -> None:
-            if proceed:
-                inst_src = next((s for s in self.selected_candidate.sources if s.is_installed), None)
-                raw_plat = (inst_src.source_type if inst_src else "apt").lower()
-                if raw_plat in ("flathub", "flatpak"):
-                    plat = "flatpak"
-                    target_pkg = (inst_src.app_id if inst_src else None) or self.selected_candidate.name
-                elif raw_plat in ("snap_store", "snap"):
-                    plat = "snap"
-                    target_pkg = (inst_src.name if inst_src else None) or self.selected_candidate.name
-                else:
-                    plat = "apt"
-                    target_pkg = (inst_src.name if inst_src else None) or self.selected_candidate.name
+        candidate = self.selected_candidate
 
-                try:
-                    with self.suspend():
-                        ok, _, err = elevated_package_uninstall(
-                            platform=plat,
-                            package=target_pkg,
-                            skip_explanation=True,
-                        )
-                except Exception:
-                    ok, _, err = elevated_package_uninstall(
-                        platform=plat,
-                        package=target_pkg,
-                        skip_explanation=True,
-                    )
+        def on_uninstall_confirmed(proceed: bool) -> None:
+            if not proceed:
+                return
 
-                if ok:
-                    self.notify(f"Successfully uninstalled '{self.selected_candidate.name}'!", severity="information")
-                    self.action_refresh_catalog()
-                else:
-                    self.notify(f"Uninstallation failed: {err}", title="Error", severity="error")
+            inst_src = next((s for s in candidate.sources if s.is_installed), None)
+            raw_plat = (inst_src.source_type if inst_src else "apt").lower()
+            if raw_plat in ("flathub", "flatpak"):
+                plat = "flatpak"
+                target_pkg = (inst_src.app_id if inst_src else None) or candidate.name
+            elif raw_plat in ("snap_store", "snap"):
+                plat = "snap"
+                target_pkg = (inst_src.name if inst_src else None) or candidate.name
+            else:
+                plat = "apt"
+                target_pkg = (inst_src.name if inst_src else None) or candidate.name
 
-        self.push_screen(ConfirmUninstallModal(self.selected_candidate), on_confirmed)
+            def on_admin_ready(pwd: Optional[str]) -> None:
+                if pwd is None:
+                    self.notify("Uninstallation cancelled: Admin rights were not granted.", title="Cancelled", severity="warning")
+                    return
+                self.run_uninstall_worker(target_pkg, plat, candidate.name, pwd)
+
+            self.check_or_request_admin(f"uninstallation of '{candidate.name}'", on_admin_ready)
+
+        self.push_screen(ConfirmUninstallModal(candidate), on_uninstall_confirmed)
+
+    @work(thread=True)
+    def run_uninstall_worker(self, target_pkg: str, plat: str, candidate_name: str, pwd: str) -> None:
+        self.app.call_from_thread(
+            self.notify,
+            f"Uninstalling '{candidate_name}'... Please wait.",
+            title="Uninstall In Progress",
+            severity="information",
+            timeout=8.0,
+        )
+        self.app.call_from_thread(self._set_catalog_status, f"⏳ Removing '{candidate_name}'...")
+
+        try:
+            with ElevationSession(password=pwd):
+                ok, _, err = elevated_package_uninstall(
+                    platform=plat,
+                    package=target_pkg,
+                    skip_explanation=True,
+                )
+
+            if ok:
+                self.app.call_from_thread(
+                    self.notify,
+                    f"Successfully uninstalled '{candidate_name}'!",
+                    title="Uninstall Complete",
+                    severity="information",
+                )
+                self.app.call_from_thread(self.action_refresh_catalog)
+            else:
+                self.app.call_from_thread(
+                    self.notify,
+                    f"Uninstallation failed: {err}",
+                    title="Uninstall Failed",
+                    severity="error",
+                )
+                self.app.call_from_thread(self._set_catalog_status, f"❌ Removal failed: {err}")
+        except Exception as e:
+            self.app.call_from_thread(
+                self.notify,
+                f"Error uninstalling '{target_pkg}': {e}",
+                title="Error",
+                severity="error",
+            )
+            self.app.call_from_thread(self._set_catalog_status, f"Error: {e}")
 
     def action_refresh_catalog(self) -> None:
         q = self.query_one("#search-input", Input).value.strip()
