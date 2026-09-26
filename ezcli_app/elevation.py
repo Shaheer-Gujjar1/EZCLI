@@ -176,6 +176,10 @@ class ElevationSession:
         if self.password:
             wipe_password(self.password)
             self.password = ""
+        try:
+            subprocess.run(["sudo", "-k"], capture_output=True, timeout=5)
+        except Exception:
+            pass
 
 
 def authenticate_elevation_session(

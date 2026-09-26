@@ -881,11 +881,13 @@ def helper_package_install(platform: str, package: Any, timeout: int = 300) -> D
             timeout=timeout,
             env=env,
         )
+        err_out = (proc.stderr or "").strip() or (proc.stdout or "").strip()
         return {
             "success": proc.returncode == 0,
             "returncode": proc.returncode,
             "stdout": (proc.stdout or "").strip(),
             "stderr": (proc.stderr or "").strip(),
+            "error": err_out if proc.returncode != 0 else "",
         }
     except subprocess.TimeoutExpired:
         return {"success": False, "error": f"Installation timed out after {timeout} seconds."}
@@ -946,11 +948,13 @@ def helper_package_uninstall(
             timeout=timeout,
             env=env,
         )
+        err_out = (proc.stderr or "").strip() or (proc.stdout or "").strip()
         return {
             "success": proc.returncode == 0,
             "returncode": proc.returncode,
             "stdout": (proc.stdout or "").strip(),
             "stderr": (proc.stderr or "").strip(),
+            "error": err_out if proc.returncode != 0 else "",
         }
     except subprocess.TimeoutExpired:
         return {"success": False, "error": f"Uninstallation timed out after {timeout} seconds."}
