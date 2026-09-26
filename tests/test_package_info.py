@@ -502,6 +502,97 @@ class TestPackageInfo(unittest.TestCase):
 
         self.assertEqual(result, [""])
 
+    def test_confirm_update_all_modal(self):
+        import asyncio
+        from textual.app import App  # type: ignore
+        from ezcli_app.package_info_tui import ConfirmUpdateAllModal
+
+        class DummyApp(App[None]):
+            def on_mount(self):
+                self.push_screen(ConfirmUpdateAllModal(7), self.on_done)
+            def on_done(self, result):
+                self.result = result
+                self.exit()
+
+        async def _test():
+            app = DummyApp()
+            async with app.run_test() as pilot:
+                await pilot.click("#btn-confirm-update-all")
+            self.assertTrue(app.result)
+
+            app2 = DummyApp()
+            async with app2.run_test() as pilot:
+                await pilot.click("#btn-cancel-update-all")
+            self.assertFalse(app2.result)
+
+        asyncio.run(_test())
+
+    def test_updates_tab_toggle_and_candidate_actions(self):
+        import asyncio
+        from textual.widgets import Button  # type: ignore
+        from ezcli_app.package_info_tui import PackageInfoApp
+        from ezcli_app.package_info import PackageCandidate, PackageSourceInfo
+
+        cand_update = PackageCandidate(
+            name="systemd",
+            nature="System Update",
+            nature_icon="⬆️",
+            is_installed=True,
+            summary="Update available: 249.11 → 249.12",
+            primary_version="249.12",
+            sources=[
+                PackageSourceInfo(
+                    source_type="apt_store",
+                    source_name="APT Update",
+                    source_icon="📦",
+                    is_installed=True,
+                    version="249.12",
+                    description="Current: 249.11 → Candidate: 249.12",
+                )
+            ],
+        )
+
+        async def _test():
+            app = PackageInfoApp()
+            async with app.run_test(size=(120, 36)) as pilot:
+                # Switch to updates tab
+                with patch("ezcli_app.package_info_tui.collect_available_updates", return_value={"updates": [{"package": "systemd", "current_version": "249.11", "candidate_version": "249.12", "source": "APT"}]}):
+                    pilot.app.set_filter_tab("updates")
+                    await pilot.pause()
+
+                self.assertTrue(pilot.app.query_one("#tab-update-all", Button).display)
+                self.assertTrue(pilot.app.query_one("#btn-update-all", Button).display)
+                self.assertFalse(pilot.app.query_one("#btn-launch", Button).display)
+                self.assertFalse(pilot.app.query_one("#btn-uninstall", Button).display)
+
+                # Select the update candidate
+                pilot.app.update_detail_view(cand_update)
+                btn_install = pilot.app.query_one("#btn-install", Button)
+                self.assertFalse(btn_install.disabled)
+                self.assertIn("Update", str(btn_install.label))
+
+                # Calling action_install on a System Update routes to action_update_single
+                with patch.object(pilot.app, "action_update_single") as mock_update_single:
+                    pilot.app.action_install()
+                    self.assertEqual(mock_update_single.call_count, 1)
+                    self.assertEqual(mock_update_single.call_args[0][0].name, "systemd")
+
+                # Test workers inside the active run_test event loop
+                with patch("ezcli_app.package_info_tui.elevated_apt_upgrade", return_value=(True, {}, "")) as mock_upgrade, \
+                     patch("ezcli_app.package_info_tui.ElevationSession"):
+                    pilot.app.run_update_all_worker("mypassword")
+                    await pilot.pause()
+                    self.assertTrue(mock_upgrade.called)
+
+                with patch("ezcli_app.package_info_tui.elevated_package_install", return_value=(True, {}, "")) as mock_install, \
+                     patch("ezcli_app.package_info_tui.ElevationSession"):
+                    pilot.app.run_update_single_worker("curl", "mypassword")
+                    await pilot.pause()
+                    self.assertTrue(mock_install.called)
+
+        asyncio.run(_test())
+
 
 if __name__ == "__main__":
     unittest.main()
+

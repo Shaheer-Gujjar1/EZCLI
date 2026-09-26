@@ -40,7 +40,7 @@ from textual.widgets import (  # type: ignore
 )
 
 from .collectors import collect_available_updates, collect_installed_packages, run_command_safe
-from .elevation import ElevationSession, elevated_package_install, elevated_package_uninstall, is_root
+from .elevation import ElevationSession, elevated_apt_upgrade, elevated_package_install, elevated_package_uninstall, is_root
 from .package_info import (
     PackageCandidate,
     PackageSourceInfo,
@@ -468,6 +468,69 @@ class ConfirmInstallModal(ModalScreen[Optional[PackageSourceInfo]]):
             self.dismiss(None)
 
 
+class ConfirmUpdateAllModal(ModalScreen[bool]):
+    """Modal confirming batch system upgrade for all pending packages."""
+
+    DEFAULT_CSS = """
+    ConfirmUpdateAllModal {
+        align: center middle;
+        background: rgba(0, 0, 0, 0.85);
+    }
+    #update-all-dialog {
+        width: 70;
+        max-width: 90%;
+        height: auto;
+        border: round #22c55e;
+        background: #062817;
+        padding: 1 2;
+    }
+    #update-all-title {
+        text-style: bold;
+        color: #4ade80;
+        text-align: center;
+        margin-bottom: 1;
+    }
+    #update-all-details {
+        color: #f0fdf4;
+        margin-bottom: 1;
+    }
+    #update-all-actions {
+        align: center middle;
+        height: auto;
+        margin-top: 1;
+    }
+    #update-all-actions Button {
+        margin: 0 1;
+        min-width: 16;
+        border: none;
+    }
+    """
+
+    def __init__(self, count: int) -> None:
+        super().__init__()
+        self.count = count
+
+    def compose(self) -> ComposeResult:
+        with Vertical(id="update-all-dialog"):
+            yield Label("⚡ System Package Upgrade (Update All)", id="update-all-title")
+            info = (
+                f"Found [bold green]{self.count} pending software updates[/bold green].\n\n"
+                "• All packages will be upgraded to their latest stable releases.\n"
+                "• User files and application configurations will be preserved.\n"
+                "• Administrator privileges are required."
+            )
+            yield Label(info, id="update-all-details")
+            with Horizontal(id="update-all-actions"):
+                yield Button("⚡ Upgrade All", variant="success", id="btn-confirm-update-all")
+                yield Button("❌ Cancel", variant="default", id="btn-cancel-update-all")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "btn-confirm-update-all":
+            self.dismiss(True)
+        else:
+            self.dismiss(False)
+
+
 # ==============================================================================
 # Main Package Info Explorer App
 # ==============================================================================
@@ -482,8 +545,9 @@ class PackageInfoApp(App[None]):
         Binding("q", "quit", "❌ Close", show=True),
         Binding("/", "focus_search", "🔍 Search", show=True),
         Binding("l", "action_launch", "🚀 Launch", show=True),
-        Binding("i", "action_install", "⬇️ Install", show=True),
+        Binding("i", "action_install", "⬇️ Install/Update", show=True),
         Binding("u", "action_uninstall", "🗑️ Uninstall", show=True),
+        Binding("U", "action_update_all", "⚡ Update All", show=True),
         Binding("r", "refresh_catalog", "🔄 Refresh", show=True),
     ]
 
@@ -520,6 +584,12 @@ class PackageInfoApp(App[None]):
         height: 3;
         border: none;
         padding: 0 1;
+    }
+
+    #tab-update-all {
+        display: none;
+        margin-left: 1;
+        min-width: 14;
     }
 
     #main-content {
@@ -661,6 +731,10 @@ class PackageInfoApp(App[None]):
         border: none;
         padding: 0 1;
     }
+
+    #btn-update-all {
+        display: none;
+    }
     """
 
     def __init__(self, initial_query: Optional[str] = None) -> None:
@@ -683,6 +757,7 @@ class PackageInfoApp(App[None]):
                 yield Button("📱 Installed Apps", id="tab-installed", variant="default")
                 yield Button("🏪 Store Catalogs", id="tab-store", variant="default")
                 yield Button("🔄 Available Updates", id="tab-updates", variant="default")
+                yield Button("⚡ Update All", id="tab-update-all", variant="success")
 
         with Horizontal(id="main-content"):
             with Vertical(id="catalog-pane"):
@@ -733,6 +808,7 @@ class PackageInfoApp(App[None]):
             yield Button("🚀 Launch", variant="success", id="btn-launch", disabled=True)
             yield Button("⬇️ Install", variant="primary", id="btn-install", disabled=True)
             yield Button("🗑️ Uninstall", variant="error", id="btn-uninstall", disabled=True)
+            yield Button("⚡ Update All", variant="success", id="btn-update-all", disabled=True)
             yield Button("🔄 Refresh", variant="default", id="btn-refresh")
             yield Button("❌ Close", variant="default", id="btn-close")
 
@@ -839,8 +915,16 @@ class PackageInfoApp(App[None]):
                     )
                 )
             self.app.call_from_thread(self._populate_catalog, candidates, "🔄 Available Software Updates")
+            self.app.call_from_thread(self._update_all_button_state, len(candidates))
         except Exception as e:
             self.app.call_from_thread(self._set_catalog_status, f"Updates check failed: {e}")
+
+    def _update_all_button_state(self, count: int) -> None:
+        try:
+            self.query_one("#btn-update-all", Button).disabled = (count == 0)
+            self.query_one("#tab-update-all", Button).disabled = (count == 0)
+        except Exception:
+            pass
 
     def _set_catalog_status(self, text: str) -> None:
         self.query_one("#catalog-header", Label).update(text)
@@ -880,14 +964,22 @@ class PackageInfoApp(App[None]):
 
     def _apply_filter(self, candidates: List[PackageCandidate]) -> List[PackageCandidate]:
         if self.current_filter == "installed":
-            return [c for c in candidates if c.is_installed]
+            return [c for c in candidates if c.is_installed and c.nature != "System Update"]
         elif self.current_filter == "store":
             return [c for c in candidates if not c.is_installed]
+        elif self.current_filter == "updates":
+            return [c for c in candidates if c.nature == "System Update"]
         return candidates
 
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        self._select_row_candidate(event.row_key)
+
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
-        if event.row_key is not None:
-            key_val = event.row_key.value if hasattr(event.row_key, "value") else str(event.row_key)
+        self._select_row_candidate(event.row_key)
+
+    def _select_row_candidate(self, row_key: Any) -> None:
+        if row_key is not None:
+            key_val = row_key.value if hasattr(row_key, "value") else str(row_key)
             try:
                 idx = int(key_val)
                 filtered = self._apply_filter(self.candidates)
@@ -909,7 +1001,9 @@ class PackageInfoApp(App[None]):
         self.query_one("#hero-icon", Label).update(candidate.nature_icon)
         self.query_one("#hero-title", Label).update(candidate.name)
 
-        if candidate.is_installed:
+        if candidate.nature == "System Update":
+            status_detail = f"[bold yellow]🔄 Update Available: {candidate.summary}[/bold yellow]"
+        elif candidate.is_installed:
             status_detail = "[bold green]✅ Currently Installed on System[/bold green]"
         else:
             status_detail = "[bold cyan]🏪 Available in Software Store[/bold cyan]"
@@ -972,9 +1066,18 @@ class PackageInfoApp(App[None]):
         btn_install = self.query_one("#btn-install", Button)
         btn_uninstall = self.query_one("#btn-uninstall", Button)
 
-        btn_launch.disabled = not (candidate.is_installed and candidate.nature in ("Desktop App", "CLI Tool"))
-        btn_uninstall.disabled = not candidate.is_installed
-        btn_install.disabled = candidate.is_installed
+        if candidate.nature == "System Update":
+            btn_launch.disabled = True
+            btn_uninstall.disabled = True
+            btn_install.label = "⬆️ Update"
+            btn_install.variant = "success"
+            btn_install.disabled = False
+        else:
+            btn_install.label = "⬇️ Install"
+            btn_install.variant = "primary"
+            btn_launch.disabled = not (candidate.is_installed and candidate.nature in ("Desktop App", "CLI Tool"))
+            btn_uninstall.disabled = not candidate.is_installed
+            btn_install.disabled = candidate.is_installed
 
     def clear_detail_view(self) -> None:
         self.query_one("#hero-icon", Label).update("📦")
@@ -989,8 +1092,11 @@ class PackageInfoApp(App[None]):
         self.query_one("#sources-body", Static).update("")
         self.query_one("#meta-body", Static).update("")
         self.query_one("#deps-body", Static).update("")
+        btn_install = self.query_one("#btn-install", Button)
+        btn_install.label = "⬇️ Install"
+        btn_install.variant = "primary"
+        btn_install.disabled = True
         self.query_one("#btn-launch", Button).disabled = True
-        self.query_one("#btn-install", Button).disabled = True
         self.query_one("#btn-uninstall", Button).disabled = True
 
     def set_filter_tab(self, filter_name: str) -> None:
@@ -1004,9 +1110,23 @@ class PackageInfoApp(App[None]):
                 btn.remove_class("filter-active")
                 btn.add_class("filter-inactive")
 
+        btn_launch = self.query_one("#btn-launch", Button)
+        btn_uninstall = self.query_one("#btn-uninstall", Button)
+        btn_update_all = self.query_one("#btn-update-all", Button)
+        tab_update_all = self.query_one("#tab-update-all", Button)
+
         if filter_name == "updates":
+            btn_launch.display = False
+            btn_uninstall.display = False
+            btn_update_all.display = True
+            btn_update_all.disabled = False
+            tab_update_all.display = True
             self.load_available_updates()
         else:
+            btn_launch.display = True
+            btn_uninstall.display = True
+            btn_update_all.display = False
+            tab_update_all.display = False
             self._populate_catalog(self.candidates, "📦 Software Catalog")
 
     def check_or_request_admin(self, action_name: str, callback: Callable[[Optional[str]], None]) -> None:
@@ -1073,6 +1193,10 @@ class PackageInfoApp(App[None]):
             return
 
         candidate = self.selected_candidate
+        if candidate.nature == "System Update":
+            self.action_update_single(candidate)
+            return
+
         if candidate.is_installed:
             self.notify(f"'{candidate.name}' is already installed on your system.", title="Already Installed", severity="information")
             return
@@ -1166,6 +1290,139 @@ class PackageInfoApp(App[None]):
             )
             self.app.call_from_thread(self._set_catalog_status, f"Error: {e}")
 
+    def action_update_single(self, candidate: PackageCandidate) -> None:
+        """Update a single selected package to its latest candidate version."""
+        pkg_name = candidate.name
+
+        def on_admin_ready(pwd: Optional[str]) -> None:
+            if pwd is None:
+                self.notify(f"Update of '{pkg_name}' cancelled: Admin rights were not granted.", title="Cancelled", severity="warning")
+                return
+            self.run_update_single_worker(pkg_name, pwd)
+
+        self.check_or_request_admin(f"package update for '{pkg_name}'", on_admin_ready)
+
+    @work(thread=True)
+    def run_update_single_worker(self, pkg_name: str, pwd: str) -> None:
+        self.app.call_from_thread(
+            self.notify,
+            f"Updating '{pkg_name}' to latest version... Please wait.",
+            title="Update In Progress",
+            severity="information",
+            timeout=8.0,
+        )
+        self.app.call_from_thread(self._set_catalog_status, f"⏳ Updating '{pkg_name}'...")
+
+        try:
+            with ElevationSession(password=pwd):
+                result = elevated_package_install(
+                    platform="apt",
+                    package=pkg_name,
+                    skip_explanation=True,
+                )
+
+            ok = bool(result[0]) if result else False
+            err_msg = result[2] if result and len(result) > 2 else ""
+
+            if ok:
+                self.app.call_from_thread(
+                    self.notify,
+                    f"Successfully updated '{pkg_name}'!",
+                    title="Update Complete",
+                    severity="information",
+                )
+                self.app.call_from_thread(self.load_available_updates)
+            else:
+                display_err = err_msg or f"Failed to update '{pkg_name}'."
+                self.app.call_from_thread(
+                    self.notify,
+                    f"Update failed: {display_err}",
+                    title="Update Failed",
+                    severity="error",
+                    timeout=12.0,
+                )
+                self.app.call_from_thread(self._set_catalog_status, f"❌ Update failed: {display_err[:60]}")
+        except Exception as e:
+            self.app.call_from_thread(
+                self.notify,
+                f"Error updating '{pkg_name}': {e}",
+                title="Error",
+                severity="error",
+            )
+            self.app.call_from_thread(self._set_catalog_status, f"Error: {e}")
+
+    def action_update_all(self) -> None:
+        """Batch upgrade all pending system package updates."""
+        updates = [c for c in self.candidates if c.nature == "System Update"]
+        if not updates and self.current_filter != "updates":
+            try:
+                res = collect_available_updates()
+                count = len(res.get("updates", []))
+            except Exception:
+                count = 0
+        else:
+            count = len(updates)
+
+        if count == 0:
+            self.notify("All system packages are already up to date!", title="System Up To Date", severity="information")
+            return
+
+        def on_confirmed(proceed: bool) -> None:
+            if not proceed:
+                return
+
+            def on_admin_ready(pwd: Optional[str]) -> None:
+                if pwd is None:
+                    self.notify("Upgrade cancelled: Admin rights were not granted.", title="Cancelled", severity="warning")
+                    return
+                self.run_update_all_worker(pwd)
+
+            self.check_or_request_admin("system package upgrade (Update All)", on_admin_ready)
+
+        self.push_screen(ConfirmUpdateAllModal(count), on_confirmed)
+
+    @work(thread=True)
+    def run_update_all_worker(self, pwd: str) -> None:
+        self.app.call_from_thread(
+            self.notify,
+            "Upgrading all system packages... Please wait.",
+            title="System Upgrade In Progress",
+            severity="information",
+            timeout=10.0,
+        )
+        self.app.call_from_thread(self._set_catalog_status, "⏳ Upgrading system packages via APT...")
+
+        try:
+            with ElevationSession(password=pwd):
+                ok, res, err = elevated_apt_upgrade(skip_explanation=True)
+
+            if ok:
+                self.app.call_from_thread(
+                    self.notify,
+                    "All system packages were successfully upgraded!",
+                    title="Upgrade Complete",
+                    severity="information",
+                    timeout=8.0,
+                )
+                self.app.call_from_thread(self.load_available_updates)
+            else:
+                display_err = err or "System upgrade failed."
+                self.app.call_from_thread(
+                    self.notify,
+                    f"Upgrade failed: {display_err}",
+                    title="Upgrade Failed",
+                    severity="error",
+                    timeout=12.0,
+                )
+                self.app.call_from_thread(self._set_catalog_status, f"❌ Upgrade failed: {display_err[:60]}")
+        except Exception as e:
+            self.app.call_from_thread(
+                self.notify,
+                f"Error during system upgrade: {e}",
+                title="Error",
+                severity="error",
+            )
+            self.app.call_from_thread(self._set_catalog_status, f"Error: {e}")
 
     def action_uninstall(self) -> None:
         if not self.selected_candidate or not self.selected_candidate.is_installed:
@@ -1260,6 +1517,8 @@ class PackageInfoApp(App[None]):
             self.set_filter_tab("store")
         elif btn_id == "tab-updates":
             self.set_filter_tab("updates")
+        elif btn_id in ("btn-update-all", "tab-update-all"):
+            self.action_update_all()
         elif btn_id == "btn-launch":
             self.action_launch()
         elif btn_id == "btn-install":
