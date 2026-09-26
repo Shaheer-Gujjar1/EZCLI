@@ -643,26 +643,29 @@ class PackageInfoApp(App[None]):
 
     #detail-scroll {
         height: 100%;
+        scrollbar-gutter: stable;
+        scrollbar-size-vertical: 1;
     }
 
     .detail-card {
         height: auto;
-        background: #111a2e;
-        border: round #1e293b;
+        background: #0f192d;
+        border-left: solid #0284c7;
         margin: 0 0 1 0;
-        padding: 1 2;
+        padding: 0 1;
     }
 
     #hero-card {
         background: #0e1e38;
-        border: round #2563eb;
+        border-left: solid #38bdf8;
         margin-top: 1;
+        padding: 0 1;
     }
 
     #hero-header-row {
         height: auto;
         align: left middle;
-        margin-bottom: 1;
+        margin-bottom: 0;
     }
 
     #hero-icon {
@@ -683,16 +686,16 @@ class PackageInfoApp(App[None]):
 
     #hero-status {
         height: auto;
-        margin-top: 1;
+        margin: 1 0 0 0;
         padding: 0 1;
         background: #0a2040;
-        border: solid #1e3a8a;
+        border-left: solid #38bdf8;
     }
 
     .card-title {
         text-style: bold;
-        color: #60a5fa;
-        margin-bottom: 1;
+        color: #38bdf8;
+        margin-bottom: 0;
     }
 
     .card-text {
@@ -708,20 +711,22 @@ class PackageInfoApp(App[None]):
 
     .metric-box {
         background: #111e38;
-        border: none;
+        border-left: solid #0284c7;
         padding: 0 1;
-        height: 3;
+        height: auto;
+        min-height: 2;
         content-align: left middle;
     }
 
     #action-bar {
-        dock: bottom;
-        height: 3;
+        height: 4;
         background: #0d1527;
         border-top: solid #1e3a8a;
         align: center middle;
-        margin: 0 1;
-        padding: 0;
+        margin: 0;
+        padding: 0 1;
+        overflow-x: auto;
+        overflow-y: hidden;
     }
 
     #action-bar Button {
