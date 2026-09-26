@@ -1,4 +1,4 @@
-# EasyCLI (`ez`) v0.5
+# EasyCLI (`ez`) v0.6.0
 
 **EasyCLI** is a beginner-friendly terminal frontend wrapper for Linux commands built specifically for Debian-based systems. It simplifies complex and verbose Linux tasks into beautiful, color-coded terminal cards, interactive menus, a modern graphical file explorer, safety-first file operations with reversible undo, modern file creation/deletion, and seamless automatic privilege elevation.
 
