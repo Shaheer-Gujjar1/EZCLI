@@ -643,23 +643,25 @@ class PackageInfoApp(App[None]):
     }
 
     #search-input {
-        margin: 0 0 1 0;
+        margin: 0;
         border: round #38bdf8;
         background: #111e38;
         height: 3;
     }
 
     #filter-bar {
-        height: 3;
-        margin: 0 0 1 0;
+        height: 1;
+        margin: 1 0 0 0;
         align: left middle;
     }
 
     #filter-bar Button {
         margin-right: 1;
         min-width: 8;
-        height: 3;
-        border: none;
+        height: 1;
+        border: none !important;
+        border-top: none !important;
+        border-bottom: none !important;
         padding: 0 1;
     }
 
@@ -715,26 +717,29 @@ class PackageInfoApp(App[None]):
         height: 100%;
         border: round #0284c7;
         background: #0b1120;
-        padding: 0 1;
+        padding: 0;
     }
 
     #detail-scroll {
         height: 100%;
+        overflow-x: hidden;
+        overflow-y: scroll;
         scrollbar-gutter: stable;
         scrollbar-size-vertical: 1;
+        padding: 0 1;
     }
 
     .detail-card {
         height: auto;
         background: #0f192d;
-        border-left: solid #0284c7;
+        border: none;
         margin: 0 0 1 0;
         padding: 0 1;
     }
 
     #hero-card {
         background: #0e1e38;
-        border-left: solid #38bdf8;
+        border: none;
         margin-top: 1;
         padding: 0 1;
     }
@@ -766,7 +771,7 @@ class PackageInfoApp(App[None]):
         margin: 1 0 0 0;
         padding: 0 1;
         background: #0a2040;
-        border-left: solid #38bdf8;
+        border: none;
     }
 
     .card-title {
@@ -779,26 +784,25 @@ class PackageInfoApp(App[None]):
         color: #f1f5f9;
     }
 
-    #metrics-grid {
+    .metric-row {
         height: auto;
-        grid-size: 2 2;
-        grid-gutter: 1;
-        margin: 0 0 1 0;
+        margin: 0;
     }
 
     .metric-box {
+        width: 1fr;
         background: #111e38;
-        border-left: solid #0284c7;
+        border: none;
         padding: 0 1;
+        margin-right: 1;
         height: auto;
-        min-height: 2;
         content-align: left middle;
     }
 
     #status-bar {
-        height: 2;
-        background: #0b1322;
-        border-top: solid #1e3a8a;
+        height: 1;
+        background: #080f1d;
+        border: none;
         padding: 0 1;
         align: left middle;
     }
@@ -806,7 +810,7 @@ class PackageInfoApp(App[None]):
     #status-badge {
         text-style: bold;
         margin-right: 1;
-        min-width: 10;
+        min-width: 8;
     }
 
     #status-msg {
@@ -815,9 +819,11 @@ class PackageInfoApp(App[None]):
     }
 
     #status-details-btn {
-        min-width: 12;
+        min-width: 10;
         height: 1;
-        border: none;
+        border: none !important;
+        border-top: none !important;
+        border-bottom: none !important;
         padding: 0 1;
         background: #1e293b;
         color: #38bdf8;
@@ -829,21 +835,23 @@ class PackageInfoApp(App[None]):
     }
 
     #action-bar {
-        height: 4;
+        height: 2;
         background: #0d1527;
         border-top: solid #1e3a8a;
         align: center middle;
         margin: 0;
         padding: 0 1;
-        overflow-x: auto;
+        overflow-x: hidden;
         overflow-y: hidden;
     }
 
     #action-bar Button {
-        height: 3;
+        height: 1;
         margin: 0 1;
-        min-width: 8;
-        border: none;
+        min-width: 6;
+        border: none !important;
+        border-top: none !important;
+        border-bottom: none !important;
         padding: 0 1;
     }
 
@@ -943,12 +951,15 @@ class PackageInfoApp(App[None]):
                         )
                         yield Static("", id="hero-status")
 
-                    # 2. Key Metrics Grid
-                    with Grid(id="metrics-grid"):
-                        yield Static("🏷️ Version: [bold]--[/bold]", id="metric-version", classes="metric-box")
-                        yield Static("💾 Size: [bold]--[/bold]", id="metric-size", classes="metric-box")
-                        yield Static("⚖️ License: [bold]--[/bold]", id="metric-license", classes="metric-box")
-                        yield Static("📂 Category: [bold]--[/bold]", id="metric-category", classes="metric-box")
+                    # 2. Key Metrics Showcase
+                    with Vertical(id="metrics-card", classes="detail-card"):
+                        yield Label("📊 Specifications & Metadata", classes="card-title")
+                        with Horizontal(classes="metric-row"):
+                            yield Static("🏷️ Version: [bold]--[/bold]", id="metric-version", classes="metric-box")
+                            yield Static("💾 Size: [bold]--[/bold]", id="metric-size", classes="metric-box")
+                        with Horizontal(classes="metric-row"):
+                            yield Static("⚖️ License: [bold]--[/bold]", id="metric-license", classes="metric-box")
+                            yield Static("📂 Category: [bold]--[/bold]", id="metric-category", classes="metric-box")
 
                     # 3. Overview Description
                     with Vertical(id="summary-card", classes="detail-card"):
